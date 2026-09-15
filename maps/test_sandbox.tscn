@@ -1,0 +1,247 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://maps/test_sandbox.gd" id="1_sandbox"]
+[ext_resource type="PackedScene" path="res://tank/tank.tscn" id="2_tank"]
+[ext_resource type="PackedScene" path="res://core/tps_camera.tscn" id="3_camera"]
+
+[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_sky"]
+sky_top_color = Color(0.24, 0.55, 0.92, 1)
+sky_horizon_color = Color(0.72, 0.84, 0.94, 1)
+ground_bottom_color = Color(0.2, 0.22, 0.25, 1)
+ground_horizon_color = Color(0.65, 0.72, 0.8, 1)
+
+[sub_resource type="Sky" id="Sky_env"]
+sky_material = SubResource("ProceduralSkyMaterial_sky")
+
+[sub_resource type="Environment" id="Environment_main"]
+background_mode = 2
+sky = SubResource("Sky_env")
+ambient_light_source = 3
+ambient_light_color = Color(0.75, 0.82, 0.9, 1)
+ambient_light_sky_contribution = 0.5
+tonemap_mode = 2
+
+[sub_resource type="StandardMaterial3D" id="Mat_concrete"]
+albedo_color = Color(0.86, 0.88, 0.9, 1)
+roughness = 0.85
+
+[sub_resource type="BoxMesh" id="BoxMesh_floor"]
+material = SubResource("Mat_concrete")
+size = Vector3(28, 1, 28)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_floor"]
+size = Vector3(28, 1, 28)
+
+[sub_resource type="StandardMaterial3D" id="Mat_ramp"]
+albedo_color = Color(0.78, 0.82, 0.85, 1)
+roughness = 0.75
+
+[sub_resource type="BoxMesh" id="BoxMesh_ramp"]
+material = SubResource("Mat_ramp")
+size = Vector3(4, 0.5, 8.5)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_ramp"]
+size = Vector3(4, 0.5, 8.5)
+
+[sub_resource type="BoxMesh" id="BoxMesh_terrace"]
+material = SubResource("Mat_concrete")
+size = Vector3(10, 1, 8)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_terrace"]
+size = Vector3(10, 1, 8)
+
+[sub_resource type="StandardMaterial3D" id="Mat_island"]
+albedo_color = Color(0.9, 0.82, 0.7, 1)
+roughness = 0.8
+
+[sub_resource type="BoxMesh" id="BoxMesh_island"]
+material = SubResource("Mat_island")
+size = Vector3(7, 1, 7)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_island"]
+size = Vector3(7, 1, 7)
+
+[sub_resource type="StandardMaterial3D" id="Mat_orange_box"]
+albedo_color = Color(0.95, 0.45, 0.15, 1)
+roughness = 0.4
+
+[sub_resource type="BoxMesh" id="BoxMesh_box1"]
+material = SubResource("Mat_orange_box")
+size = Vector3(2.5, 1.4, 2)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_box1"]
+size = Vector3(2.5, 1.4, 2)
+
+[sub_resource type="StandardMaterial3D" id="Mat_cyan_pillar"]
+albedo_color = Color(0.15, 0.75, 0.85, 1)
+roughness = 0.35
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_pillar"]
+material = SubResource("Mat_cyan_pillar")
+top_radius = 0.8
+bottom_radius = 0.8
+height = 3.0
+
+[sub_resource type="CylinderShape3D" id="CylinderShape3D_pillar"]
+top_radius = 0.8
+bottom_radius = 0.8
+height = 3.0
+
+[sub_resource type="StandardMaterial3D" id="Mat_yellow_barrier"]
+albedo_color = Color(0.95, 0.78, 0.15, 1)
+roughness = 0.5
+
+[sub_resource type="BoxMesh" id="BoxMesh_barrier"]
+material = SubResource("Mat_yellow_barrier")
+size = Vector3(6, 1.5, 0.6)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_barrier"]
+size = Vector3(6, 1.5, 0.6)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_kill"]
+size = Vector3(120, 2, 120)
+
+[node name="TestSandbox" type="Node3D"]
+script = ExtResource("1_sandbox")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_main")
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.866025, -0.353553, 0.353553, 0, 0.707107, 0.707107, -0.5, -0.612372, 0.612372, 0, 18, 0)
+shadow_enabled = true
+shadow_bias = 0.04
+directional_shadow_max_distance = 60.0
+
+[node name="SpawnPoint" type="Marker3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.1, 4)
+
+[node name="ArenaGeometry" type="Node3D" parent="."]
+
+[node name="MainFloor" type="StaticBody3D" parent="ArenaGeometry"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.5, 0)
+collision_mask = 0
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="ArenaGeometry/MainFloor"]
+mesh = SubResource("BoxMesh_floor")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="ArenaGeometry/MainFloor"]
+shape = SubResource("BoxShape3D_floor")
+
+[node name="RampGentle" type="StaticBody3D" parent="ArenaGeometry"]
+transform = Transform3D(1, 0, 0, 0, 0.956305, -0.292372, 0, 0.292372, 0.956305, -9, 1.15, -6)
+collision_mask = 0
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="ArenaGeometry/RampGentle"]
+mesh = SubResource("BoxMesh_ramp")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="ArenaGeometry/RampGentle"]
+shape = SubResource("BoxShape3D_ramp")
+
+[node name="Terrace" type="StaticBody3D" parent="ArenaGeometry"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -9, 2.0, -14)
+collision_mask = 0
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="ArenaGeometry/Terrace"]
+mesh = SubResource("BoxMesh_terrace")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="ArenaGeometry/Terrace"]
+shape = SubResource("BoxShape3D_terrace")
+
+[node name="JumpIsland" type="StaticBody3D" parent="ArenaGeometry"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 18.5, -0.5, 0)
+collision_mask = 0
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="ArenaGeometry/JumpIsland"]
+mesh = SubResource("BoxMesh_island")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="ArenaGeometry/JumpIsland"]
+shape = SubResource("BoxShape3D_island")
+
+[node name="ObstacleOrangeBox" type="StaticBody3D" parent="ArenaGeometry"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0.7, 0)
+collision_mask = 0
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="ArenaGeometry/ObstacleOrangeBox"]
+mesh = SubResource("BoxMesh_box1")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="ArenaGeometry/ObstacleOrangeBox"]
+shape = SubResource("BoxShape3D_box1")
+
+[node name="ObstacleCyanPillar" type="StaticBody3D" parent="ArenaGeometry"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.5, 1.5, -3.5)
+collision_mask = 0
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="ArenaGeometry/ObstacleCyanPillar"]
+mesh = SubResource("CylinderMesh_pillar")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="ArenaGeometry/ObstacleCyanPillar"]
+shape = SubResource("CylinderShape3D_pillar")
+
+[node name="ObstacleBarrier" type="StaticBody3D" parent="ArenaGeometry"]
+transform = Transform3D(0.906308, 0, 0.422618, 0, 1, 0, -0.422618, 0, 0.906308, 3, 0.75, 4.5)
+collision_mask = 0
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="ArenaGeometry/ObstacleBarrier"]
+mesh = SubResource("BoxMesh_barrier")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="ArenaGeometry/ObstacleBarrier"]
+shape = SubResource("BoxShape3D_barrier")
+
+[node name="KillVolume" type="Area3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -8, 0)
+collision_layer = 0
+collision_mask = 2
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="KillVolume"]
+shape = SubResource("BoxShape3D_kill")
+
+[node name="Tank" parent="." instance=ExtResource("2_tank")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.1, 4)
+
+[node name="TPSCamera" parent="." instance=ExtResource("3_camera")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.8, 4)
+
+[node name="UI" type="CanvasLayer" parent="."]
+
+[node name="CrosshairCenter" type="CenterContainer" parent="UI"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Dot" type="ColorRect" parent="UI/CrosshairCenter"]
+custom_minimum_size = Vector2(4, 4)
+layout_mode = 2
+mouse_filter = 2
+color = Color(1, 0.25, 0.2, 0.9)
+
+[node name="HelpPanel" type="PanelContainer" parent="UI"]
+offset_left = 16.0
+offset_top = 16.0
+offset_right = 380.0
+offset_bottom = 130.0
+
+[node name="Margin" type="MarginContainer" parent="UI/HelpPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 12
+theme_override_constants/margin_top = 10
+theme_override_constants/margin_right = 12
+theme_override_constants/margin_bottom = 10
+
+[node name="VBox" type="VBoxContainer" parent="UI/HelpPanel/Margin"]
+layout_mode = 2
+
+[node name="Title" type="Label" parent="UI/HelpPanel/Margin/VBox"]
+layout_mode = 2
+text = "TANKUS // Sandbox (TPS Режим)"
+
+[node name="Controls" type="Label" parent="UI/HelpPanel/Margin/VBox"]
+layout_mode = 2
+text = "WASD: Перемещение по направлению взгляда
+Space: Прыжок
+Мышь: Обзор и прицеливание
+Esc: Освободить / захватить курсор
+F1 / Backspace: Респавн"

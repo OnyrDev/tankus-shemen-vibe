@@ -1,0 +1,92 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://tank/tank.gd" id="1_tank"]
+[ext_resource type="Script" path="res://tank/turret.gd" id="2_turret"]
+[ext_resource type="Script" path="res://tank/tank_input.gd" id="3_input"]
+[ext_resource type="Script" path="res://tank/tank_controller.gd" id="4_ctrl"]
+
+[sub_resource type="CylinderShape3D" id="CylinderShape3D_tank"]
+height = 0.88
+radius = 0.8
+
+[sub_resource type="BoxMesh" id="BoxMesh_chassis"]
+size = Vector3(1.15, 0.45, 1.7)
+
+[sub_resource type="StandardMaterial3D" id="Material_track"]
+albedo_color = Color(0.18, 0.19, 0.22, 1)
+roughness = 0.85
+
+[sub_resource type="BoxMesh" id="BoxMesh_track"]
+material = SubResource("Material_track")
+size = Vector3(0.26, 0.38, 1.8)
+
+[sub_resource type="BoxMesh" id="BoxMesh_turret"]
+size = Vector3(0.85, 0.38, 0.95)
+
+[sub_resource type="StandardMaterial3D" id="Material_dark_metal"]
+albedo_color = Color(0.25, 0.27, 0.3, 1)
+metallic = 0.5
+roughness = 0.4
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_hatch"]
+material = SubResource("Material_dark_metal")
+top_radius = 0.2
+bottom_radius = 0.2
+height = 0.08
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_barrel"]
+material = SubResource("Material_dark_metal")
+top_radius = 0.08
+bottom_radius = 0.09
+height = 1.1
+
+[node name="Tank" type="CharacterBody3D"]
+collision_layer = 2
+collision_mask = 3
+script = ExtResource("1_tank")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.45, 0)
+shape = SubResource("CylinderShape3D_tank")
+
+[node name="Visuals" type="Node3D" parent="."]
+
+[node name="ChassisMesh" type="MeshInstance3D" parent="Visuals"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.45, 0)
+mesh = SubResource("BoxMesh_chassis")
+
+[node name="LeftTrack" type="MeshInstance3D" parent="Visuals"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.68, 0.36, 0)
+mesh = SubResource("BoxMesh_track")
+
+[node name="RightTrack" type="MeshInstance3D" parent="Visuals"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.68, 0.36, 0)
+mesh = SubResource("BoxMesh_track")
+
+[node name="TurretMount" type="Node3D" parent="Visuals"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.72, 0.05)
+script = ExtResource("2_turret")
+
+[node name="TurretMesh" type="MeshInstance3D" parent="Visuals/TurretMount"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.19, -0.05)
+mesh = SubResource("BoxMesh_turret")
+
+[node name="HatchMesh" type="MeshInstance3D" parent="Visuals/TurretMount"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.42, 0.15)
+mesh = SubResource("CylinderMesh_hatch")
+
+[node name="BarrelMount" type="Node3D" parent="Visuals/TurretMount"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.19, -0.5)
+
+[node name="BarrelMesh" type="MeshInstance3D" parent="Visuals/TurretMount/BarrelMount"]
+transform = Transform3D(1, 0, 0, 0, -4.37114e-08, -1, 0, 1, -4.37114e-08, 0, 0, -0.55)
+mesh = SubResource("CylinderMesh_barrel")
+
+[node name="Muzzle" type="Marker3D" parent="Visuals/TurretMount/BarrelMount"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -1.15)
+
+[node name="TankInput" type="Node" parent="."]
+script = ExtResource("3_input")
+
+[node name="TankController" type="Node" parent="."]
+script = ExtResource("4_ctrl")
