@@ -10,6 +10,10 @@ extends Node
 var move_input: Vector2 = Vector2.ZERO
 var move_direction_world: Vector3 = Vector3.ZERO
 var jump_requested: bool = false
+var fire_requested: bool = false
+var reload_requested: bool = false
+var block_requested: bool = false
+
 var aim_point: Vector3 = Vector3.ZERO
 var aim_normal: Vector3 = Vector3.UP
 var is_aim_valid: bool = false
@@ -65,10 +69,34 @@ func _physics_process(_delta: float) -> void:
 
 	if Input.is_action_just_pressed("jump"):
 		jump_requested = true
+	if Input.is_action_pressed("fire"):
+		fire_requested = true
+	if Input.is_action_just_pressed("reload"):
+		reload_requested = true
+	if Input.is_action_just_pressed("block"):
+		block_requested = true
 
 func consume_jump() -> bool:
 	var requested := jump_requested
 	jump_requested = false
+	return requested
+
+func is_fire_held() -> bool:
+	return enabled and Input.is_action_pressed("fire")
+
+func consume_fire() -> bool:
+	var requested := fire_requested
+	fire_requested = false
+	return requested
+
+func consume_reload() -> bool:
+	var requested := reload_requested
+	reload_requested = false
+	return requested
+
+func consume_block() -> bool:
+	var requested := block_requested
+	block_requested = false
 	return requested
 
 func _update_movement_input() -> void:
