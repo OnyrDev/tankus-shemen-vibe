@@ -4,6 +4,7 @@
 [ext_resource type="PackedScene" path="res://tank/tank.tscn" id="2_tank"]
 [ext_resource type="PackedScene" path="res://core/tps_camera.tscn" id="3_camera"]
 [ext_resource type="PackedScene" path="res://ui/hud.tscn" id="4_hud"]
+[ext_resource type="PackedScene" path="res://ui/card_draft.tscn" id="5_draft"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_sky"]
 sky_top_color = Color(0.24, 0.55, 0.92, 1)
@@ -211,13 +212,15 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.8, 4)
 
 [node name="HUD" parent="." instance=ExtResource("4_hud")]
 
+[node name="CardDraft" parent="." instance=ExtResource("5_draft")]
+
 [node name="HelpLayer" type="CanvasLayer" parent="."]
 
 [node name="HelpPanel" type="PanelContainer" parent="HelpLayer"]
 offset_left = 16.0
 offset_top = 16.0
-offset_right = 400.0
-offset_bottom = 150.0
+offset_right = 430.0
+offset_bottom = 175.0
 
 [node name="Margin" type="MarginContainer" parent="HelpLayer/HelpPanel"]
 layout_mode = 2
@@ -231,12 +234,12 @@ layout_mode = 2
 
 [node name="Title" type="Label" parent="HelpLayer/HelpPanel/Margin/VBox"]
 layout_mode = 2
-text = "TANKUS // Phase 2 Combat Arena"
+text = "TANKUS // Phase 3 Cards & Combat"
 
 [node name="Controls" type="Label" parent="HelpLayer/HelpPanel/Margin/VBox"]
 layout_mode = 2
 text = "WASD: Движение | Space: Прыжок
-LMB: Огонь (4 снаряда, 0.55с)
-R: Перезарядка (1.8с)
-E: Защитный блок (окно 0.35с, кулдаун 3.0с)
+LMB: Огонь | R: Перезарядка
+E: Защитный блок
+Tab: Драфт способностей (1 из 5)
 F1 / Backspace: Респавн всех танков"

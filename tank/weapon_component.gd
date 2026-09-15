@@ -87,6 +87,9 @@ func _fire() -> void:
 	_fire_cooldown = fire_interval
 	ammo_changed.emit(current_ammo, magazine_size)
 
+	if _tank and _tank.events:
+		_tank.events.emit_shot()
+
 	_spawn_projectile()
 	_play_recoil()
 	_spawn_muzzle_flash()
@@ -114,6 +117,12 @@ func _spawn_projectile() -> void:
 	if not proj:
 		return
 
+	if _tank and _tank.stats:
+		proj.damage = _tank.stats.damage
+		proj.speed = _tank.stats.projectile_speed
+		proj.bounces_left = _tank.stats.projectile_bounces
+		proj.size_mult = _tank.stats.projectile_size
+
 	# Добавляем снаряд на уровень мировой сцены
 	var spawn_parent: Node = null
 	if get_tree() and get_tree().current_scene:
@@ -130,6 +139,10 @@ func _spawn_projectile() -> void:
 
 	var team_col: Color = _tank.team_color if _tank else Color.YELLOW
 	proj.setup(_tank, muzzle_pos, shoot_dir, team_col)
+
+	if _tank and _tank.events:
+		_tank.events.emit_projectile_spawned(proj)
+
 	shot_fired.emit(proj)
 
 func _play_recoil() -> void:
@@ -196,6 +209,8 @@ func start_reload() -> void:
 	_is_reloading = true
 	_reload_timer = 0.0
 	reload_started.emit(reload_time)
+	if _tank and _tank.events:
+		_tank.events.emit_reload_started(reload_time)
 
 func _complete_reload() -> void:
 	_is_reloading = false
@@ -203,6 +218,8 @@ func _complete_reload() -> void:
 	current_ammo = magazine_size
 	ammo_changed.emit(current_ammo, magazine_size)
 	reload_completed.emit()
+	if _tank and _tank.events:
+		_tank.events.emit_reload_completed()
 
 func reset() -> void:
 	_is_reloading = false

@@ -7,6 +7,9 @@
 [ext_resource type="Script" path="res://tank/weapon_component.gd" id="5_weapon"]
 [ext_resource type="Script" path="res://tank/block_component.gd" id="6_block"]
 [ext_resource type="Script" path="res://tank/health_component.gd" id="7_health"]
+[ext_resource type="Script" path="res://tank/tank_stats.gd" id="8_stats"]
+[ext_resource type="Script" path="res://tank/tank_build.gd" id="9_build"]
+[ext_resource type="Script" path="res://tank/tank_events.gd" id="10_events"]
 
 [sub_resource type="CylinderShape3D" id="CylinderShape3D_tank"]
 height = 0.88
@@ -117,3 +120,12 @@ script = ExtResource("6_block")
 
 [node name="HealthComponent" type="Node" parent="."]
 script = ExtResource("7_health")
+
+[node name="TankStats" type="Node" parent="."]
+script = ExtResource("8_stats")
+
+[node name="TankBuild" type="Node" parent="."]
+script = ExtResource("9_build")
+
+[node name="TankEvents" type="Node" parent="."]
+script = ExtResource("10_events")

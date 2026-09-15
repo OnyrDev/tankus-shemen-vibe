@@ -103,25 +103,25 @@
 ### Фаза 3: Карточная система, Рикошет и Мета-прогрессия (ROUNDS Cards & Effects)
 *Фокус: модульная архитектура способностей, модификаторы характеристик и рикошеты.*
 
-- [ ] **3.1. Архитектура эффектов и характеристик:**
-  - [ ] `CardDefinition` Resource: id, name, description, category (`SHOT`, `BLOCK`, `JUMP`, `GENERAL`), icon, unique, max_stacks, tags, effect
-  - [ ] `TankStats`: чистый пересчет `derived_stats = base_stats + modifiers` (никакого накопления погрешностей float)
-  - [ ] `TankBuild`: учет карт и стаков (`card_id -> count`)
-  - [ ] Диспетчер событий танка: `on_shot`, `on_projectile_spawned`, `on_projectile_hit`, `on_projectile_bounce`, `on_reload_started`, `on_reload_completed`, `on_block_started`, `on_successful_block`, `on_jump`, `on_land`, `on_damage_taken`, `on_kill`, `on_death`
-- [ ] **3.2. Рикошет снарядов (Ricochet System):**
-  - [ ] Базовый снаряд получает параметр `bounce_count` (по умолчанию 1 отскок)
-  - [ ] При ударе: `velocity = velocity.bounce(normal)` и вызов `on_projectile_bounce`
-- [ ] **3.3. Реализация пула из 45 способностей (строго по спецификации):**
-  - [ ] **SHOT (18 карт):** Heavy Shell, Rapid Fire, Fastball, Big Magazine, Quick Reload, Bouncy, Ricochet Power, Poison (DoT), Explosive Shell (AoE), Big Shot, Knockout, Piercing, Homing, Last Round, First Round, Recoil, Sniper Shell, Shotgun (Unique)
-  - [ ] **BLOCK (9 карт):** Quick Guard, Long Block, Blink (телепорт по aim), Shockwave, Reload Block, Ammo Shield, Counter Shot, Reflect (Unique, отражение снаряда), Perfect Guard (Unique, сброс кулдауна)
-  - [ ] **JUMP (6 карт):** High Jump, Air Control, Ground Slam (удар о землю с уроном), Jump Mine, Death From Above, Double Jump (Unique)
-  - [ ] **GENERAL (12 карт):** Tankier (+HP), Lightweight, Heavyweight, Adrenaline, Glass Cannon, Regeneration, Vampire (вампиризм), Road Rage (таран), Tiny Tank (маленький и быстрый), Big Tank (гигантский танк), Comeback, Phoenix (Unique, воскрешение раз за раунд)
-- [ ] **3.4. Интерфейс Драфта Карт (`res://ui/card_draft.tscn`):**
-  - [ ] Экран выбора 1 из 5 карт (карточки, иконки, описание, текущие стаки)
-  - [ ] Выбор кликом мыши или цифрами 1–5
-  - [ ] Таймер драфта (20 секунд, автовыбор при истечении)
-  - [ ] Анимация улетания карты в иконки билда
-  - [ ] Отображение полученных карт в HUD (верхний левый угол: `[Poison ×2] [Blink]`)
+- [x] **3.1. Архитектура эффектов и характеристик:**
+  - [x] `CardDefinition` Resource: id, name, description, category (`SHOT`, `BLOCK`, `JUMP`, `GENERAL`), icon, unique, max_stacks, tags, effect
+  - [x] `TankStats`: чистый пересчет `derived_stats = base_stats + modifiers` (никакого накопления погрешностей float)
+  - [x] `TankBuild`: учет карт и стаков (`card_id -> count`)
+  - [x] Диспетчер событий танка: `on_shot`, `on_projectile_spawned`, `on_projectile_hit`, `on_projectile_bounce`, `on_reload_started`, `on_reload_completed`, `on_block_started`, `on_successful_block`, `on_jump`, `on_land`, `on_damage_taken`, `on_kill`, `on_death`
+- [x] **3.2. Рикошет снарядов (Ricochet System):**
+  - [x] Базовый снаряд получает параметр `bounce_count` (по умолчанию 1 отскок)
+  - [x] При ударе: `velocity = velocity.bounce(normal)` и вызов `on_projectile_bounce`
+- [x] **3.3. Реализация пула из 45 способностей (строго по спецификации):**
+  - [x] **SHOT (18 карт):** Heavy Shell, Rapid Fire, Fastball, Big Magazine, Quick Reload, Bouncy, Ricochet Power, Poison (DoT), Explosive Shell (AoE), Big Shot, Knockout, Piercing, Homing, Last Round, First Round, Recoil, Sniper Shell, Shotgun (Unique)
+  - [x] **BLOCK (9 карт):** Quick Guard, Long Block, Blink (телепорт по aim), Shockwave, Reload Block, Ammo Shield, Counter Shot, Reflect (Unique, отражение снаряда), Perfect Guard (Unique, сброс кулдауна)
+  - [x] **JUMP (6 карт):** High Jump, Air Control, Ground Slam (удар о землю с уроном), Jump Mine, Death From Above, Double Jump (Unique)
+  - [x] **GENERAL (12 карт):** Tankier (+HP), Lightweight, Heavyweight, Adrenaline, Glass Cannon, Regeneration, Vampire (вампиризм), Road Rage (таран), Tiny Tank (маленький и быстрый), Big Tank (гигантский танк), Comeback, Phoenix (Unique, воскрешение раз за раунд)
+- [x] **3.4. Интерфейс Драфта Карт (`res://ui/card_draft.tscn`):**
+  - [x] Экран выбора 1 из 5 карт (карточки, иконки, описание, текущие стаки)
+  - [x] Выбор кликом мыши или цифрами 1–5
+  - [x] Таймер драфта (20 секунд, автовыбор при истечении)
+  - [x] Анимация улетания карты в иконки билда
+  - [x] Отображение полученных карт в HUD (верхний левый угол: `[Poison ×2] [Blink]`)
 
 ---
 

@@ -2,7 +2,7 @@ class_name HUD
 extends CanvasLayer
 
 ## Боевой интерфейс игрока TANKUS.
-## Отображает очки прочности, обойму, перезарядку, статус щита и прицел.
+## Отображает очки прочности, обойму, перезарядку, статус щита, прицел и полученные карты билда.
 
 @onready var crosshair: Control = get_node_or_null("Crosshair")
 @onready var health_bar: ProgressBar = get_node_or_null("BottomLeft/HealthPanel/HealthContainer/HealthBar")
@@ -15,6 +15,8 @@ extends CanvasLayer
 @onready var shield_status_label: Label = get_node_or_null("BottomRight/CombatContainer/ShieldBox/VBox/ShieldStatusLabel")
 @onready var shield_cooldown_bar: ProgressBar = get_node_or_null("BottomRight/CombatContainer/ShieldBox/VBox/ShieldCooldownBar")
 @onready var shield_panel: PanelContainer = get_node_or_null("BottomRight/CombatContainer/ShieldBox")
+
+@onready var build_chips_container: HFlowContainer = get_node_or_null("TopLeft/BuildChipsContainer")
 
 var _bound_tank: Tank = null
 var _ammo_pills: Array[ColorRect] = []
@@ -60,6 +62,11 @@ func bind_to_tank(tank: Tank) -> void:
 		_bound_tank.block.cooldown_finished.connect(_on_block_cooldown_finished)
 		_on_block_cooldown_finished()
 
+	if _bound_tank.build:
+		_bound_tank.build.build_changed.connect(_update_build_chips)
+		_bound_tank.build.card_added.connect(func(_c, _s): _update_build_chips())
+		_update_build_chips()
+
 func _unbind_tank() -> void:
 	if not _bound_tank or not is_instance_valid(_bound_tank):
 		return
@@ -92,11 +99,55 @@ func _unbind_tank() -> void:
 
 	_bound_tank = null
 
+func _update_build_chips() -> void:
+	if not build_chips_container or not _bound_tank or not _bound_tank.build:
+		return
+
+	for child in build_chips_container.get_children():
+		build_chips_container.remove_child(child)
+		child.queue_free()
+
+	for card_id in _bound_tank.build.ordered_cards:
+		var stacks: int = _bound_tank.build.get_stacks(card_id)
+		var card_def := CardDatabase.get_card(card_id)
+		if not card_def:
+			continue
+
+		var chip := PanelContainer.new()
+		var style := StyleBoxFlat.new()
+		style.bg_color = Color(0.08, 0.1, 0.14, 0.85)
+		style.border_width_left = 1
+		style.border_width_top = 1
+		style.border_width_right = 1
+		style.border_width_bottom = 1
+		style.border_color = card_def.get_category_color()
+		style.corner_radius_top_left = 4
+		style.corner_radius_top_right = 4
+		style.corner_radius_bottom_right = 4
+		style.corner_radius_bottom_left = 4
+		style.content_margin_left = 6
+		style.content_margin_right = 6
+		style.content_margin_top = 3
+		style.content_margin_bottom = 3
+		chip.add_theme_stylebox_override("panel", style)
+
+		var lbl := Label.new()
+		if stacks > 1:
+			lbl.text = "%s ×%d" % [card_def.display_name, stacks]
+		else:
+			lbl.text = card_def.display_name
+		lbl.add_theme_font_size_override("font_size", 12)
+		lbl.modulate = card_def.get_category_color()
+		chip.add_child(lbl)
+
+		build_chips_container.add_child(chip)
+
 func _setup_ammo_pills(count: int) -> void:
 	if not ammo_container:
 		return
 
 	for child in ammo_container.get_children():
+		ammo_container.remove_child(child)
 		child.queue_free()
 	_ammo_pills.clear()
 

@@ -1,25 +1,31 @@
 class_name TankController
 extends Node
 
-## Контроллер физического перемещения танка.
-## Реализует аркадное движение, заезд на рампы, прыжки, ограниченный air-control
-## и стабильный разворот корпуса за вектором движения без вибрации.
+## Контроллер физического перемещения танка TANKUS.
+## Реализует аркадное движение, заезд на рампы, прыжки, ограниченный air-control,
+## поддержку Double Jump, отслеживание падения для Ground Slam и плавный доворот корпуса.
 
 @export var move_speed: float = 8.0
 @export var acceleration: float = 22.0
 @export var braking: float = 26.0
-@export var air_control_factor: float = 0.45
+@export var air_control: float = 0.45
 @export var jump_velocity: float = 8.5
 @export var gravity: float = 18.0
 @export var body_turn_speed: float = 12.0
 
-var _tank_body: CharacterBody3D = null
+var speed_multiplier: float = 1.0
+
+var _tank_body: Tank = null
 var _is_jumping: bool = false
 var _coyote_timer: float = 0.0
+var _can_double_jump: bool = false
+var _was_in_air: bool = false
+var _peak_y: float = 0.0
+
 const COYOTE_TIME: float = 0.12
 
 func _ready() -> void:
-	_tank_body = get_parent() as CharacterBody3D
+	_tank_body = get_parent() as Tank
 	if _tank_body:
 		_tank_body.floor_max_angle = deg_to_rad(48.0)
 		_tank_body.floor_snap_length = 0.35
@@ -32,30 +38,58 @@ func process_physics(input: TankInput, delta: float) -> void:
 		return
 
 	var on_floor := _tank_body.is_on_floor()
+
 	if on_floor:
+		if _was_in_air:
+			var fall_dist := maxf(0.0, _peak_y - _tank_body.global_position.y)
+			if _tank_body.events:
+				_tank_body.events.emit_land(fall_dist)
+			_was_in_air = false
+
 		_coyote_timer = COYOTE_TIME
 		_is_jumping = false
-	else:
-		_coyote_timer = maxf(0.0, _coyote_timer - delta)
+		_peak_y = _tank_body.global_position.y
 
-	var can_jump := (on_floor or _coyote_timer > 0.0) and not _is_jumping
-	if can_jump and input and input.consume_jump():
+		# Восстанавливаем double jump при касании земли
+		if _tank_body.build and _tank_body.build.has_card("double_jump"):
+			_can_double_jump = true
+	else:
+		_was_in_air = true
+		_coyote_timer = maxf(0.0, _coyote_timer - delta)
+		if _tank_body.global_position.y > _peak_y:
+			_peak_y = _tank_body.global_position.y
+
+	# Прыжок
+	var wants_jump := input != null and input.consume_jump()
+	var can_normal_jump := (on_floor or _coyote_timer > 0.0) and not _is_jumping
+
+	if wants_jump and can_normal_jump:
 		_tank_body.velocity.y = jump_velocity
 		_is_jumping = true
 		_coyote_timer = 0.0
+		_peak_y = _tank_body.global_position.y
+		if _tank_body.events:
+			_tank_body.events.emit_jump()
+	elif wants_jump and not on_floor and _can_double_jump:
+		# Выполнение Double Jump в воздухе
+		_can_double_jump = false
+		_tank_body.velocity.y = jump_velocity
+		_peak_y = _tank_body.global_position.y
+		if _tank_body.events:
+			_tank_body.events.emit_jump()
 	elif not on_floor:
 		_tank_body.velocity.y -= gravity * delta
 	else:
-		# Находясь на полу, сбрасываем остаточную вертикальную скорость во избежание микро-колебаний
 		_tank_body.velocity.y = 0.0
 
-	# Горизонтальное движение
+	# Горизонтальное перемещение
 	var move_dir: Vector3 = input.move_direction_world if input else Vector3.ZERO
-	var current_accel: float = acceleration if on_floor else (acceleration * air_control_factor)
-	var current_brake: float = braking if on_floor else (braking * air_control_factor)
+	var current_accel: float = acceleration if on_floor else (acceleration * air_control)
+	var current_brake: float = braking if on_floor else (braking * air_control)
+	var effective_speed := move_speed * speed_multiplier
 
 	if move_dir.length_squared() > 0.01:
-		var target_vel: Vector3 = move_dir * move_speed
+		var target_vel: Vector3 = move_dir * effective_speed
 		_tank_body.velocity.x = move_toward(_tank_body.velocity.x, target_vel.x, current_accel * delta)
 		_tank_body.velocity.z = move_toward(_tank_body.velocity.z, target_vel.z, current_accel * delta)
 	else:

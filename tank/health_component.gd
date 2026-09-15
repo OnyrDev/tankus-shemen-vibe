@@ -38,9 +38,19 @@ func take_damage(amount: float, attacker: Node = null) -> bool:
 	damage_taken.emit(actual_damage, attacker)
 	health_changed.emit(current_health, max_health)
 
+	if _tank and _tank.events:
+		_tank.events.emit_damage_taken(actual_damage, attacker)
+
 	_play_hit_flash()
 
 	if current_health <= 0.0:
+		# Проверяем карточный спасбросок (Phoenix)
+		if _tank and _tank.events and _tank.events.check_prevent_death(attacker):
+			return true
+
+		if attacker is Tank and (attacker as Tank).events:
+			(attacker as Tank).events.emit_kill(_tank)
+
 		_die(attacker)
 
 	return true

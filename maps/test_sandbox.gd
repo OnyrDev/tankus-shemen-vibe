@@ -1,7 +1,7 @@
 class_name TestSandbox
 extends Node3D
 
-## Скрипт тестовой песочницы боевой системы Phase 2.
+## Скрипт тестовой песочницы Phase 3 (Карточная система, Рикошет, Бой).
 
 @onready var tank: Tank = $Tank
 @onready var dummy_tank: Tank = get_node_or_null("DummyTank")
@@ -10,6 +10,7 @@ extends Node3D
 @onready var dummy_spawn_marker: Marker3D = get_node_or_null("DummySpawnPoint")
 @onready var kill_volume: Area3D = $KillVolume
 @onready var hud: HUD = get_node_or_null("HUD")
+@onready var card_draft: CardDraft = get_node_or_null("CardDraft")
 
 func _ready() -> void:
 	if kill_volume:
@@ -38,6 +39,12 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:
 		if event.keycode == KEY_F1 or event.keycode == KEY_BACKSPACE:
 			_respawn_all()
+		elif event.keycode == KEY_TAB:
+			if card_draft and tank:
+				if card_draft.visible:
+					card_draft.close_draft()
+				else:
+					card_draft.open_draft(tank)
 
 func _on_kill_volume_body_entered(body: Node3D) -> void:
 	if body is Tank:

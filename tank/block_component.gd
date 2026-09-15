@@ -78,6 +78,8 @@ func activate_block() -> bool:
 
 	_show_shield()
 	block_started.emit(block_duration)
+	if _tank and _tank.events:
+		_tank.events.emit_block_started(block_duration)
 	return true
 
 func absorb_projectile(projectile: Node) -> void:
@@ -85,6 +87,9 @@ func absorb_projectile(projectile: Node) -> void:
 		return
 
 	successful_block.emit(projectile)
+	if _tank and _tank.events:
+		_tank.events.emit_successful_block(projectile)
+
 	_pulse_shield()
 
 	if is_instance_valid(projectile):

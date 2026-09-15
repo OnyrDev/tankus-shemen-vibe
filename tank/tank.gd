@@ -3,7 +3,7 @@ extends CharacterBody3D
 
 ## Главный класс сущности танка TANKUS.
 ## Объединяет компоненты ввода, физического контроллера, наведения башни,
-## вооружения, защитного блока, здоровья и визуала.
+## вооружения, защитного блока, здоровья, карточного билда и событий.
 
 signal fell_into_void()
 
@@ -23,6 +23,10 @@ signal fell_into_void()
 @onready var block: BlockComponent = get_node_or_null("BlockComponent")
 @onready var health: HealthComponent = get_node_or_null("HealthComponent")
 
+@onready var stats: TankStats = get_node_or_null("TankStats")
+@onready var build: TankBuild = get_node_or_null("TankBuild")
+@onready var events: TankEvents = get_node_or_null("TankEvents")
+
 @onready var chassis_mesh: MeshInstance3D = get_node_or_null("Visuals/ChassisMesh")
 @onready var turret_mesh: MeshInstance3D = get_node_or_null("Visuals/TurretMount/TurretMesh")
 @onready var shield_mesh: MeshInstance3D = get_node_or_null("Visuals/ShieldMesh")
@@ -31,8 +35,12 @@ var spawn_point: Transform3D = Transform3D.IDENTITY
 var is_active: bool = true
 
 func _ready() -> void:
+	add_to_group("tanks")
 	spawn_point = global_transform
 	_apply_team_color()
+
+	if stats and build:
+		stats.recalculate(build.cards, CardDatabase)
 
 func _physics_process(delta: float) -> void:
 	if not is_active:
@@ -82,6 +90,9 @@ func respawn(new_transform: Transform3D = spawn_point) -> void:
 
 	if block:
 		block.reset()
+
+	if stats and build:
+		stats.recalculate(build.cards, CardDatabase)
 
 	_apply_team_color()
 
