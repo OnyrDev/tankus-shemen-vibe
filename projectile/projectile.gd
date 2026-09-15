@@ -11,7 +11,7 @@ signal bounced(normal: Vector3, bounce_num: int)
 @export var speed: float = 24.0
 @export var damage: float = 28.0
 @export var lifetime: float = 3.0
-@export var bounces_left: int = 1
+@export var bounces_left: int = 0
 
 var shooter: Node = null
 var team_id: int = -1

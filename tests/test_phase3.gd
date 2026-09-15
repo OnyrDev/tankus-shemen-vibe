@@ -90,7 +90,7 @@ func _run_tests() -> void:
 	assert(is_equal_approx(tank.stats.max_hp, 100.0), "ERROR: Base max_hp should be 100")
 	assert(is_equal_approx(tank.stats.damage, 28.0), "ERROR: Base damage should be 28")
 	assert(tank.stats.magazine_size == 4, "ERROR: Base magazine should be 4")
-	assert(tank.stats.projectile_bounces == 1, "ERROR: Base bounces should be 1")
+	assert(tank.stats.projectile_bounces == 0, "ERROR: Base bounces should be 0")
 
 	# Добавляем Heavy Shell (+45% dmg, -20% proj speed)
 	var heavy := CardDatabase.get_card("heavy_shell")
@@ -113,21 +113,24 @@ func _run_tests() -> void:
 	# Добавляем Bouncy (+1 bounce)
 	var bouncy := CardDatabase.get_card("bouncy")
 	tank.build.add_card(bouncy)
-	assert(tank.stats.projectile_bounces == 2, "ERROR: Projectile bounces should be 2")
+	assert(tank.stats.projectile_bounces == 1, "ERROR: Projectile bounces should be 1 after Bouncy card")
 	print("[PASS] Pure derived stat recalculation verified (Heavy Shell, Big Magazine, Tankier, Bouncy)")
 
 	# 6. Проверка физического рикошета снаряда
 	var proj_scene := load("res://projectile/projectile.tscn") as PackedScene
+	var base_proj := proj_scene.instantiate() as Projectile
+	root.add_child(base_proj)
+	base_proj.setup(tank, Vector3(0, 1, 0), Vector3(0, 0, -1))
+	assert(base_proj.bounces_left == 0, "ERROR: Fresh projectile without cards must have 0 bounces by default!")
+	base_proj.queue_free()
+
 	var test_proj := proj_scene.instantiate() as Projectile
 	root.add_child(test_proj)
 	test_proj.setup(tank, Vector3(0, 1, 0), Vector3(0, 0, -1))
 	test_proj.bounces_left = 2
 
 	# Симулируем столкновение со стеной (нормаль Vector3.BACK = (0, 0, 1))
-	var dummy_col := KinematicCollision3D.new()
-	# Создаем отражение вручную через метод
 	var wall_normal := Vector3(0, 0, 1)
-	var pre_bounce_vel := test_proj.velocity
 	test_proj.velocity = test_proj.velocity.bounce(wall_normal)
 	test_proj.bounces_left -= 1
 	test_proj.bounces_done += 1
