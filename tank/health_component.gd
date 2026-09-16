@@ -32,26 +32,28 @@ func take_damage(amount: float, attacker: Node = null) -> bool:
 	if _tank and _tank.block and _tank.block.is_blocking():
 		return false
 
+	var valid_attacker: Node = attacker if is_instance_valid(attacker) else null
+
 	var actual_damage := minf(current_health, amount)
 	current_health = maxf(0.0, current_health - amount)
 
-	damage_taken.emit(actual_damage, attacker)
+	damage_taken.emit(actual_damage, valid_attacker)
 	health_changed.emit(current_health, max_health)
 
 	if _tank and _tank.events:
-		_tank.events.emit_damage_taken(actual_damage, attacker)
+		_tank.events.emit_damage_taken(actual_damage, valid_attacker)
 
 	_play_hit_flash()
 
 	if current_health <= 0.0:
 		# Проверяем карточный спасбросок (Phoenix)
-		if _tank and _tank.events and _tank.events.check_prevent_death(attacker):
+		if _tank and _tank.events and _tank.events.check_prevent_death(valid_attacker):
 			return true
 
-		if attacker is Tank and (attacker as Tank).events:
-			(attacker as Tank).events.emit_kill(_tank)
+		if valid_attacker is Tank and (valid_attacker as Tank).events:
+			(valid_attacker as Tank).events.emit_kill(_tank)
 
-		_die(attacker)
+		_die(valid_attacker)
 
 	return true
 

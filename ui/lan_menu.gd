@@ -95,6 +95,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:
 		if event.keycode == KEY_ESCAPE:
 			set_menu_visible(not visible)
+			get_viewport().set_input_as_handled()
 
 func _on_player_name_changed(new_name: String) -> void:
 	var clean := new_name.strip_edges()
@@ -106,10 +107,16 @@ func _on_create_host_pressed() -> void:
 	if line_server_name and not line_server_name.text.strip_edges().is_empty():
 		s_name = line_server_name.text.strip_edges()
 
-	var err := Network.create_host(Network.DEFAULT_PORT)
+	var port := Network.DEFAULT_PORT
+	if line_direct_port and not line_direct_port.text.strip_edges().is_empty():
+		var custom_port := int(line_direct_port.text.strip_edges())
+		if custom_port > 0:
+			port = custom_port
+
+	var err := Network.create_host(port)
 	if err == OK:
 		if _lan_discovery:
-			_lan_discovery.start_broadcasting(s_name, Network.DEFAULT_PORT, 8)
+			_lan_discovery.start_broadcasting(s_name, port, 8)
 		_update_ui_state()
 
 func _on_direct_connect_pressed() -> void:
@@ -153,6 +160,7 @@ func _on_server_list_updated(servers: Array) -> void:
 
 	# Очищаем старый список
 	for child in server_list_container.get_children():
+		server_list_container.remove_child(child)
 		child.queue_free()
 
 	if servers.is_empty():
@@ -246,6 +254,7 @@ func _refresh_player_list() -> void:
 		return
 
 	for child in player_list_container.get_children():
+		player_list_container.remove_child(child)
 		child.queue_free()
 
 	for p in Network.get_all_players():

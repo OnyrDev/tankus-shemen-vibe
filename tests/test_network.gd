@@ -134,5 +134,57 @@ func _ready() -> void:
 	server_tank.queue_free()
 	print("[PASS] 8. Рикошет снарядов и серверная синхронизация карт способностей")
 
+	# 9. Безопасность снарядов при отключении стрелка (ранее освобожденный экземпляр / freed instance)
+	var disconnected_tank: Tank = tank_scene.instantiate()
+	add_child(disconnected_tank)
+	disconnected_tank.setup_network(3, 2, Color.GREEN)
+
+	var orphan_proj: Projectile = proj_scene.instantiate()
+	add_child(orphan_proj)
+	orphan_proj.setup(disconnected_tank, Vector3.ZERO, Vector3.FORWARD)
+
+	var target_test_tank: Tank = tank_scene.instantiate()
+	add_child(target_test_tank)
+	target_test_tank.setup_network(1, 0, Color.BLUE)
+
+	# Освобождаем стрелка (симулируем выход клиента из матча)
+	disconnected_tank.free()
+
+	assert(orphan_proj.get_valid_shooter() == null, "get_valid_shooter() должен возвращать null для удаленного танка")
+	assert(orphan_proj.get_shooter_tank() == null, "get_shooter_tank() должен возвращать null для удаленного танка")
+
+	# Проверяем урон цели от осиротевшего снаряда без падений движка
+	var initial_hp := target_test_tank.health.current_health
+	var dmg_applied := target_test_tank.health.take_damage(30.0, orphan_proj.get_valid_shooter())
+	assert(dmg_applied == true, "Урон должен корректно наноситься даже без валидного стрелка")
+	assert(target_test_tank.health.current_health == initial_hp - 30.0, "HP цели должно уменьшиться на 30.0")
+
+	orphan_proj.queue_free()
+	target_test_tank.queue_free()
+	print("[PASS] 9. Безопасная обработка урона и коллизий после отключения стрелка")
+
+	# 10. Проверка карты Shotgun: веер из 4 снарядов в сетевом контейнере Projectiles
+	var proj_container := Node3D.new()
+	proj_container.name = "Projectiles"
+	add_child(proj_container)
+
+	var shotgun_tank: Tank = tank_scene.instantiate()
+	add_child(shotgun_tank)
+	shotgun_tank.setup_network(1, 0, Color.BLUE)
+
+	# Выбираем карту Shotgun через сетевой RPC
+	shotgun_tank.net_sync.c2s_choose_card("shotgun")
+	assert(shotgun_tank.build.has_card("shotgun"), "Танк должен иметь карту shotgun")
+
+	# Производим выстрел
+	shotgun_tank.weapon.try_fire()
+
+	# Проверяем, что в сетевом контейнере Projectiles ровно 4 снаряда (1 базовый + 3 дробины)
+	assert(proj_container.get_child_count() == 4, "В сетевом контейнере Projectiles должно быть ровно 4 снаряда дроби, сейчас: %d" % proj_container.get_child_count())
+	print("[PASS] 10. Карточка Shotgun создает ровно 4 снаряда в сетевом контейнере Projectiles для MultiplayerSpawner")
+
+	shotgun_tank.queue_free()
+	proj_container.queue_free()
+
 	print("\n>>> ВСЕ ПРОВЕРКИ СЕТЕВОГО СЛОЯ ФАЗЫ 4 УСПЕШНО ПРОЙДЕНЫ! <<<\n")
 	get_tree().quit(0)

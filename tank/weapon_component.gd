@@ -97,10 +97,50 @@ func _fire() -> void:
 	if current_ammo <= 0:
 		start_reload()
 
-func _spawn_projectile() -> void:
-	if not projectile_scene:
-		return
+func get_projectile_spawn_parent() -> Node:
+	var current_scn: Node = get_tree().current_scene if get_tree() else null
+	if current_scn and current_scn.has_node("Projectiles"):
+		return current_scn.get_node("Projectiles")
+	elif current_scn:
+		return current_scn
+	elif _tank and _tank.get_parent():
+		return _tank.get_parent()
+	elif get_tree() and get_tree().root:
+		return get_tree().root
+	return null
 
+func spawn_custom_projectile(origin: Vector3, shoot_dir: Vector3, damage_override: float = -1.0) -> Projectile:
+	if not projectile_scene:
+		return null
+
+	var proj := projectile_scene.instantiate() as Projectile
+	if not proj:
+		return null
+
+	if _tank and _tank.stats:
+		proj.damage = damage_override if damage_override >= 0.0 else _tank.stats.damage
+		proj.speed = _tank.stats.projectile_speed
+		proj.bounces_left = _tank.stats.projectile_bounces
+		proj.size_mult = _tank.stats.projectile_size
+	elif damage_override >= 0.0:
+		proj.damage = damage_override
+
+	var spawn_parent := get_projectile_spawn_parent()
+	if spawn_parent:
+		spawn_parent.add_child(proj, true)
+	else:
+		add_child(proj, true)
+
+	var team_col: Color = _tank.team_color if _tank else Color.YELLOW
+	proj.setup(_tank, origin, shoot_dir, team_col)
+
+	if _tank and _tank.events:
+		_tank.events.emit_projectile_spawned(proj)
+
+	shot_fired.emit(proj)
+	return proj
+
+func _spawn_projectile() -> void:
 	var muzzle_pos: Vector3
 	var shoot_dir: Vector3
 
@@ -113,40 +153,7 @@ func _spawn_projectile() -> void:
 	else:
 		return
 
-	var proj := projectile_scene.instantiate() as Projectile
-	if not proj:
-		return
-
-	if _tank and _tank.stats:
-		proj.damage = _tank.stats.damage
-		proj.speed = _tank.stats.projectile_speed
-		proj.bounces_left = _tank.stats.projectile_bounces
-		proj.size_mult = _tank.stats.projectile_size
-
-	# Добавляем снаряд на уровень мировой сцены в контейнер Projectiles (для сетевой репликации через MultiplayerSpawner)
-	var spawn_parent: Node = null
-	var current_scn: Node = get_tree().current_scene if get_tree() else null
-	if current_scn and current_scn.has_node("Projectiles"):
-		spawn_parent = current_scn.get_node("Projectiles")
-	elif current_scn:
-		spawn_parent = current_scn
-	elif _tank and _tank.get_parent():
-		spawn_parent = _tank.get_parent()
-	elif get_tree() and get_tree().root:
-		spawn_parent = get_tree().root
-
-	if spawn_parent:
-		spawn_parent.add_child(proj, true)
-	else:
-		add_child(proj, true)
-
-	var team_col: Color = _tank.team_color if _tank else Color.YELLOW
-	proj.setup(_tank, muzzle_pos, shoot_dir, team_col)
-
-	if _tank and _tank.events:
-		_tank.events.emit_projectile_spawned(proj)
-
-	shot_fired.emit(proj)
+	spawn_custom_projectile(muzzle_pos, shoot_dir)
 
 func _play_recoil() -> void:
 	if not _barrel_mount:

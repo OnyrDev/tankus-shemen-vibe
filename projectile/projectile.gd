@@ -44,13 +44,37 @@ var _net_sync: MultiplayerSynchronizer = null
 func _is_server() -> bool:
 	return multiplayer.is_server() if multiplayer.has_multiplayer_peer() else true
 
+func get_valid_shooter() -> Node:
+	if is_instance_valid(shooter):
+		return shooter
+	return null
+
+func get_shooter_tank() -> Tank:
+	if is_instance_valid(shooter) and shooter is Tank:
+		return shooter as Tank
+	return null
+
+const DEFAULT_TEAM_COLORS: Array[Color] = [
+	Color(0.18, 0.55, 0.95), # Синий (Хост)
+	Color(0.95, 0.25, 0.25), # Красный
+	Color(0.2, 0.85, 0.35),  # Зеленый
+	Color(0.95, 0.75, 0.15), # Желтый
+	Color(0.75, 0.25, 0.95), # Фиолетовый
+	Color(0.15, 0.85, 0.85), # Бирюзовый
+	Color(0.95, 0.5, 0.15),  # Оранжевый
+	Color(0.85, 0.85, 0.85)  # Белый
+]
+
 func _ready() -> void:
-	if shooter is CollisionObject3D:
+	if is_instance_valid(shooter) and shooter is CollisionObject3D:
 		add_collision_exception_with(shooter as CollisionObject3D)
 
 	velocity = direction.normalized() * speed
 	if size_mult != 1.0:
 		scale = Vector3.ONE * size_mult
+
+	if team_id >= 0:
+		_apply_color(DEFAULT_TEAM_COLORS[team_id % DEFAULT_TEAM_COLORS.size()])
 
 	_setup_network_sync()
 
@@ -97,11 +121,11 @@ func setup(p_shooter: Node, p_origin: Vector3, p_direction: Vector3, p_color: Co
 	direction = p_direction.normalized()
 	velocity = direction * speed
 
-	if shooter is Tank:
+	if is_instance_valid(shooter) and shooter is Tank:
 		team_id = (shooter as Tank).team_id
 
 	if is_node_ready():
-		if shooter is CollisionObject3D:
+		if is_instance_valid(shooter) and shooter is CollisionObject3D:
 			add_collision_exception_with(shooter as CollisionObject3D)
 		_apply_color(p_color)
 		if size_mult != 1.0:
@@ -144,9 +168,10 @@ func _process_homing(delta: float) -> void:
 
 	var nearest_enemy: Tank = null
 	var min_dist_sq := 250.0 # радиус поиска ~15-16м
+	var shooter_tank := get_shooter_tank()
 
 	for node in tree.get_nodes_in_group("tanks"):
-		if node is Tank and node != shooter and node.is_active:
+		if node is Tank and node != shooter_tank and node.is_active:
 			if team_id < 0 or node.team_id != team_id:
 				var d_sq := global_position.distance_squared_to(node.global_position)
 				if d_sq < min_dist_sq:
@@ -187,12 +212,15 @@ func _handle_collision(collision: KinematicCollision3D) -> void:
 			bounced.emit(bounce_norm, bounces_done)
 		return
 
+	var shooter_tank := get_shooter_tank()
+	var valid_shooter := get_valid_shooter()
+
 	# Оповещаем стрелка
-	if shooter is Tank and (shooter as Tank).events:
-		(shooter as Tank).events.emit_projectile_hit(self, collider as Node, col_point, col_normal)
+	if shooter_tank and shooter_tank.events:
+		shooter_tank.events.emit_projectile_hit(self, collider as Node, col_point, col_normal)
 
 	# 1. Попадание в танк
-	if target_tank != null and target_tank != shooter:
+	if target_tank != null and target_tank != shooter_tank:
 		# Проверка блокирования
 		if target_tank.block and target_tank.block.is_blocking():
 			# Проверка Reflect
@@ -210,9 +238,9 @@ func _handle_collision(collision: KinematicCollision3D) -> void:
 			final_damage += damage * (distance_traveled / 5.0) * sniper_bonus_rate
 
 		if target_tank.health:
-			var applied := target_tank.health.take_damage(final_damage, shooter)
-			if applied and shooter is Tank and (shooter as Tank).events:
-				(shooter as Tank).events.emit_damage_dealt(final_damage, target_tank)
+			var applied := target_tank.health.take_damage(final_damage, valid_shooter)
+			if applied and shooter_tank and shooter_tank.events:
+				shooter_tank.events.emit_damage_dealt(final_damage, target_tank)
 
 		# Импульс отталкивания (Knockout)
 		if knockout_force > 0.0:
@@ -259,8 +287,8 @@ func _handle_collision(collision: KinematicCollision3D) -> void:
 			speed *= (1.0 + 0.15 * ricochet_power_stacks)
 			velocity = direction * speed
 
-		if shooter is Tank and (shooter as Tank).events:
-			(shooter as Tank).events.emit_projectile_bounce(self, bounce_normal, bounces_done)
+		if shooter_tank and shooter_tank.events:
+			shooter_tank.events.emit_projectile_bounce(self, bounce_normal, bounces_done)
 
 		bounced.emit(bounce_normal, bounces_done)
 		_spawn_impact_vfx(col_point, bounce_normal)
@@ -301,7 +329,7 @@ func _trigger_aoe_explosion(origin: Vector3, splash_damage: float, radius: float
 				var falloff := 1.0 - (d / radius)
 				var aoe_dmg := splash_damage * clampf(falloff, 0.25, 1.0)
 				if node.health:
-					node.health.take_damage(aoe_dmg, shooter)
+					node.health.take_damage(aoe_dmg, get_valid_shooter())
 
 	# Визуальная вспышка AoE взрыва
 	var boom := Node3D.new()
@@ -346,7 +374,7 @@ func _apply_poison_to_target(target: Tank, stacks: int) -> void:
 		timer.timeout.connect(func():
 			current_ticks += 1
 			if is_instance_valid(target) and target.health and target.is_active:
-				target.health.take_damage(dot_damage, shooter)
+				target.health.take_damage(dot_damage, get_valid_shooter())
 			if current_ticks >= total_ticks:
 				poison_node.queue_free()
 		)

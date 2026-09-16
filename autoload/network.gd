@@ -30,17 +30,22 @@ func _ready() -> void:
 	multiplayer.server_disconnected.connect(_on_server_disconnected)
 
 func is_server() -> bool:
-	if not multiplayer.has_multiplayer_peer():
+	if not is_multiplayer_active():
 		return true # В одиночной игре поведение серверное
 	return multiplayer.is_server()
 
 func get_unique_id() -> int:
-	if not multiplayer.has_multiplayer_peer():
+	if not is_multiplayer_active():
 		return 1
 	return multiplayer.get_unique_id()
 
 func is_multiplayer_active() -> bool:
-	return multiplayer.has_multiplayer_peer() and multiplayer.multiplayer_peer.get_connection_status() == MultiplayerPeer.CONNECTION_CONNECTED
+	if not multiplayer.has_multiplayer_peer():
+		return false
+	var peer: MultiplayerPeer = multiplayer.multiplayer_peer
+	if peer == null or peer is OfflineMultiplayerPeer:
+		return false
+	return peer.get_connection_status() == MultiplayerPeer.CONNECTION_CONNECTED
 
 func create_host(port: int = DEFAULT_PORT) -> Error:
 	disconnect_session()
@@ -81,7 +86,9 @@ func join_host(ip: String, port: int = DEFAULT_PORT) -> Error:
 
 func disconnect_session() -> void:
 	if multiplayer.has_multiplayer_peer():
-		multiplayer.multiplayer_peer.close()
+		var peer: MultiplayerPeer = multiplayer.multiplayer_peer
+		if peer != null and not (peer is OfflineMultiplayerPeer):
+			peer.close()
 		multiplayer.multiplayer_peer = null
 
 	players.clear()

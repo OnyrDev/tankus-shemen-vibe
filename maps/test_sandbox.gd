@@ -96,9 +96,6 @@ func _unhandled_input(event: InputEvent) -> void:
 					card_draft.close_draft()
 				else:
 					card_draft.open_draft(_active_local_tank)
-		elif event.keycode == KEY_ESCAPE:
-			if lan_menu:
-				lan_menu.set_menu_visible(not lan_menu.visible)
 
 # --- Сетевой спавн танков ---
 
@@ -219,6 +216,10 @@ func _server_remove_tank_for_peer(peer_id: int) -> void:
 	var node_name := "Tank_%d" % peer_id
 	var t := spawned_tanks.get_node_or_null(node_name)
 	if t:
+		if projectiles:
+			for child in projectiles.get_children():
+				if child is Projectile and child.shooter == t:
+					child.queue_free()
 		t.queue_free()
 
 func _on_spawned_tank_entered(node: Node) -> void:
