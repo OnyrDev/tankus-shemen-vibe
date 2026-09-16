@@ -6,6 +6,7 @@ extends CharacterBody3D
 ## вооружения, защитного блока, здоровья, карточного билда и событий.
 
 signal fell_into_void()
+signal died(killer: Node)
 
 @export var peer_id: int = 1
 @export var team_id: int = 0
@@ -26,6 +27,7 @@ signal fell_into_void()
 @onready var stats: TankStats = get_node_or_null("TankStats")
 @onready var build: TankBuild = get_node_or_null("TankBuild")
 @onready var events: TankEvents = get_node_or_null("TankEvents")
+@onready var net_sync: TankNetworkSync = get_node_or_null("TankNetworkSync")
 
 @onready var chassis_mesh: MeshInstance3D = get_node_or_null("Visuals/ChassisMesh")
 @onready var turret_mesh: MeshInstance3D = get_node_or_null("Visuals/TurretMount/TurretMesh")
@@ -34,16 +36,40 @@ signal fell_into_void()
 var spawn_point: Transform3D = Transform3D.IDENTITY
 var is_active: bool = true
 
+func _enter_tree() -> void:
+	_sync_peer_id_from_name()
+
+func _sync_peer_id_from_name() -> void:
+	if name.begins_with("Tank_"):
+		var id_str := name.trim_prefix("Tank_")
+		if id_str.is_valid_int():
+			peer_id = id_str.to_int()
+
 func _ready() -> void:
+	_sync_peer_id_from_name()
 	add_to_group("tanks")
 	spawn_point = global_transform
 	_apply_team_color()
 
+	if health:
+		health.died.connect(func(killer): died.emit(killer))
+
 	if stats and build:
 		stats.recalculate(build.cards, CardDatabase)
 
+func setup_network(p_peer_id: int, p_team_id: int, p_color: Color) -> void:
+	peer_id = p_peer_id
+	team_id = p_team_id
+	set_team_color(p_color)
+	if net_sync:
+		net_sync.set_peer_id(p_peer_id)
+
 func _physics_process(delta: float) -> void:
 	if not is_active:
+		return
+
+	# Если подключен компонент сетевой синхронизации, он управляет серверным авторитетом и вводом
+	if net_sync:
 		return
 
 	if controller:
@@ -75,6 +101,13 @@ func respawn(new_transform: Transform3D = spawn_point) -> void:
 	velocity = Vector3.ZERO
 	rotation = Vector3.ZERO
 	is_active = true
+
+	if net_sync:
+		net_sync.synced_position = new_transform.origin
+		net_sync.synced_rotation_y = 0.0
+		net_sync.synced_is_active = true
+		if health:
+			net_sync.synced_health = health.max_health
 
 	if visuals:
 		visuals.visible = true

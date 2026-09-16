@@ -123,19 +123,22 @@ func _spawn_projectile() -> void:
 		proj.bounces_left = _tank.stats.projectile_bounces
 		proj.size_mult = _tank.stats.projectile_size
 
-	# Добавляем снаряд на уровень мировой сцены
+	# Добавляем снаряд на уровень мировой сцены в контейнер Projectiles (для сетевой репликации через MultiplayerSpawner)
 	var spawn_parent: Node = null
-	if get_tree() and get_tree().current_scene:
-		spawn_parent = get_tree().current_scene
+	var current_scn: Node = get_tree().current_scene if get_tree() else null
+	if current_scn and current_scn.has_node("Projectiles"):
+		spawn_parent = current_scn.get_node("Projectiles")
+	elif current_scn:
+		spawn_parent = current_scn
 	elif _tank and _tank.get_parent():
 		spawn_parent = _tank.get_parent()
 	elif get_tree() and get_tree().root:
 		spawn_parent = get_tree().root
 
 	if spawn_parent:
-		spawn_parent.add_child(proj)
+		spawn_parent.add_child(proj, true)
 	else:
-		add_child(proj)
+		add_child(proj, true)
 
 	var team_col: Color = _tank.team_color if _tank else Color.YELLOW
 	proj.setup(_tank, muzzle_pos, shoot_dir, team_col)

@@ -39,6 +39,8 @@ var _is_destroyed: bool = false
 @onready var particles: GPUParticles3D = get_node_or_null("GPUParticles3D")
 @onready var collision_shape: CollisionShape3D = get_node_or_null("CollisionShape3D")
 
+var _net_sync: MultiplayerSynchronizer = null
+
 func _ready() -> void:
 	if shooter is CollisionObject3D:
 		add_collision_exception_with(shooter as CollisionObject3D)
@@ -46,6 +48,33 @@ func _ready() -> void:
 	velocity = direction.normalized() * speed
 	if size_mult != 1.0:
 		scale = Vector3.ONE * size_mult
+
+	_setup_network_sync()
+
+func _setup_network_sync() -> void:
+	if not multiplayer.has_multiplayer_peer():
+		return
+
+	_net_sync = MultiplayerSynchronizer.new()
+	_net_sync.name = "ProjNetSync"
+	_net_sync.replication_interval = 0.033 # 30 Hz
+
+	var config := SceneReplicationConfig.new()
+	config.add_property(NodePath(".:global_position"))
+	config.property_set_spawn(NodePath(".:global_position"), true)
+	config.property_set_replication_mode(NodePath(".:global_position"), SceneReplicationConfig.REPLICATION_MODE_ALWAYS)
+
+	config.add_property(NodePath(".:velocity"))
+	config.property_set_spawn(NodePath(".:velocity"), true)
+	config.property_set_replication_mode(NodePath(".:velocity"), SceneReplicationConfig.REPLICATION_MODE_ALWAYS)
+
+	config.add_property(NodePath(".:team_id"))
+	config.property_set_spawn(NodePath(".:team_id"), true)
+	config.property_set_replication_mode(NodePath(".:team_id"), SceneReplicationConfig.REPLICATION_MODE_NEVER)
+
+	_net_sync.replication_config = config
+	_net_sync.set_multiplayer_authority(1)
+	add_child(_net_sync)
 
 func setup(p_shooter: Node, p_origin: Vector3, p_direction: Vector3, p_color: Color = Color(1.0, 0.85, 0.2)) -> void:
 	shooter = p_shooter
@@ -122,6 +151,11 @@ func _handle_collision(collision: KinematicCollision3D) -> void:
 	var col_normal := collision.get_normal()
 
 	hit_object.emit(collider, col_point, col_normal)
+
+	# На клиентах только визуальный эффект попадания, урон и уничтожение контролирует сервер
+	if not multiplayer.is_server():
+		_spawn_impact_vfx(col_point, col_normal)
+		return
 
 	# Оповещаем стрелка
 	if shooter is Tank and (shooter as Tank).events:

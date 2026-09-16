@@ -10,6 +10,7 @@
 [ext_resource type="Script" path="res://tank/tank_stats.gd" id="8_stats"]
 [ext_resource type="Script" path="res://tank/tank_build.gd" id="9_build"]
 [ext_resource type="Script" path="res://tank/tank_events.gd" id="10_events"]
+[ext_resource type="Script" path="res://tank/tank_network_sync.gd" id="11_netsync"]
 
 [sub_resource type="CylinderShape3D" id="CylinderShape3D_tank"]
 height = 0.88
@@ -129,3 +130,6 @@ script = ExtResource("9_build")
 
 [node name="TankEvents" type="Node" parent="."]
 script = ExtResource("10_events")
+
+[node name="TankNetworkSync" type="Node" parent="."]
+script = ExtResource("11_netsync")

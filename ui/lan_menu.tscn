@@ -1,0 +1,224 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://ui/lan_menu.gd" id="1_lan_menu"]
+
+[node name="LANMenu" type="CanvasLayer"]
+layer = 10
+script = ExtResource("1_lan_menu")
+
+[node name="MainContainer" type="Control" parent="."]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Background" type="ColorRect" parent="MainContainer"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.08, 0.09, 0.12, 0.85)
+
+[node name="Panel" type="PanelContainer" parent="MainContainer"]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -320.0
+offset_top = -280.0
+offset_right = 320.0
+offset_bottom = 280.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="VBox" type="VBoxContainer" parent="MainContainer/Panel"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="Title" type="Label" parent="MainContainer/Panel/VBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 22
+text = "TANKUS — СЕТЕВАЯ ИГРА (LAN)"
+horizontal_alignment = 1
+
+[node name="HSeparator1" type="HSeparator" parent="MainContainer/Panel/VBox"]
+layout_mode = 2
+
+[node name="HBoxName" type="HBoxContainer" parent="MainContainer/Panel/VBox"]
+layout_mode = 2
+
+[node name="LabelName" type="Label" parent="MainContainer/Panel/VBox/HBoxName"]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+text = "Ваш никнейм:"
+
+[node name="LineEditName" type="LineEdit" parent="MainContainer/Panel/VBox/HBoxName"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Player"
+placeholder_text = "Введите ваш ник..."
+
+[node name="HSeparator2" type="HSeparator" parent="MainContainer/Panel/VBox"]
+layout_mode = 2
+
+[node name="HBoxServerName" type="HBoxContainer" parent="MainContainer/Panel/VBox"]
+layout_mode = 2
+
+[node name="LabelServerName" type="Label" parent="MainContainer/Panel/VBox/HBoxServerName"]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+text = "Имя сервера:"
+
+[node name="LineEditServerName" type="LineEdit" parent="MainContainer/Panel/VBox/HBoxServerName"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "TANKUS Room"
+
+[node name="BtnCreateHost" type="Button" parent="MainContainer/Panel/VBox"]
+custom_minimum_size = Vector2(0, 36)
+layout_mode = 2
+text = "🛡️ Создать LAN сервер (Host)"
+
+[node name="HSeparator3" type="HSeparator" parent="MainContainer/Panel/VBox"]
+layout_mode = 2
+
+[node name="HBoxLANHeader" type="HBoxContainer" parent="MainContainer/Panel/VBox"]
+layout_mode = 2
+
+[node name="LabelLAN" type="Label" parent="MainContainer/Panel/VBox/HBoxLANHeader"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "🔍 Игры в локальной сети (UDP Discovery):"
+
+[node name="BtnRefreshLAN" type="Button" parent="MainContainer/Panel/VBox/HBoxLANHeader"]
+custom_minimum_size = Vector2(100, 0)
+layout_mode = 2
+text = "Обновить"
+
+[node name="LblSearchStatus" type="Label" parent="MainContainer/Panel/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.7, 0.75, 0.85, 1)
+theme_override_font_sizes/font_size = 13
+text = "Поиск активных LAN серверов..."
+
+[node name="ScrollServers" type="ScrollContainer" parent="MainContainer/Panel/VBox"]
+custom_minimum_size = Vector2(0, 110)
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="ServerList" type="VBoxContainer" parent="MainContainer/Panel/VBox/ScrollServers"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 4
+
+[node name="HSeparator4" type="HSeparator" parent="MainContainer/Panel/VBox"]
+layout_mode = 2
+
+[node name="HBoxDirect" type="HBoxContainer" parent="MainContainer/Panel/VBox"]
+layout_mode = 2
+
+[node name="LabelIP" type="Label" parent="MainContainer/Panel/VBox/HBoxDirect"]
+layout_mode = 2
+text = "Прямой IP:"
+
+[node name="LineEditIP" type="LineEdit" parent="MainContainer/Panel/VBox/HBoxDirect"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "127.0.0.1"
+
+[node name="LabelPort" type="Label" parent="MainContainer/Panel/VBox/HBoxDirect"]
+layout_mode = 2
+text = "Порт:"
+
+[node name="LineEditPort" type="LineEdit" parent="MainContainer/Panel/VBox/HBoxDirect"]
+custom_minimum_size = Vector2(70, 0)
+layout_mode = 2
+text = "7000"
+
+[node name="BtnDirectConnect" type="Button" parent="MainContainer/Panel/VBox/HBoxDirect"]
+custom_minimum_size = Vector2(110, 0)
+layout_mode = 2
+text = "Подключиться"
+
+[node name="HSeparator5" type="HSeparator" parent="MainContainer/Panel/VBox"]
+layout_mode = 2
+
+[node name="BtnCloseMenu" type="Button" parent="MainContainer/Panel/VBox"]
+layout_mode = 2
+text = "Закрыть меню / Одиночная песочница"
+
+[node name="LobbyContainer" type="Control" parent="."]
+visible = false
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Background" type="ColorRect" parent="LobbyContainer"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.08, 0.09, 0.12, 0.85)
+
+[node name="Panel" type="PanelContainer" parent="LobbyContainer"]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -260.0
+offset_top = -200.0
+offset_right = 260.0
+offset_bottom = 200.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="VBox" type="VBoxContainer" parent="LobbyContainer/Panel"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="LblLobbyTitle" type="Label" parent="LobbyContainer/Panel/VBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "LAN ЛОББИ: ХОСТ"
+horizontal_alignment = 1
+
+[node name="HSeparator" type="HSeparator" parent="LobbyContainer/Panel/VBox"]
+layout_mode = 2
+
+[node name="LabelPlayers" type="Label" parent="LobbyContainer/Panel/VBox"]
+layout_mode = 2
+text = "Участники в матче:"
+
+[node name="ScrollPlayers" type="ScrollContainer" parent="LobbyContainer/Panel/VBox"]
+custom_minimum_size = Vector2(0, 140)
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="PlayerList" type="VBoxContainer" parent="LobbyContainer/Panel/VBox/ScrollPlayers"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="HSeparator2" type="HSeparator" parent="LobbyContainer/Panel/VBox"]
+layout_mode = 2
+
+[node name="BtnStartGame" type="Button" parent="LobbyContainer/Panel/VBox"]
+custom_minimum_size = Vector2(0, 40)
+layout_mode = 2
+text = "⚔️ В БОЙ / СТАРТ"
+
+[node name="BtnDisconnect" type="Button" parent="LobbyContainer/Panel/VBox"]
+layout_mode = 2
+text = "Отключиться / Выйти"
