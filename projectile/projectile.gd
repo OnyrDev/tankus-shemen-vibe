@@ -41,6 +41,9 @@ var _is_destroyed: bool = false
 
 var _net_sync: MultiplayerSynchronizer = null
 
+func _is_server() -> bool:
+	return multiplayer.is_server() if multiplayer.has_multiplayer_peer() else true
+
 func _ready() -> void:
 	if shooter is CollisionObject3D:
 		add_collision_exception_with(shooter as CollisionObject3D)
@@ -71,6 +74,18 @@ func _setup_network_sync() -> void:
 	config.add_property(NodePath(".:team_id"))
 	config.property_set_spawn(NodePath(".:team_id"), true)
 	config.property_set_replication_mode(NodePath(".:team_id"), SceneReplicationConfig.REPLICATION_MODE_NEVER)
+
+	config.add_property(NodePath(".:bounces_left"))
+	config.property_set_spawn(NodePath(".:bounces_left"), true)
+	config.property_set_replication_mode(NodePath(".:bounces_left"), SceneReplicationConfig.REPLICATION_MODE_NEVER)
+
+	config.add_property(NodePath(".:speed"))
+	config.property_set_spawn(NodePath(".:speed"), true)
+	config.property_set_replication_mode(NodePath(".:speed"), SceneReplicationConfig.REPLICATION_MODE_NEVER)
+
+	config.add_property(NodePath(".:size_mult"))
+	config.property_set_spawn(NodePath(".:size_mult"), true)
+	config.property_set_replication_mode(NodePath(".:size_mult"), SceneReplicationConfig.REPLICATION_MODE_NEVER)
 
 	_net_sync.replication_config = config
 	_net_sync.set_multiplayer_authority(1)
@@ -152,20 +167,29 @@ func _handle_collision(collision: KinematicCollision3D) -> void:
 
 	hit_object.emit(collider, col_point, col_normal)
 
-	# На клиентах только визуальный эффект попадания, урон и уничтожение контролирует сервер
-	if not multiplayer.is_server():
-		_spawn_impact_vfx(col_point, col_normal)
-		return
-
-	# Оповещаем стрелка
-	if shooter is Tank and (shooter as Tank).events:
-		(shooter as Tank).events.emit_projectile_hit(self, collider as Node, col_point, col_normal)
-
 	var target_tank: Tank = null
 	if collider is Tank:
 		target_tank = collider as Tank
 	elif collider != null and collider.get_parent() is Tank:
 		target_tank = collider.get_parent() as Tank
+
+	# На клиентах: урон рассчитывает сервер, но от стен снаряд ДОЛЖЕН отскакивать локально,
+	# чтобы не залипать в препятствии в ожидании сетевого пакета!
+	if not _is_server():
+		_spawn_impact_vfx(col_point, col_normal)
+		if target_tank == null and bounces_left > 0:
+			bounces_left -= 1
+			bounces_done += 1
+			var bounce_norm := col_normal.normalized() if col_normal.length_squared() > 0.01 else -direction
+			velocity = velocity.bounce(bounce_norm)
+			direction = velocity.normalized()
+			global_position = col_point + bounce_norm * (0.22 * size_mult)
+			bounced.emit(bounce_norm, bounces_done)
+		return
+
+	# Оповещаем стрелка
+	if shooter is Tank and (shooter as Tank).events:
+		(shooter as Tank).events.emit_projectile_hit(self, collider as Node, col_point, col_normal)
 
 	# 1. Попадание в танк
 	if target_tank != null and target_tank != shooter:
@@ -220,8 +244,14 @@ func _handle_collision(collision: KinematicCollision3D) -> void:
 		bounces_left -= 1
 		bounces_done += 1
 
-		velocity = velocity.bounce(col_normal)
+		var bounce_normal := col_normal.normalized() if col_normal.length_squared() > 0.01 else -direction
+		velocity = velocity.bounce(bounce_normal)
 		direction = velocity.normalized()
+
+		# Выдвигаем снаряд из поверхности по нормали на радиус сферы + запас безопасности,
+		# чтобы исключить залипание в коллизии (sticky collision) на следующем тике физики!
+		var safe_dist := 0.22 * size_mult
+		global_position = col_point + bounce_normal * safe_dist
 
 		# Бонус карты Ricochet Power (+25% урона, +15% скорости за каждый отскок)
 		if ricochet_power_stacks > 0:
@@ -230,10 +260,10 @@ func _handle_collision(collision: KinematicCollision3D) -> void:
 			velocity = direction * speed
 
 		if shooter is Tank and (shooter as Tank).events:
-			(shooter as Tank).events.emit_projectile_bounce(self, col_normal, bounces_done)
+			(shooter as Tank).events.emit_projectile_bounce(self, bounce_normal, bounces_done)
 
-		bounced.emit(col_normal, bounces_done)
-		_spawn_impact_vfx(col_point, col_normal)
+		bounced.emit(bounce_normal, bounces_done)
+		_spawn_impact_vfx(col_point, bounce_normal)
 		return
 
 	# Отскоки закончились: финальный взрыв и удаление

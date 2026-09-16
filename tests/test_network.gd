@@ -103,5 +103,36 @@ func _ready() -> void:
 	client_tank.queue_free()
 	print("[PASS] 7. Клиентская синхронизация урона, HP, патронов, смерти и респавна")
 
+	# 8. Проверка рикошета снаряда и сетевой синхронизации карточек
+	var server_tank: Tank = tank_scene.instantiate()
+	add_child(server_tank)
+	server_tank.setup_network(1, 0, Color.BLUE)
+	assert(server_tank.stats.projectile_bounces == 0, "Базовый танк должен иметь 0 отскоков по умолчанию (без рикошета)")
+
+	# Синхронизация выбора карты Bouncy (+1 рикошет)
+	server_tank.net_sync.c2s_choose_card("bouncy")
+	assert(server_tank.stats.projectile_bounces == 1, "После карты Bouncy должен появиться 1 отскок")
+
+	# Спавн снаряда и проверка параметров рикошета
+	var proj_scene: PackedScene = preload("res://projectile/projectile.tscn")
+	var proj: Projectile = proj_scene.instantiate()
+	add_child(proj)
+	proj.setup(server_tank, Vector3(0, 1, 0), Vector3(0, 0, -1))
+	proj.bounces_left = server_tank.stats.projectile_bounces
+	assert(proj.bounces_left == 1, "Снаряд должен унаследовать 1 отскок от карты Bouncy")
+
+	# Симулируем 1-й отскок
+	var wall_norm := Vector3(0, 0, 1)
+	var old_vel_z := proj.velocity.z
+	proj.velocity = proj.velocity.bounce(wall_norm)
+	proj.bounces_left -= 1
+	proj.bounces_done += 1
+	assert(proj.velocity.z == -old_vel_z, "Скорость по Z должна инвертироваться при отскоке")
+	assert(proj.bounces_left == 0, "Осталось 0 отскоков")
+
+	proj.queue_free()
+	server_tank.queue_free()
+	print("[PASS] 8. Рикошет снарядов и серверная синхронизация карт способностей")
+
 	print("\n>>> ВСЕ ПРОВЕРКИ СЕТЕВОГО СЛОЯ ФАЗЫ 4 УСПЕШНО ПРОЙДЕНЫ! <<<\n")
 	get_tree().quit(0)

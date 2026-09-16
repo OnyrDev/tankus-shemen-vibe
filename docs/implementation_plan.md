@@ -109,8 +109,8 @@
   - [x] `TankBuild`: учет карт и стаков (`card_id -> count`)
   - [x] Диспетчер событий танка: `on_shot`, `on_projectile_spawned`, `on_projectile_hit`, `on_projectile_bounce`, `on_reload_started`, `on_reload_completed`, `on_block_started`, `on_successful_block`, `on_jump`, `on_land`, `on_damage_taken`, `on_kill`, `on_death`
 - [x] **3.2. Рикошет снарядов (Ricochet System):**
-  - [x] Базовый снаряд получает параметр `bounce_count` (по умолчанию 1 отскок)
-  - [x] При ударе: `velocity = velocity.bounce(normal)` и вызов `on_projectile_bounce`
+  - [x] Базовый снаряд: по умолчанию 0 отскоков (уничтожается при ударе о препятствие). Механика рикошета активируется карточной системой (карта `Bouncy`: +1 отскок за стак, `Ricochet Power` и др.)
+  - [x] При ударе со стеной при `bounces_left > 0`: `velocity = velocity.bounce(normal)`, безопасное выдвижение наружу от залипания и вызов `on_projectile_bounce`
 - [x] **3.3. Реализация пула из 45 способностей (строго по спецификации):**
   - [x] **SHOT (18 карт):** Heavy Shell, Rapid Fire, Fastball, Big Magazine, Quick Reload, Bouncy, Ricochet Power, Poison (DoT), Explosive Shell (AoE), Big Shot, Knockout, Piercing, Homing, Last Round, First Round, Recoil, Sniper Shell, Shotgun (Unique)
   - [x] **BLOCK (9 карт):** Quick Guard, Long Block, Blink (телепорт по aim), Shockwave, Reload Block, Ammo Shield, Counter Shot, Reflect (Unique, отражение снаряда), Perfect Guard (Unique, сброс кулдауна)

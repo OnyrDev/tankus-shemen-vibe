@@ -270,6 +270,22 @@ func c2s_send_input(move_dir: Vector3, aim: Vector3, is_aim_valid: bool, jump: b
 	if block:
 		_client_wants_block = true
 
+@rpc("any_peer", "reliable")
+func c2s_choose_card(card_id: String) -> void:
+	if not _is_server():
+		return
+
+	var sender_id := multiplayer.get_remote_sender_id()
+	if sender_id != 0 and sender_id != _tank.peer_id:
+		return
+
+	var card_def := CardDatabase.get_card(card_id)
+	if not card_def:
+		return
+
+	if _tank and _tank.build:
+		_tank.build.add_card(card_def)
+
 func _update_synced_properties_from_tank() -> void:
 	synced_position = _tank.global_position
 	synced_rotation_y = _tank.rotation.y

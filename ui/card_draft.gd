@@ -176,6 +176,11 @@ func _select_by_index(idx: int) -> void:
 	if _target_tank and _target_tank.build:
 		_target_tank.build.add_card(chosen_card)
 
+		# Синхронизация билда карт с сервером при игре по сети
+		if multiplayer.has_multiplayer_peer() and _target_tank.net_sync:
+			if not multiplayer.is_server():
+				_target_tank.net_sync.c2s_choose_card.rpc_id(1, chosen_card.id)
+
 	card_selected.emit(chosen_card)
 	close_draft()
 
