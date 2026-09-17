@@ -109,8 +109,8 @@
   - [x] `TankBuild`: учет карт и стаков (`card_id -> count`)
   - [x] Диспетчер событий танка: `on_shot`, `on_projectile_spawned`, `on_projectile_hit`, `on_projectile_bounce`, `on_reload_started`, `on_reload_completed`, `on_block_started`, `on_successful_block`, `on_jump`, `on_land`, `on_damage_taken`, `on_kill`, `on_death`
 - [x] **3.2. Рикошет снарядов (Ricochet System):**
-  - [x] Базовый снаряд получает параметр `bounce_count` (по умолчанию 1 отскок)
-  - [x] При ударе: `velocity = velocity.bounce(normal)` и вызов `on_projectile_bounce`
+  - [x] Базовый снаряд: по умолчанию 0 отскоков (уничтожается при ударе о препятствие). Механика рикошета активируется карточной системой (карта `Bouncy`: +1 отскок за стак, `Ricochet Power` и др.)
+  - [x] При ударе со стеной при `bounces_left > 0`: `velocity = velocity.bounce(normal)`, безопасное выдвижение наружу от залипания и вызов `on_projectile_bounce`
 - [x] **3.3. Реализация пула из 45 способностей (строго по спецификации):**
   - [x] **SHOT (18 карт):** Heavy Shell, Rapid Fire, Fastball, Big Magazine, Quick Reload, Bouncy, Ricochet Power, Poison (DoT), Explosive Shell (AoE), Big Shot, Knockout, Piercing, Homing, Last Round, First Round, Recoil, Sniper Shell, Shotgun (Unique)
   - [x] **BLOCK (9 карт):** Quick Guard, Long Block, Blink (телепорт по aim), Shockwave, Reload Block, Ammo Shield, Counter Shot, Reflect (Unique, отражение снаряда), Perfect Guard (Unique, сброс кулдауна)
@@ -128,19 +128,19 @@
 ### Фаза 4: Сетевой LAN-слой (Server-Authoritative ENet)
 *Фокус: честный серверный авторитет, синхронизация инпута и переносимая архитектура.*
 
-- [ ] **4.1. Фасад `NetworkManager` (`res://autoload/network.gd`):**
-  - [ ] Абстракция над `MultiplayerPeer` (без прямого хардкода ENet в геймплее под будущий Steam)
-  - [ ] Создание хоста (`create_host`) и подключение клиента (`create_client`)
-- [ ] **4.2. LAN Discovery (`res://network/lan_discovery.gd`):**
-  - [ ] UDP broadcast поиск открытых лобби в локальной сети
-  - [ ] Кнопка «Поиск LAN игр» + ручной ввод IP:Port как fallback
-- [ ] **4.3. Авторитарный сетевой геймплей:**
-  - [ ] Клиент отсылает только ввод/намерения (move vector, aim point, shoot, jump, block, reload)
-  - [ ] Хост валидирует кулдауны, патроны, рассчитывает физику, спавнит снаряды и наносит урон
-  - [ ] Репликация состояний через `MultiplayerSpawner` и `MultiplayerSynchronizer`
-  - [ ] Интерполяция удаленных танков (плавное движение без рывков)
-- [ ] **4.4. Обработка дисконнектов:**
-  - [ ] Корректный выход в меню при обрыве связи с хостом
+- [x] **4.1. Фасад `NetworkManager` (`res://autoload/network.gd`):**
+  - [x] Абстракция над `MultiplayerPeer` (без прямого хардкода ENet в геймплее под будущий Steam)
+  - [x] Создание хоста (`create_host`) и подключение клиента (`create_client`)
+- [x] **4.2. LAN Discovery (`res://network/lan_discovery.gd`):**
+  - [x] UDP broadcast поиск открытых лобби в локальной сети
+  - [x] Кнопка «Поиск LAN игр» + ручной ввод IP:Port как fallback
+- [x] **4.3. Авторитарный сетевой геймплей:**
+  - [x] Клиент отсылает только ввод/намерения (move vector, aim point, shoot, jump, block, reload)
+  - [x] Хост валидирует кулдауны, патроны, рассчитывает физику, спавнит снаряды и наносит урон
+  - [x] Репликация состояний через `MultiplayerSpawner` и `MultiplayerSynchronizer`
+  - [x] Интерполяция удаленных танков (плавное движение без рывков)
+- [x] **4.4. Обработка дисконнектов:**
+  - [x] Корректный выход в меню при обрыве связи с хостом
 
 ---
 

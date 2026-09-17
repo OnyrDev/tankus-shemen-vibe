@@ -63,8 +63,10 @@ func bind_to_tank(tank: Tank) -> void:
 		_on_block_cooldown_finished()
 
 	if _bound_tank.build:
-		_bound_tank.build.build_changed.connect(_update_build_chips)
-		_bound_tank.build.card_added.connect(func(_c, _s): _update_build_chips())
+		if not _bound_tank.build.build_changed.is_connected(_update_build_chips):
+			_bound_tank.build.build_changed.connect(_update_build_chips)
+		if not _bound_tank.build.card_added.is_connected(_on_card_added_chip_update):
+			_bound_tank.build.card_added.connect(_on_card_added_chip_update)
 		_update_build_chips()
 
 func _unbind_tank() -> void:
@@ -97,7 +99,16 @@ func _unbind_tank() -> void:
 		if _bound_tank.block.cooldown_finished.is_connected(_on_block_cooldown_finished):
 			_bound_tank.block.cooldown_finished.disconnect(_on_block_cooldown_finished)
 
+	if _bound_tank.build:
+		if _bound_tank.build.build_changed.is_connected(_update_build_chips):
+			_bound_tank.build.build_changed.disconnect(_update_build_chips)
+		if _bound_tank.build.card_added.is_connected(_on_card_added_chip_update):
+			_bound_tank.build.card_added.disconnect(_on_card_added_chip_update)
+
 	_bound_tank = null
+
+func _on_card_added_chip_update(_card, _stacks) -> void:
+	_update_build_chips()
 
 func _update_build_chips() -> void:
 	if not build_chips_container or not _bound_tank or not _bound_tank.build:

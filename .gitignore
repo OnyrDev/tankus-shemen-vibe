@@ -22,3 +22,8 @@ Thumbs.db
 *.tmp
 *.swp
 *~
+
+# Build outputs
+build/
+*.exe
+*.pck

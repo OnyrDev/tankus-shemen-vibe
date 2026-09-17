@@ -1,20 +1,19 @@
-[gd_scene format=3]
+[gd_scene format=3 uid="uid://cifbab3huws3n"]
 
-[ext_resource type="Script" path="res://core/tps_camera.gd" id="1_tps_cam"]
+[ext_resource type="Script" uid="uid://bpfswndw1te6t" path="res://core/tps_camera.gd" id="1_tps_cam"]
 
 [sub_resource type="SphereShape3D" id="SphereShape3D_cam"]
 radius = 0.15
 
-[node name="TPSCamera" type="Node3D"]
+[node name="TPSCamera" type="Node3D" unique_id=2125402802]
 script = ExtResource("1_tps_cam")
 
-[node name="SpringArm3D" type="SpringArm3D" parent="."]
+[node name="SpringArm3D" type="SpringArm3D" parent="." unique_id=429809096]
 transform = Transform3D(1, 0, 0, 0, 0.978148, 0.207912, 0, -0.207912, 0.978148, 0, 0, 0)
-collision_mask = 1
 shape = SubResource("SphereShape3D_cam")
-spring_length = 5.0
+spring_length = 9.0
 margin = 0.15
 
-[node name="Camera3D" type="Camera3D" parent="SpringArm3D"]
+[node name="Camera3D" type="Camera3D" parent="SpringArm3D" unique_id=1898630936]
 current = true
 fov = 68.0

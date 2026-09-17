@@ -63,23 +63,22 @@ class SniperShellEffect extends CardEffect:
 
 class ShotgunEffect extends CardEffect:
 	func on_shot(_stacks: int) -> void:
-		# Дополнительные 3 снаряда с разбросом
-		if not tank or not tank.weapon or not tank.weapon.projectile_scene or not tank.turret:
+		# Дополнительные 3 снаряда с разбросом (в мультиплеере спавнятся в Projectiles для MultiplayerSpawner)
+		if not tank or not tank.weapon:
 			return
 
-		var base_pos := tank.turret.get_muzzle_position()
-		var base_dir := tank.turret.get_shoot_direction()
+		var base_pos := tank.global_position + Vector3.UP * 0.9 - tank.global_transform.basis.z * 1.5
+		var base_dir := -tank.global_transform.basis.z
+		if tank.turret:
+			base_pos = tank.turret.get_muzzle_position()
+			base_dir = tank.turret.get_shoot_direction()
+
 		var angles: Array[float] = [-0.14, 0.08, 0.16]
+		var shot_dmg := (tank.stats.damage if tank.stats else 28.0) * 0.45
 
 		for angle in angles:
 			var rot_dir := base_dir.rotated(Vector3.UP, angle).normalized()
-			var proj := tank.weapon.projectile_scene.instantiate() as Projectile
-			if proj:
-				var spawn_parent: Node = tank.get_tree().current_scene if (tank.get_tree() and tank.get_tree().current_scene) else tank.get_parent()
-				if spawn_parent:
-					spawn_parent.add_child(proj)
-					proj.damage = (tank.stats.damage if tank.stats else 28.0) * 0.45
-					proj.setup(tank, base_pos, rot_dir, tank.team_color)
+			tank.weapon.spawn_custom_projectile(base_pos, rot_dir, shot_dmg)
 
 class BlinkEffect extends CardEffect:
 	func on_block_started(_duration: float, stacks: int) -> void:
@@ -143,16 +142,14 @@ class AmmoShieldEffect extends CardEffect:
 
 class CounterShotEffect extends CardEffect:
 	func on_successful_block(_blocked_proj: Node, _stacks: int) -> void:
-		if tank and tank.weapon and tank.turret:
-			# Мгновенный выстрел без расхода обоймы
-			var base_pos := tank.turret.get_muzzle_position()
-			var base_dir := tank.turret.get_shoot_direction()
-			var proj := tank.weapon.projectile_scene.instantiate() as Projectile
-			if proj:
-				var parent: Node = tank.get_tree().current_scene if (tank.get_tree() and tank.get_tree().current_scene) else tank.get_parent()
-				if parent:
-					parent.add_child(proj)
-					proj.setup(tank, base_pos, base_dir, tank.team_color)
+		if tank and tank.weapon:
+			# Мгновенный выстрел без расхода обоймы (в мультиплеере спавнится в Projectiles для MultiplayerSpawner)
+			var base_pos := tank.global_position + Vector3.UP * 0.9 - tank.global_transform.basis.z * 1.5
+			var base_dir := -tank.global_transform.basis.z
+			if tank.turret:
+				base_pos = tank.turret.get_muzzle_position()
+				base_dir = tank.turret.get_shoot_direction()
+			tank.weapon.spawn_custom_projectile(base_pos, base_dir)
 
 class PerfectGuardEffect extends CardEffect:
 	func on_successful_block(_blocked_proj: Node, _stacks: int) -> void:
@@ -168,6 +165,8 @@ class GroundSlamEffect extends CardEffect:
 	func on_land(fall_dist: float, stacks: int) -> void:
 		if not tank or fall_dist < 2.0:
 			return
+		if not is_instance_valid(tank):
+			return
 
 		var radius := 4.5 * stacks
 		var slam_damage := 18.0 * stacks
@@ -176,7 +175,7 @@ class GroundSlamEffect extends CardEffect:
 			return
 
 		for node in tree.get_nodes_in_group("tanks"):
-			if node is Tank and node != tank and node.is_active:
+			if node is Tank and is_instance_valid(tank) and node != tank and node.is_active:
 				if tank.global_position.distance_to(node.global_position) <= radius:
 					if node.health:
 						node.health.take_damage(slam_damage, tank)
@@ -216,9 +215,10 @@ class JumpMineEffect extends CardEffect:
 		var mine_damage := 25.0 * stacks
 		var creator := tank
 		mine.body_entered.connect(func(body: Node3D):
-			if body is Tank and body != creator and body.is_active:
+			var valid_creator := creator if is_instance_valid(creator) else null
+			if body is Tank and body != valid_creator and body.is_active:
 				if body.health:
-					body.health.take_damage(mine_damage, creator)
+					body.health.take_damage(mine_damage, valid_creator)
 				mine.queue_free()
 		)
 
