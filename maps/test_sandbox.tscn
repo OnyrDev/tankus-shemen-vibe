@@ -2,7 +2,7 @@
 
 [ext_resource type="Script" uid="uid://dxvwl2mo7yagl" path="res://maps/test_sandbox.gd" id="1_sandbox"]
 [ext_resource type="PackedScene" path="res://tank/tank.tscn" id="2_tank"]
-[ext_resource type="PackedScene" path="res://core/tps_camera.tscn" id="3_camera"]
+[ext_resource type="PackedScene" uid="uid://cifbab3huws3n" path="res://core/tps_camera.tscn" id="3_camera"]
 [ext_resource type="PackedScene" path="res://ui/hud.tscn" id="4_hud"]
 [ext_resource type="PackedScene" path="res://ui/card_draft.tscn" id="5_draft"]
 [ext_resource type="PackedScene" path="res://ui/lan_menu.tscn" id="7_lan_menu"]

@@ -187,3 +187,8 @@ func _apply_to_tank_components() -> void:
 
 	if _tank.visuals:
 		_tank.visuals.scale = Vector3.ONE * tank_scale
+
+	var col_shape := _tank.get_node_or_null("CollisionShape3D") as CollisionShape3D
+	if col_shape:
+		col_shape.scale = Vector3.ONE * tank_scale
+

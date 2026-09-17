@@ -108,6 +108,8 @@ func respawn(new_transform: Transform3D = spawn_point) -> void:
 		net_sync.synced_is_active = true
 		if health:
 			net_sync.synced_health = health.max_health
+		if stats:
+			net_sync.synced_tank_scale = stats.tank_scale
 
 	if visuals:
 		visuals.visible = true

@@ -186,5 +186,34 @@ func _ready() -> void:
 	shotgun_tank.queue_free()
 	proj_container.queue_free()
 
+	# 11. Проверка сетевой синхронизации масштаба танка (Big Tank / Tiny Tank)
+	var scale_tank: Tank = tank_scene.instantiate()
+	add_child(scale_tank)
+	scale_tank.setup_network(1, 0, Color.BLUE)
+
+	# Добавляем карту Big Tank (+40% scale)
+	scale_tank.net_sync.c2s_choose_card("big_tank")
+	assert(is_equal_approx(scale_tank.stats.tank_scale, 1.4), "Масштаб танка на сервере должен быть 1.4")
+	assert(is_equal_approx(scale_tank.net_sync.synced_tank_scale, 1.4), "synced_tank_scale должен быть 1.4")
+	assert(is_equal_approx(scale_tank.visuals.scale.x, 1.4), "Визуал танка должен смасштабироваться до 1.4")
+	var col_shape := scale_tank.get_node("CollisionShape3D") as CollisionShape3D
+	assert(col_shape and is_equal_approx(col_shape.scale.x, 1.4), "CollisionShape3D танка должен смасштабироваться до 1.4")
+
+	# Проверяем клиентскую репликацию на удаленном танке
+	var client_scale_tank: Tank = tank_scene.instantiate()
+	add_child(client_scale_tank)
+	client_scale_tank.setup_network(2, 1, Color.RED)
+	# Имитируем получение клиентом реплицированного свойства synced_tank_scale = 1.4
+	client_scale_tank.net_sync.synced_tank_scale = 1.4
+	client_scale_tank.net_sync._apply_synced_scale()
+	assert(is_equal_approx(client_scale_tank.visuals.scale.x, 1.4), "У клиента визуал чужого танка должен стать 1.4")
+	var client_col := client_scale_tank.get_node("CollisionShape3D") as CollisionShape3D
+	assert(client_col and is_equal_approx(client_col.scale.x, 1.4), "У клиента CollisionShape3D чужого танка должен стать 1.4")
+
+	scale_tank.queue_free()
+	client_scale_tank.queue_free()
+	print("[PASS] 11. Сетевая синхронизация масштаба танков и хитбоксов (Big Tank/Tiny Tank) успешно проверена")
+
 	print("\n>>> ВСЕ ПРОВЕРКИ СЕТЕВОГО СЛОЯ ФАЗЫ 4 УСПЕШНО ПРОЙДЕНЫ! <<<\n")
 	get_tree().quit(0)
+

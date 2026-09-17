@@ -33,6 +33,13 @@ var synced_is_active: bool = true:
 		if not _is_server() and is_node_ready():
 			_client_sync_gameplay_state()
 
+var synced_tank_scale: float = 1.0:
+	set(val):
+		synced_tank_scale = val
+		if not _is_server() and is_node_ready():
+			_apply_synced_scale()
+
+
 var _tank: Tank = null
 var _synchronizer: MultiplayerSynchronizer = null
 var _is_local_owner: bool = false
@@ -89,6 +96,8 @@ func _setup_synchronizer() -> void:
 	_add_replicated_property(config, NodePath(".:synced_is_blocking"), true)
 	_add_replicated_property(config, NodePath(".:synced_team_color"), true)
 	_add_replicated_property(config, NodePath(".:synced_is_active"), true)
+	_add_replicated_property(config, NodePath(".:synced_tank_scale"), true)
+
 
 	_synchronizer.replication_config = config
 	_synchronizer.set_multiplayer_authority(1) # Сервер всегда является источником репликации
@@ -285,12 +294,36 @@ func c2s_choose_card(card_id: String) -> void:
 
 	if _tank and _tank.build:
 		_tank.build.add_card(card_def)
+		if _tank.stats:
+			synced_tank_scale = _tank.stats.tank_scale
+
+	# Рассылаем всем клиентам добавление карты для этого танка
+	if multiplayer.has_multiplayer_peer():
+		s2c_card_added.rpc(card_id)
+
+
+@rpc("authority", "reliable")
+func s2c_card_added(card_id: String) -> void:
+	if _is_server() or not _tank or not _tank.build:
+		return
+
+	# Локальный владелец уже добавил карту в локальном интерфейсе драфта, не дублируем
+	if _is_local_owner:
+		return
+
+	var card_def := CardDatabase.get_card(card_id)
+	if card_def:
+		_tank.build.add_card(card_def)
 
 func _update_synced_properties_from_tank() -> void:
 	synced_position = _tank.global_position
 	synced_rotation_y = _tank.rotation.y
 	synced_team_color = _tank.team_color
 	synced_is_active = _tank.is_active
+
+	if _tank.stats:
+		synced_tank_scale = _tank.stats.tank_scale
+
 
 	if _tank.turret:
 		synced_turret_yaw = _tank.turret.global_rotation.y
@@ -335,6 +368,8 @@ func _client_sync_gameplay_state() -> void:
 
 	_apply_synced_weapon_state()
 	_apply_synced_visual_state()
+	_apply_synced_scale()
+
 
 func _apply_synced_health_change() -> void:
 	if not _tank or not _tank.health:
@@ -397,6 +432,7 @@ func _handle_client_tank_respawn() -> void:
 		_tank.block.reset()
 
 	_tank._apply_team_color()
+	_apply_synced_scale()
 
 func _apply_synced_weapon_state() -> void:
 	if not _tank or not _tank.weapon:
@@ -420,3 +456,15 @@ func _apply_synced_visual_state() -> void:
 
 	if _tank.team_color != synced_team_color:
 		_tank.set_team_color(synced_team_color)
+
+func _apply_synced_scale() -> void:
+	if not _tank:
+		return
+
+	if _tank.visuals and not is_equal_approx(_tank.visuals.scale.x, synced_tank_scale):
+		_tank.visuals.scale = Vector3.ONE * synced_tank_scale
+
+	var col_shape := _tank.get_node_or_null("CollisionShape3D") as CollisionShape3D
+	if col_shape and not is_equal_approx(col_shape.scale.x, synced_tank_scale):
+		col_shape.scale = Vector3.ONE * synced_tank_scale
+
