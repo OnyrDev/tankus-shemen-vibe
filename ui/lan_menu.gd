@@ -6,6 +6,8 @@ extends CanvasLayer
 ## прямое подключение по IP:Port, управление сессией и отображение подключенных игроков.
 
 signal game_started()
+signal session_joined()
+
 
 @onready var panel_main: Control = $MainContainer
 @onready var panel_lobby: Control = $LobbyContainer
@@ -56,8 +58,12 @@ func set_menu_visible(p_visible: bool) -> void:
 	if visible:
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 		_start_lan_search()
+		if not Game.is_in_match:
+			MusicManager.play_menu_music(1.0)
 	else:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+		if not Game.is_in_match:
+			MusicManager.stop_music(1.0)
 
 func _setup_lan_discovery() -> void:
 	_lan_discovery = LANDiscovery.new()
@@ -229,8 +235,13 @@ func _on_close_menu_pressed() -> void:
 	set_menu_visible(false)
 
 func _on_network_session_changed() -> void:
-	_update_ui_state()
-	_refresh_player_list()
+	var in_session := Network.is_multiplayer_active() or Network.is_host
+	if in_session:
+		set_menu_visible(false)
+		session_joined.emit()
+	else:
+		_update_ui_state()
+		_refresh_player_list()
 
 func _update_ui_state() -> void:
 	var in_session := Network.is_multiplayer_active() or Network.is_host
@@ -239,6 +250,7 @@ func _update_ui_state() -> void:
 		panel_main.visible = not in_session
 	if panel_lobby:
 		panel_lobby.visible = in_session
+
 
 	if in_session:
 		if lbl_lobby_title:

@@ -6,6 +6,11 @@
 [ext_resource type="PackedScene" path="res://ui/hud.tscn" id="4_hud"]
 [ext_resource type="PackedScene" path="res://ui/card_draft.tscn" id="5_draft"]
 [ext_resource type="PackedScene" path="res://ui/lan_menu.tscn" id="7_lan_menu"]
+[ext_resource type="Script" path="res://match/match_controller.gd" id="8_match"]
+[ext_resource type="Script" path="res://tank/tank_overhead_manager.gd" id="9_overhead_mgr"]
+[ext_resource type="PackedScene" path="res://ui/scoreboard.tscn" id="10_scoreboard"]
+[ext_resource type="PackedScene" path="res://lobby/lobby.tscn" id="11_lobby"]
+
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_sky"]
 sky_top_color = Color(0.24, 0.55, 0.92, 1)
@@ -114,10 +119,10 @@ roughness = 0.75
 
 [sub_resource type="BoxMesh" id="BoxMesh_ramp"]
 material = SubResource("Mat_ramp")
-size = Vector3(4, 0.4, 8)
+size = Vector3(4.5, 0.3, 9.4)
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_ramp"]
-size = Vector3(4, 0.4, 8)
+size = Vector3(4.5, 0.3, 9.4)
 
 [sub_resource type="StandardMaterial3D" id="Mat_yellow_barrier"]
 albedo_color = Color(0.95, 0.78, 0.15, 1)
@@ -314,22 +319,20 @@ mesh = SubResource("BoxMesh_terrace")
 shape = SubResource("BoxShape3D_terrace")
 
 [node name="WestRampSouth" type="StaticBody3D" parent="ArenaGeometry" unique_id=1064419028]
-transform = Transform3D(1, 0, 0, 0, 0.970143, -0.242536, 0, 0.242536, 0.970143, -22, 1, 19)
+transform = Transform3D(1, 0, 0, 0, 0.97237, -0.233445, 0, 0.233445, 0.97237, -22, 0.95, 19.3)
 collision_mask = 0
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="ArenaGeometry/WestRampSouth" unique_id=668822862]
-transform = Transform3D(1, 0, 0, 0, 0.9999049, -0.01382114, 0, 0.01382114, 0.9999049, 0, -0.24387217, -0.14257813)
 mesh = SubResource("BoxMesh_ramp")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="ArenaGeometry/WestRampSouth" unique_id=2057820949]
 shape = SubResource("BoxShape3D_ramp")
 
 [node name="WestRampNorth" type="StaticBody3D" parent="ArenaGeometry" unique_id=1084697894]
-transform = Transform3D(1, 0, 0, 0, 0.970143, 0.242536, 0, -0.242536, 0.970143, -22, 1, -19)
+transform = Transform3D(1, 0, 0, 0, 0.97237, 0.233445, 0, -0.233445, 0.97237, -22, 0.95, -19.3)
 collision_mask = 0
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="ArenaGeometry/WestRampNorth" unique_id=1595158713]
-transform = Transform3D(1, 0, 0, 0, 0.9998529, 0.017165601, 0, -0.017165601, 0.9998529, 0, -0.2615385, 0.10744476)
 mesh = SubResource("BoxMesh_ramp")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="ArenaGeometry/WestRampNorth" unique_id=1566188803]
@@ -586,3 +589,15 @@ _spawnable_scenes = PackedStringArray("res://projectile/projectile.tscn")
 spawn_path = NodePath("../Projectiles")
 
 [node name="LANMenu" parent="." unique_id=515404487 instance=ExtResource("7_lan_menu")]
+
+[node name="MatchController" type="Node" parent="."]
+script = ExtResource("8_match")
+
+[node name="TankOverheadManager" type="CanvasLayer" parent="."]
+script = ExtResource("9_overhead_mgr")
+
+[node name="Scoreboard" parent="." instance=ExtResource("10_scoreboard")]
+
+[node name="Lobby" parent="." instance=ExtResource("11_lobby")]
+visible = false
+

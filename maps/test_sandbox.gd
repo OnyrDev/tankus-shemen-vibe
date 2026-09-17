@@ -32,6 +32,11 @@ const TEAM_COLORS: Array[Color] = [
 @onready var tank_spawner: MultiplayerSpawner = get_node_or_null("TankSpawner")
 @onready var proj_spawner: MultiplayerSpawner = get_node_or_null("ProjSpawner")
 
+@onready var match_controller: MatchController = get_node_or_null("MatchController")
+@onready var tank_overhead_manager: TankOverheadManager = get_node_or_null("TankOverheadManager")
+@onready var scoreboard: Scoreboard = get_node_or_null("Scoreboard")
+@onready var lobby: Lobby = get_node_or_null("Lobby")
+
 var _active_local_tank: Tank = null
 
 func _ready() -> void:
@@ -39,12 +44,42 @@ func _ready() -> void:
 		kill_volume.body_entered.connect(_on_kill_volume_body_entered)
 
 	_setup_network_signals()
+	_setup_phase5_systems()
 
 	if spawned_tanks:
 		spawned_tanks.child_entered_tree.connect(_on_spawned_tank_entered)
 
 	# По умолчанию настраиваем одиночный танк
 	_setup_solo_mode()
+
+func _setup_phase5_systems() -> void:
+	if match_controller:
+		match_controller.spawned_tanks_container = spawned_tanks
+		match_controller.spawn_points_container = spawn_points_container
+		match_controller.camera = camera
+		match_controller.hud = hud
+		match_controller.card_draft = card_draft
+		match_controller.lobby = lobby
+		match_controller.returned_to_lobby.connect(_on_returned_to_lobby)
+		match_controller.match_started.connect(func():
+			if lobby:
+				lobby.close_lobby()
+		)
+
+
+	if tank_overhead_manager and spawned_tanks:
+		tank_overhead_manager.setup_container(spawned_tanks)
+
+	if scoreboard and spawned_tanks:
+		scoreboard.tanks_container = spawned_tanks
+
+	if lobby:
+		lobby.match_start_requested.connect(_on_match_start_requested)
+		lobby.lobby_left.connect(_on_lobby_left)
+
+	if lan_menu:
+		lan_menu.session_joined.connect(_on_session_joined)
+
 
 func _setup_network_signals() -> void:
 	Network.server_created.connect(_on_server_created)
@@ -90,12 +125,13 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:
 		if event.keycode == KEY_F1 or event.keycode == KEY_BACKSPACE:
 			_respawn_all()
-		elif event.keycode == KEY_TAB:
+		elif event.keycode == KEY_F2:
 			if card_draft and _active_local_tank:
 				if card_draft.visible:
 					card_draft.close_draft()
 				else:
 					card_draft.open_draft(_active_local_tank)
+
 
 # --- Сетевой спавн танков ---
 
@@ -197,16 +233,37 @@ func _server_spawn_tank_for_peer(peer_id: int) -> void:
 	t.setup_network(peer_id, slot, team_col)
 
 func _on_tank_died(dead_tank: Tank, _killer: Node) -> void:
-	if not Network.is_server():
-		return
+	# Если погиб локальный танк — переводим камеру в режим Spectator
+	if dead_tank.peer_id == Network.get_unique_id() and match_controller:
+		match_controller.on_local_tank_died()
 
-	# Автореспавн через 2 секунды в песочнице на СВОЮ точку спавна
-	var timer := get_tree().create_timer(2.0)
-	timer.timeout.connect(func():
-		if is_instance_valid(dead_tank):
-			var spawn_tf := _get_spawn_transform_for_peer(dead_tank.peer_id)
-			dead_tank.respawn(spawn_tf)
-	)
+	# Если мы вне раундового матча (свободная песочница) — респавним через 2 секунды
+	if not Game.is_in_match and Network.is_server():
+		var timer := get_tree().create_timer(2.0)
+		timer.timeout.connect(func():
+			if is_instance_valid(dead_tank):
+				var spawn_tf := _get_spawn_transform_for_peer(dead_tank.peer_id)
+				dead_tank.respawn(spawn_tf)
+		)
+
+func _on_session_joined() -> void:
+	if lobby:
+		lobby.open_lobby()
+
+func _on_match_start_requested() -> void:
+	if lobby:
+		lobby.close_lobby()
+	if match_controller and (Network.is_host or not Network.is_multiplayer_active()):
+		match_controller.start_new_match()
+
+func _on_lobby_left() -> void:
+	if lan_menu:
+		lan_menu.set_menu_visible(true)
+
+func _on_returned_to_lobby() -> void:
+	if lobby:
+		lobby.open_lobby()
+
 
 func _server_remove_tank_for_peer(peer_id: int) -> void:
 	_peer_spawn_slots.erase(peer_id)

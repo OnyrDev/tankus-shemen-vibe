@@ -1,0 +1,201 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://lobby/lobby.gd" id="1_lobby"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_bg"]
+bg_color = Color(0.07, 0.08, 0.11, 0.94)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.25, 0.35, 0.55, 0.8)
+corner_radius_top_left = 12
+corner_radius_top_right = 12
+corner_radius_bottom_right = 12
+corner_radius_bottom_left = 12
+
+[node name="Lobby" type="CanvasLayer"]
+layer = 12
+script = ExtResource("1_lobby")
+
+[node name="Panel" type="PanelContainer" parent="."]
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -480.0
+offset_top = -290.0
+offset_right = 480.0
+offset_bottom = 290.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_bg")
+
+[node name="Margin" type="MarginContainer" parent="Panel"]
+layout_mode = 2
+theme_override_constants/margin_left = 24
+theme_override_constants/margin_top = 20
+theme_override_constants/margin_right = 24
+theme_override_constants/margin_bottom = 20
+
+[node name="VBox" type="VBoxContainer" parent="Panel/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Header" type="VBoxContainer" parent="Panel/Margin/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="LblHeader" type="Label" parent="Panel/Margin/VBox/Header"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 24
+text = "TANKUS — ЛОББИ МАТЧА"
+horizontal_alignment = 1
+
+[node name="LblStatus" type="Label" parent="Panel/Margin/VBox/Header"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.4, 0.85, 0.45, 1)
+theme_override_font_sizes/font_size = 14
+text = "Статус: Ожидание игроков..."
+horizontal_alignment = 1
+
+[node name="HSeparator1" type="HSeparator" parent="Panel/Margin/VBox"]
+layout_mode = 2
+
+[node name="HSplit" type="HBoxContainer" parent="Panel/Margin/VBox"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 20
+
+[node name="LeftPanel" type="VBoxContainer" parent="Panel/Margin/VBox/HSplit"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 8
+
+[node name="LblPlayersHeader" type="Label" parent="Panel/Margin/VBox/HSplit/LeftPanel"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 16
+text = "Участники матча:"
+
+[node name="PlayerScroll" type="ScrollContainer" parent="Panel/Margin/VBox/HSplit/LeftPanel"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="PlayerList" type="VBoxContainer" parent="Panel/Margin/VBox/HSplit/LeftPanel/PlayerScroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 8
+
+[node name="VSeparator" type="VSeparator" parent="Panel/Margin/VBox/HSplit"]
+layout_mode = 2
+
+[node name="RightPanel" type="VBoxContainer" parent="Panel/Margin/VBox/HSplit"]
+custom_minimum_size = Vector2(380, 0)
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="HostSettings" type="VBoxContainer" parent="Panel/Margin/VBox/HSplit/RightPanel"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="LblSettingsHeader" type="Label" parent="Panel/Margin/VBox/HSplit/RightPanel/HostSettings"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 16
+text = "Настройки матча:"
+
+[node name="GridSettings" type="GridContainer" parent="Panel/Margin/VBox/HSplit/RightPanel/HostSettings"]
+layout_mode = 2
+theme_override_constants/h_separation = 12
+theme_override_constants/v_separation = 10
+columns = 2
+
+[node name="LblGameMode" type="Label" parent="Panel/Margin/VBox/HSplit/RightPanel/HostSettings/GridSettings"]
+layout_mode = 2
+text = "Режим игры:"
+
+[node name="OptGameMode" type="OptionButton" parent="Panel/Margin/VBox/HSplit/RightPanel/HostSettings/GridSettings"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="LblTeamCount" type="Label" parent="Panel/Margin/VBox/HSplit/RightPanel/HostSettings/GridSettings"]
+layout_mode = 2
+text = "Число команд:"
+
+[node name="OptTeamCount" type="OptionButton" parent="Panel/Margin/VBox/HSplit/RightPanel/HostSettings/GridSettings"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="LblTargetWins" type="Label" parent="Panel/Margin/VBox/HSplit/RightPanel/HostSettings/GridSettings"]
+layout_mode = 2
+text = "Цель побед:"
+
+[node name="OptTargetWins" type="OptionButton" parent="Panel/Margin/VBox/HSplit/RightPanel/HostSettings/GridSettings"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="LblFriendlyFire" type="Label" parent="Panel/Margin/VBox/HSplit/RightPanel/HostSettings/GridSettings"]
+layout_mode = 2
+text = "Огонь по своим:"
+
+[node name="ChkFriendlyFire" type="CheckBox" parent="Panel/Margin/VBox/HSplit/RightPanel/HostSettings/GridSettings"]
+layout_mode = 2
+
+[node name="LblMap" type="Label" parent="Panel/Margin/VBox/HSplit/RightPanel/HostSettings/GridSettings"]
+layout_mode = 2
+text = "Арена:"
+
+[node name="OptMap" type="OptionButton" parent="Panel/Margin/VBox/HSplit/RightPanel/HostSettings/GridSettings"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="LblHostOnlyHint" type="Label" parent="Panel/Margin/VBox/HSplit/RightPanel/HostSettings"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.6, 0.65, 0.7, 1)
+theme_override_font_sizes/font_size = 12
+text = "* Настройки матча настраиваются хостом"
+horizontal_alignment = 1
+
+[node name="HSeparator2" type="HSeparator" parent="Panel/Margin/VBox"]
+layout_mode = 2
+
+[node name="Footer" type="VBoxContainer" parent="Panel/Margin/VBox"]
+layout_mode = 2
+
+[node name="HBox" type="HBoxContainer" parent="Panel/Margin/VBox/Footer"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="LblNameTag" type="Label" parent="Panel/Margin/VBox/Footer/HBox"]
+layout_mode = 2
+text = "Ник:"
+
+[node name="LineEditName" type="LineEdit" parent="Panel/Margin/VBox/Footer/HBox"]
+custom_minimum_size = Vector2(140, 0)
+layout_mode = 2
+placeholder_text = "Ваш ник"
+
+[node name="VSep" type="VSeparator" parent="Panel/Margin/VBox/Footer/HBox"]
+layout_mode = 2
+
+[node name="BtnReady" type="Button" parent="Panel/Margin/VBox/Footer/HBox"]
+custom_minimum_size = Vector2(140, 42)
+layout_mode = 2
+theme_override_font_sizes/font_size = 15
+text = "Я ГОТОВ!"
+
+[node name="BtnStartMatch" type="Button" parent="Panel/Margin/VBox/Footer/HBox"]
+custom_minimum_size = Vector2(170, 42)
+layout_mode = 2
+theme_override_font_sizes/font_size = 15
+text = "НАЧАТЬ МАТЧ"
+
+[node name="Spacer" type="Control" parent="Panel/Margin/VBox/Footer/HBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="BtnLeaveLobby" type="Button" parent="Panel/Margin/VBox/Footer/HBox"]
+custom_minimum_size = Vector2(150, 42)
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+text = "ПОКИНУТЬ ЛОББИ"

@@ -53,7 +53,11 @@ func can_block() -> bool:
 		return false
 	return true
 
+func is_ready() -> bool:
+	return can_block()
+
 func is_blocking() -> bool:
+
 	return _is_blocking and (_tank == null or _tank.is_active)
 
 func is_on_cooldown() -> bool:

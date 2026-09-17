@@ -14,10 +14,15 @@ config/name="TANKUS"
 run/main_scene="res://maps/test_sandbox.tscn"
 config/features=PackedStringArray("4.7", "Forward Plus")
 
+[audio]
+
+busses/default_bus_layout="res://default_bus_layout.tres"
+
 [autoload]
 
 Game="*res://autoload/game.gd"
 Network="*res://autoload/network.gd"
+MusicManager="*res://autoload/music_manager.gd"
 
 [display]
 
