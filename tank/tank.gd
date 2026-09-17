@@ -35,6 +35,12 @@ signal died(killer: Node)
 
 var spawn_point: Transform3D = Transform3D.IDENTITY
 var is_active: bool = true
+var is_frozen: bool = false:
+	set(val):
+		is_frozen = val
+		if is_frozen:
+			velocity.x = 0.0
+			velocity.z = 0.0
 
 func _enter_tree() -> void:
 	_sync_peer_id_from_name()
@@ -70,6 +76,18 @@ func _physics_process(delta: float) -> void:
 
 	# Если подключен компонент сетевой синхронизации, он управляет серверным авторитетом и вводом
 	if net_sync:
+		return
+
+	if is_frozen:
+		velocity.x = 0.0
+		velocity.z = 0.0
+		if not is_on_floor():
+			velocity.y -= (controller.gravity if controller else 18.0) * delta
+			move_and_slide()
+		else:
+			velocity.y = 0.0
+		if turret and input and input.is_aim_valid:
+			turret.aim_at(input.aim_point, delta)
 		return
 
 	if controller:

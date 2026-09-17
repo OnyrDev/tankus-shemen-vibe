@@ -27,14 +27,24 @@ const COYOTE_TIME: float = 0.12
 func _ready() -> void:
 	_tank_body = get_parent() as Tank
 	if _tank_body:
-		_tank_body.floor_max_angle = deg_to_rad(48.0)
-		_tank_body.floor_snap_length = 0.35
+		_tank_body.floor_max_angle = deg_to_rad(55.0)
+		_tank_body.floor_snap_length = 0.4
 		_tank_body.floor_constant_speed = true
-		_tank_body.floor_stop_on_slope = true
-		_tank_body.floor_block_on_wall = true
+		_tank_body.floor_stop_on_slope = false
+		_tank_body.floor_block_on_wall = false
 
 func process_physics(input: TankInput, delta: float) -> void:
 	if not _tank_body:
+		return
+
+	if _tank_body.is_frozen:
+		_tank_body.velocity.x = 0.0
+		_tank_body.velocity.z = 0.0
+		if not _tank_body.is_on_floor():
+			_tank_body.velocity.y -= gravity * delta
+			_tank_body.move_and_slide()
+		else:
+			_tank_body.velocity.y = 0.0
 		return
 
 	var on_floor := _tank_body.is_on_floor()
@@ -79,10 +89,8 @@ func process_physics(input: TankInput, delta: float) -> void:
 			_tank_body.events.emit_jump()
 	elif not on_floor:
 		_tank_body.velocity.y -= gravity * delta
-	else:
-		_tank_body.velocity.y = 0.0
 
-	# Горизонтальное перемещение
+	# Перемещение с поддержкой наклонных плоскостей (рамп)
 	var move_dir: Vector3 = input.move_direction_world if input else Vector3.ZERO
 	var current_accel: float = acceleration if on_floor else (acceleration * air_control)
 	var current_brake: float = braking if on_floor else (braking * air_control)
@@ -90,11 +98,22 @@ func process_physics(input: TankInput, delta: float) -> void:
 
 	if move_dir.length_squared() > 0.01:
 		var target_vel: Vector3 = move_dir * effective_speed
+
+		# Если на наклонном полу — проецируем вектор движения на нормаль пола
+		if on_floor:
+			var floor_norm := _tank_body.get_floor_normal()
+			if floor_norm.y > 0.1 and floor_norm.y < 0.999:
+				target_vel = target_vel.slide(floor_norm).normalized() * effective_speed
+
 		_tank_body.velocity.x = move_toward(_tank_body.velocity.x, target_vel.x, current_accel * delta)
 		_tank_body.velocity.z = move_toward(_tank_body.velocity.z, target_vel.z, current_accel * delta)
+		if on_floor and not _is_jumping:
+			_tank_body.velocity.y = move_toward(_tank_body.velocity.y, target_vel.y, current_accel * delta)
 	else:
 		_tank_body.velocity.x = move_toward(_tank_body.velocity.x, 0.0, current_brake * delta)
 		_tank_body.velocity.z = move_toward(_tank_body.velocity.z, 0.0, current_brake * delta)
+		if on_floor and not _is_jumping:
+			_tank_body.velocity.y = move_toward(_tank_body.velocity.y, 0.0, current_brake * delta)
 
 	# Плавная ориентация корпуса по фактическому направлению движения
 	var flat_vel := Vector3(_tank_body.velocity.x, 0.0, _tank_body.velocity.z)
@@ -110,6 +129,6 @@ func process_physics(input: TankInput, delta: float) -> void:
 	if _is_jumping:
 		_tank_body.floor_snap_length = 0.0
 	else:
-		_tank_body.floor_snap_length = 0.35
+		_tank_body.floor_snap_length = 0.4
 
 	_tank_body.move_and_slide()

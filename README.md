@@ -32,7 +32,7 @@
 
 ```text
 res://
-├── autoload/          # Глобальные синглтоны (Game, Network)
+├── autoload/          # Глобальные синглтоны (Game, Network, MusicManager)
 ├── core/              # Данные матча (MatchRules, PlayerInfo, TeamInfo)
 ├── tank/              # Сцена танка, компоненты (контроллер, ввод, оружие, блок, статы)
 ├── projectile/        # Сцена физического снаряда с рикошетом

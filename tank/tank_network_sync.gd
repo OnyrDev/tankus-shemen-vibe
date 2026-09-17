@@ -39,6 +39,11 @@ var synced_tank_scale: float = 1.0:
 		if not _is_server() and is_node_ready():
 			_apply_synced_scale()
 
+var synced_is_frozen: bool = false:
+	set(val):
+		synced_is_frozen = val
+		if _tank:
+			_tank.is_frozen = val
 
 var _tank: Tank = null
 var _synchronizer: MultiplayerSynchronizer = null
@@ -97,6 +102,7 @@ func _setup_synchronizer() -> void:
 	_add_replicated_property(config, NodePath(".:synced_team_color"), true)
 	_add_replicated_property(config, NodePath(".:synced_is_active"), true)
 	_add_replicated_property(config, NodePath(".:synced_tank_scale"), true)
+	_add_replicated_property(config, NodePath(".:synced_is_frozen"), true)
 
 
 	_synchronizer.replication_config = config
@@ -168,6 +174,23 @@ func _server_process_tank_physics(delta: float) -> void:
 	if not _tank.is_active:
 		return
 
+	if _tank.is_frozen:
+		_tank.velocity.x = 0.0
+		_tank.velocity.z = 0.0
+		if not _tank.is_on_floor():
+			_tank.velocity.y -= (_tank.controller.gravity if _tank.controller else 18.0) * delta
+			_tank.move_and_slide()
+		else:
+			_tank.velocity.y = 0.0
+
+		if _is_local_owner:
+			if _tank.turret and _tank.input and _tank.input.is_aim_valid:
+				_tank.turret.aim_at(_tank.input.aim_point, delta)
+		else:
+			if _tank.turret and _client_is_aim_valid:
+				_tank.turret.aim_at(_client_aim_point, delta)
+		return
+
 	# Если танк принадлежит хосту, ввод читается напрямую из локального TankInput
 	if _is_local_owner:
 		if _tank.controller:
@@ -194,21 +217,28 @@ func _server_apply_client_movement(delta: float) -> void:
 			_tank.events.emit_jump()
 	elif not on_floor:
 		_tank.velocity.y -= _tank.controller.gravity * delta
-	else:
-		_tank.velocity.y = 0.0
 
-	# Горизонтальное движение
+	# Движение с поддержкой наклонных плоскостей (рамп)
 	var current_accel: float = _tank.controller.acceleration if on_floor else (_tank.controller.acceleration * _tank.controller.air_control)
 	var current_brake: float = _tank.controller.braking if on_floor else (_tank.controller.braking * _tank.controller.air_control)
 	var effective_speed := _tank.controller.move_speed * _tank.controller.speed_multiplier
 
 	if _client_move_dir.length_squared() > 0.01:
 		var target_vel := _client_move_dir * effective_speed
+		if on_floor:
+			var floor_norm := _tank.get_floor_normal()
+			if floor_norm.y > 0.1 and floor_norm.y < 0.999:
+				target_vel = target_vel.slide(floor_norm).normalized() * effective_speed
+
 		_tank.velocity.x = move_toward(_tank.velocity.x, target_vel.x, current_accel * delta)
 		_tank.velocity.z = move_toward(_tank.velocity.z, target_vel.z, current_accel * delta)
+		if on_floor:
+			_tank.velocity.y = move_toward(_tank.velocity.y, target_vel.y, current_accel * delta)
 	else:
 		_tank.velocity.x = move_toward(_tank.velocity.x, 0.0, current_brake * delta)
 		_tank.velocity.z = move_toward(_tank.velocity.z, 0.0, current_brake * delta)
+		if on_floor:
+			_tank.velocity.y = move_toward(_tank.velocity.y, 0.0, current_brake * delta)
 
 	# Поворот корпуса по фактической скорости
 	var flat_vel := Vector3(_tank.velocity.x, 0.0, _tank.velocity.z)
@@ -243,6 +273,14 @@ func _server_apply_client_combat() -> void:
 
 func _client_gather_and_send_input() -> void:
 	if not _tank.input or not _tank.input.enabled:
+		return
+
+	if _tank.is_frozen:
+		_tank.input.consume_jump()
+		_tank.input.consume_fire()
+		_tank.input.consume_reload()
+		_tank.input.consume_block()
+		c2s_send_input.rpc_id(1, Vector3.ZERO, _tank.input.aim_point, _tank.input.is_aim_valid, false, false, false, false, false)
 		return
 
 	var move_dir := _tank.input.move_direction_world
@@ -320,6 +358,7 @@ func _update_synced_properties_from_tank() -> void:
 	synced_rotation_y = _tank.rotation.y
 	synced_team_color = _tank.team_color
 	synced_is_active = _tank.is_active
+	synced_is_frozen = _tank.is_frozen
 
 	if _tank.stats:
 		synced_tank_scale = _tank.stats.tank_scale

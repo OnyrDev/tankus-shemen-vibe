@@ -60,9 +60,13 @@ func _process(_delta: float) -> void:
 	_update_aim_raycast()
 
 func _physics_process(_delta: float) -> void:
-	if not enabled:
+	if not enabled or (_tank_body and _tank_body.is_frozen):
 		move_input = Vector2.ZERO
 		move_direction_world = Vector3.ZERO
+		jump_requested = false
+		fire_requested = false
+		reload_requested = false
+		block_requested = false
 		return
 
 	_update_movement_input()
@@ -82,7 +86,7 @@ func consume_jump() -> bool:
 	return requested
 
 func is_fire_held() -> bool:
-	return enabled and Input.is_action_pressed("fire")
+	return enabled and (_tank_body == null or not _tank_body.is_frozen) and Input.is_action_pressed("fire")
 
 func consume_fire() -> bool:
 	var requested := fire_requested

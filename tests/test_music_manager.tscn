@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://ddo48u87w61j4"]
+
+[ext_resource type="Script" path="res://tests/test_music_manager.gd" id="1_test_mm"]
+
+[node name="TestMusicManager" type="Node"]
+script = ExtResource("1_test_mm")
