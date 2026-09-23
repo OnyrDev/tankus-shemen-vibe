@@ -97,11 +97,29 @@ func _test_vfx_instantiation() -> void:
 	pulse_instance.queue_free()
 
 func _test_camera_shake() -> void:
-	print("\n--- 3. Trauma-based Camera Shake Test ---")
+	print("\n--- 3. Trauma-based Camera Shake & TPS Setup Test ---")
 	var cam_scene: PackedScene = load("res://core/tps_camera.tscn")
 	_assert_test(cam_scene != null, "tps_camera.tscn loaded")
 	var cam := cam_scene.instantiate() as TPSCamera
 	add_child(cam)
+
+	_assert_test(is_equal_approx(cam.spring_arm.spring_length, 9.0), "TPSCamera spring_length is locked at 9.0m per specification")
+	_assert_test(is_equal_approx(cam.default_pitch_deg, 3.5), "Default pitch is 3.5 deg aimed at horizon")
+	_assert_test(cam.target_offset.y >= 2.0, "Camera target offset elevated for clearance")
+
+	# Проверяем Anti-Occlusion при взгляде в небо
+	var dummy_target := Node3D.new()
+	add_child(dummy_target)
+	dummy_target.global_position = Vector3(0, 0, 0)
+	cam.setup_target(dummy_target)
+	var neutral_y := cam.global_position.y
+
+	# Задираем камеру в небо (pitch = min_pitch_deg)
+	cam.pitch = deg_to_rad(cam.min_pitch_deg)
+	cam.setup_target(dummy_target)
+	var sky_y := cam.global_position.y
+	_assert_test(sky_y > neutral_y + 1.5, "Anti-occlusion elevates camera pivot when aiming upward")
+	dummy_target.queue_free()
 
 	_assert_test(cam.trauma == 0.0, "Initial camera trauma is 0.0")
 	Game.shake_camera(0.5)

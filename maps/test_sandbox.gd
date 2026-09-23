@@ -380,7 +380,7 @@ func _respawn_tank() -> void:
 		var spawn_tf := _get_spawn_transform_for_peer(1)
 		_active_local_tank.respawn(spawn_tf)
 		if camera:
-			camera.global_position = spawn_tf.origin + camera.target_offset
+			camera.setup_target(_active_local_tank)
 
 func _respawn_all() -> void:
 	if Network.is_multiplayer_active():

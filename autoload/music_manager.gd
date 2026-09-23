@@ -176,4 +176,3 @@ func _on_match_state_changed(new_state: String) -> void:
 			# Музыка меню временно отключена по запросу пользователя
 			if _active_player.playing:
 				stop_music(1.0)
-

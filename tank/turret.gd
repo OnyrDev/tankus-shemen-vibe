@@ -69,4 +69,3 @@ func get_shoot_direction() -> Vector3:
 	if muzzle:
 		return -muzzle.global_transform.basis.z.normalized()
 	return -global_transform.basis.z.normalized()
-
