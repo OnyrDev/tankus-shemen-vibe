@@ -39,9 +39,7 @@ func _ready() -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 	if target_node:
-		global_position = target_node.global_position + target_offset
-		yaw = target_node.global_rotation.y
-		rotation.y = yaw
+		setup_target(target_node)
 
 	pitch = deg_to_rad(12.0)
 	if spring_arm:
@@ -49,6 +47,14 @@ func _ready() -> void:
 
 	if Game and not Game.camera_shake_requested.is_connected(add_trauma):
 		Game.camera_shake_requested.connect(add_trauma)
+
+func setup_target(new_target: Node3D) -> void:
+	target_node = new_target
+	if is_instance_valid(target_node):
+		global_position = target_node.global_position + target_offset
+		yaw = target_node.global_rotation.y
+		rotation.y = yaw
+
 
 func add_trauma(amount: float) -> void:
 	trauma = clampf(trauma + amount, 0.0, 1.0)

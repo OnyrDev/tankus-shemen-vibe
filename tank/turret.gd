@@ -3,6 +3,7 @@ extends Node3D
 
 ## Контроллер башни и ствола танка.
 ## Обеспечивает независимый доворот башни на 3D точку прицеливания с ограничением скорости
+## в локальной плоскости корпуса танка (без крена/завала набок)
 ## и наклон ствола под рельеф (рампы, возвышенности).
 
 @export var rotation_speed: float = 20.0 # рад/сек
@@ -20,31 +21,39 @@ func aim_at(target_point: Vector3, delta: float) -> void:
 	_current_target = target_point
 	_has_target = true
 
-	var to_target := target_point - global_position
-	var flat_dir := Vector3(to_target.x, 0.0, to_target.z)
+	# Цель в локальных координатах башни
+	var local_target := to_local(target_point)
+	var flat_target := Vector2(local_target.x, local_target.z)
 
-	if flat_dir.length_squared() > 0.01:
-		flat_dir = flat_dir.normalized()
-		# В Godot forward = (0, 0, -1), поэтому угол yaw = atan2(-x, -z)
-		var target_yaw := atan2(-flat_dir.x, -flat_dir.z)
-		var current_yaw := global_rotation.y
-		var diff_yaw := wrapf(target_yaw - current_yaw, -PI, PI)
-		var step_yaw := signf(diff_yaw) * minf(absf(diff_yaw), rotation_speed * delta)
-		global_rotation.y += step_yaw
+	if flat_target.length_squared() > 0.001:
+		# В Godot вперед — это -Z, поэтому angle_yaw = atan2(-x, -z)
+		var angle_yaw := atan2(-flat_target.x, -flat_target.y)
+		var step_yaw := signf(angle_yaw) * minf(absf(angle_yaw), rotation_speed * delta)
+		rotation.y += step_yaw
 
+	# Башня всегда сидит строго на погоне корпуса — никакого наклона/крена по X и Z!
+	rotation.x = 0.0
+	rotation.z = 0.0
+
+	# Наклон ствола (pitch) в локальных координатах ствола вокруг локальной оси X
 	if barrel_mount:
-		var dist_h := Vector2(to_target.x, to_target.z).length()
+		var local_barrel_target := barrel_mount.to_local(target_point)
+		var dist_h := Vector2(local_barrel_target.x, local_barrel_target.z).length()
 		if dist_h > 0.01:
+			var desired_pitch := atan2(local_barrel_target.y, dist_h)
 			var target_pitch := clampf(
-				atan2(to_target.y, dist_h),
+				desired_pitch,
 				deg_to_rad(min_pitch_deg),
 				deg_to_rad(max_pitch_deg)
 			)
-			# Положительный pitch поднимает ствол (вращение вокруг локальной оси X)
 			var current_pitch := barrel_mount.rotation.x
 			var diff_pitch := target_pitch - current_pitch
 			var step_pitch := signf(diff_pitch) * minf(absf(diff_pitch), pitch_speed * delta)
 			barrel_mount.rotation.x += step_pitch
+
+		# Ствол поднимается/опускается только по X, никаких поворотов/кренов по Y и Z
+		barrel_mount.rotation.y = 0.0
+		barrel_mount.rotation.z = 0.0
 
 func get_muzzle_transform() -> Transform3D:
 	if muzzle:
@@ -57,11 +66,7 @@ func get_muzzle_position() -> Vector3:
 	return global_position
 
 func get_shoot_direction() -> Vector3:
-	if _has_target:
-		var dir := (_current_target - get_muzzle_position()).normalized()
-		if dir.length_squared() > 0.001:
-			return dir
-
 	if muzzle:
 		return -muzzle.global_transform.basis.z.normalized()
 	return -global_transform.basis.z.normalized()
+

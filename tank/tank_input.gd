@@ -134,17 +134,27 @@ func _update_aim_raycast() -> void:
 		query.exclude = [_tank_body.get_rid()]
 
 	var result := space_state.intersect_ray(query)
-	if result:
-		aim_point = result.position
-		aim_normal = result.normal
-		is_aim_valid = true
-		if is_instance_valid(_crosshair):
-			_crosshair.visible = true
-			_crosshair.global_position = aim_point + aim_normal * 0.03
-	else:
-		# Если препятствий нет, целимся вдаль по линии взгляда
-		aim_point = ray_origin + ray_dir * 100.0
-		aim_normal = -ray_dir
-		is_aim_valid = true
-		if is_instance_valid(_crosshair):
-			_crosshair.visible = false
+	var cam_forward := -camera.global_basis.z.normalized()
+	if not result.is_empty():
+		var hit_pos: Vector3 = result.position
+		var hit_behind_tank := false
+		if _tank_body:
+			var to_hit: Vector3 = hit_pos - _tank_body.global_position
+			if to_hit.dot(cam_forward) < -0.2:
+				hit_behind_tank = true
+
+		if not hit_behind_tank:
+			aim_point = hit_pos
+			aim_normal = result.normal as Vector3
+			is_aim_valid = true
+			if is_instance_valid(_crosshair):
+				_crosshair.visible = true
+				_crosshair.global_position = aim_point + aim_normal * 0.03
+			return
+
+	# Если препятствий нет или они позади танка, целимся вдаль по линии взгляда
+	aim_point = ray_origin + ray_dir * 100.0
+	aim_normal = -ray_dir
+	is_aim_valid = true
+	if is_instance_valid(_crosshair):
+		_crosshair.visible = false

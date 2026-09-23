@@ -162,8 +162,7 @@ func _bind_local_tank(target_tank: Tank) -> void:
 	if target_tank.net_sync:
 		target_tank.net_sync.set_peer_id(target_tank.peer_id)
 	if camera:
-		camera.target_node = target_tank
-		camera.global_position = target_tank.global_position + camera.target_offset
+		camera.setup_target(target_tank)
 	if hud and target_tank:
 		hud.bind_to_tank(target_tank)
 

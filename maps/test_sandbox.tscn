@@ -17,13 +17,13 @@ script = ExtResource("1_sandbox")
 [node name="MapContainer" type="Node3D" parent="."]
 
 [node name="Tank" parent="." instance=ExtResource("2_tank")]
-transform = Transform3D(-1, 0, -8.74228e-08, 0, 1, 0, 8.74228e-08, 0, -1, 0, 0.5, 22)
+transform = Transform3D(-1, 0, -8.74228e-08, 0, 1, 0, 8.74228e-08, 0, -1, 0, 2.7, 22)
 
 [node name="DummyTank" parent="." instance=ExtResource("2_tank")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, -22)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.7, -22)
 
 [node name="TPSCamera" parent="." instance=ExtResource("3_camera")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.8, 22)
+transform = Transform3D(-1, 0, -8.74228e-08, 0, 1, 0, 8.74228e-08, 0, -1, 0, 4.5, 22)
 
 [node name="HUD" parent="." instance=ExtResource("4_hud")]
 

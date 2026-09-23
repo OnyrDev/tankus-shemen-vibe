@@ -21,6 +21,7 @@ func _ready() -> void:
 	_test_reflect_card()
 	_test_blink_safety()
 	_test_debug_overlay()
+	await _test_turret_behavior()
 
 	print("\n========================================================")
 	print("   TEST RESULTS: %d PASSED | %d FAILED" % [_passed_count, _failed_count])
@@ -230,3 +231,41 @@ func _test_debug_overlay() -> void:
 	overlay._update_debug_text()
 	_assert_test(overlay.stats_label.text.contains("PERFORMANCE") and overlay.stats_label.text.contains("FPS"), "Debug overlay populates performance & network stats")
 	overlay.queue_free()
+
+func _test_turret_behavior() -> void:
+	print("\n--- 9. Turret Leveling & Audio Verification Test ---")
+	_assert_test(not MusicManager.autoplay_menu, "MusicManager autoplay_menu is disabled")
+	_assert_test(not MusicManager.is_playing(), "No music playing on start")
+
+	var tank_scene: PackedScene = load("res://tank/tank.tscn")
+	var tank := tank_scene.instantiate() as Tank
+	add_child(tank)
+	tank.global_position = Vector3(0, 0, 22)
+	tank.global_rotation = Vector3(0, PI, 0)
+	await get_tree().process_frame
+
+	var turret := tank.turret
+	_assert_test(turret != null, "Tank has turret component")
+	_assert_test(is_zero_approx(turret.rotation.x) and is_zero_approx(turret.rotation.z), "Initial turret has zero roll/pitch tilt")
+
+	# Наводим башню на цель прямо по курсу танка
+	var forward_target := tank.global_position - tank.global_transform.basis.z * 10.0
+	turret.aim_at(forward_target, 1.0)
+	_assert_test(is_zero_approx(turret.rotation.x) and is_zero_approx(turret.rotation.z), "Turret maintains zero roll/pitch tilt after aim_at")
+	_assert_test(is_zero_approx(turret.rotation.y), "Turret aims directly forward relative to tank body")
+
+	# Симулируем динамический наклон подвески (chassis tilt)
+	tank.visuals.rotation.x = 0.08
+	tank.visuals.rotation.z = -0.06
+	turret.aim_at(Vector3(10, 0, 10), 0.2)
+	_assert_test(is_zero_approx(turret.rotation.x) and is_zero_approx(turret.rotation.z), "Turret remains flat on turret ring during chassis roll/pitch")
+	if turret.barrel_mount:
+		_assert_test(is_zero_approx(turret.barrel_mount.rotation.y) and is_zero_approx(turret.barrel_mount.rotation.z), "Barrel mount has zero roll/yaw wobble")
+
+	# Проверяем вектор выстрела
+	var shoot_dir := turret.get_shoot_direction()
+	_assert_test(shoot_dir.length_squared() > 0.99, "Shoot direction is a valid normalized vector")
+
+	tank.queue_free()
+
+

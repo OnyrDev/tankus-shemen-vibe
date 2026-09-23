@@ -46,19 +46,21 @@ func _update_debug_text() -> void:
 	var ping := 0
 	var peer_count := 1
 
-	if Network:
-		peer_id = Network.get_unique_id()
-		if Network.is_multiplayer_active():
-			net_mode = "HOST" if Network.is_server() else "CLIENT"
-			ping = Network.get_ping_ms()
-			peer_count = Network.players.size()
+	var net: Node = get_node_or_null("/root/Network")
+	if net:
+		peer_id = net.get_unique_id()
+		if net.is_multiplayer_active():
+			net_mode = "HOST" if net.is_server() else "CLIENT"
+			ping = net.get_ping_ms()
+			peer_count = net.players.size()
 		else:
 			net_mode = "STANDALONE"
 
 	# Состояние матча
-	var match_state := Game.match_state if Game else "UNKNOWN"
-	var round_num := Game.current_round if Game else 0
-	var map_name := Game.rules.selected_map if Game and Game.rules else "None"
+	var game_node: Node = get_node_or_null("/root/Game")
+	var match_state: String = game_node.match_state if game_node else "UNKNOWN"
+	var round_num: int = game_node.current_round if game_node else 0
+	var map_name: String = game_node.rules.selected_map if game_node and game_node.rules else "None"
 
 	# Локальный танк
 	var tank_info := "Tank: Not Spawned"
@@ -110,7 +112,8 @@ func _find_local_tank() -> Tank:
 	if not tree:
 		return null
 
-	var my_id: int = Network.get_unique_id() if Network else 1
+	var net: Node = get_node_or_null("/root/Network")
+	var my_id: int = net.get_unique_id() if net else 1
 	var tanks := tree.get_nodes_in_group("tanks")
 	for node in tanks:
 		if node is Tank:

@@ -379,7 +379,7 @@ func _update_synced_properties_from_tank() -> void:
 
 
 	if _tank.turret:
-		synced_turret_yaw = _tank.turret.global_rotation.y
+		synced_turret_yaw = _tank.turret.rotation.y
 		if _tank.turret.barrel_mount:
 			synced_turret_pitch = _tank.turret.barrel_mount.rotation.x
 
@@ -402,9 +402,13 @@ func _interpolate_remote_tank(delta: float) -> void:
 		_tank.rotation.y = lerp_angle(_tank.rotation.y, synced_rotation_y, clampf(15.0 * delta, 0.0, 1.0))
 
 	if _tank.turret:
-		_tank.turret.global_rotation.y = lerp_angle(_tank.turret.global_rotation.y, synced_turret_yaw, clampf(22.0 * delta, 0.0, 1.0))
+		_tank.turret.rotation.y = lerp_angle(_tank.turret.rotation.y, synced_turret_yaw, clampf(22.0 * delta, 0.0, 1.0))
+		_tank.turret.rotation.x = 0.0
+		_tank.turret.rotation.z = 0.0
 		if _tank.turret.barrel_mount:
 			_tank.turret.barrel_mount.rotation.x = lerp_angle(_tank.turret.barrel_mount.rotation.x, synced_turret_pitch, clampf(18.0 * delta, 0.0, 1.0))
+			_tank.turret.barrel_mount.rotation.y = 0.0
+			_tank.turret.barrel_mount.rotation.z = 0.0
 
 # --- Клиентская синхронизация авторитетного геймплейного состояния с сервера ---
 

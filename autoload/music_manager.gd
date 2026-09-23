@@ -9,7 +9,7 @@ signal music_started(stream: AudioStream)
 signal music_stopped()
 
 @export var default_fade_duration: float = 1.2
-@export var autoplay_menu: bool = true
+@export var autoplay_menu: bool = false
 @export var menu_music_path: String = "res://assets/audio/music/menu_theme.ogg"
 
 var _player_a: AudioStreamPlayer
@@ -31,8 +31,6 @@ func _ready() -> void:
 	if Game:
 		Game.match_state_changed.connect(_on_match_state_changed)
 
-	if autoplay_menu and _menu_theme:
-		play_menu_music(default_fade_duration)
 
 
 func _ensure_music_bus() -> void:
@@ -65,6 +63,8 @@ func _load_menu_theme() -> void:
 		_menu_theme = load(menu_music_path)
 		if _menu_theme is AudioStreamOggVorbis:
 			(_menu_theme as AudioStreamOggVorbis).loop = true
+		if _player_a:
+			_player_a.stream = _menu_theme
 
 
 ## Воспроизведение трека с плавным переходом (crossfade)
@@ -170,9 +170,10 @@ func get_music_volume_linear() -> float:
 func _on_match_state_changed(new_state: String) -> void:
 	match new_state:
 		"COUNTDOWN", "PLAYING":
-			# В бою глушим тему меню
-			if _active_player.stream == _menu_theme and _active_player.playing:
+			if _active_player.playing:
 				stop_music(1.5)
 		"LOBBY", "IDLE":
-			# В лобби или меню возвращаем тему меню
-			play_menu_music(1.5)
+			# Музыка меню временно отключена по запросу пользователя
+			if _active_player.playing:
+				stop_music(1.0)
+
