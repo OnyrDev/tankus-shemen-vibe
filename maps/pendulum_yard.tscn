@@ -1,0 +1,230 @@
+[gd_scene format=3 uid="uid://pendulum_yard_003"]
+
+[ext_resource type="Script" path="res://maps/base_arena.gd" id="1_arena"]
+[ext_resource type="PackedScene" uid="uid://crat3phys001" path="res://maps/components/physics_crate.tscn" id="2_crate"]
+[ext_resource type="PackedScene" uid="uid://c6pndulum001" path="res://maps/components/pendulum.tscn" id="3_pendulum"]
+
+[sub_resource type="ProceduralSkyMaterial" id="SkyMat_yard"]
+sky_top_color = Color(0.28, 0.48, 0.78, 1)
+sky_horizon_color = Color(0.85, 0.75, 0.65, 1)
+ground_bottom_color = Color(0.2, 0.18, 0.16, 1)
+ground_horizon_color = Color(0.7, 0.65, 0.6, 1)
+
+[sub_resource type="Sky" id="Sky_yard"]
+sky_material = SubResource("SkyMat_yard")
+
+[sub_resource type="Environment" id="Env_yard"]
+background_mode = 2
+sky = SubResource("Sky_yard")
+ambient_light_source = 3
+ambient_light_color = Color(0.88, 0.82, 0.75, 1)
+ambient_light_sky_contribution = 0.5
+tonemap_mode = 2
+
+[sub_resource type="StandardMaterial3D" id="Mat_yard_floor"]
+albedo_color = Color(0.35, 0.38, 0.42, 1)
+roughness = 0.85
+
+[sub_resource type="BoxMesh" id="BoxMesh_main_floor"]
+material = SubResource("Mat_yard_floor")
+size = Vector3(64, 1, 64)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_main_floor"]
+size = Vector3(64, 1, 64)
+
+[sub_resource type="StandardMaterial3D" id="Mat_steel_frame"]
+albedo_color = Color(0.85, 0.45, 0.12, 1)
+roughness = 0.4
+metallic = 0.3
+
+[sub_resource type="BoxMesh" id="BoxMesh_overhead_beam"]
+material = SubResource("Mat_steel_frame")
+size = Vector3(48, 0.8, 0.8)
+
+[sub_resource type="BoxMesh" id="BoxMesh_overhead_beam_z"]
+material = SubResource("Mat_steel_frame")
+size = Vector3(0.8, 0.8, 48)
+
+[sub_resource type="StandardMaterial3D" id="Mat_brick_wall"]
+albedo_color = Color(0.65, 0.32, 0.22, 1)
+roughness = 0.7
+
+[sub_resource type="BoxMesh" id="BoxMesh_brick_wall"]
+material = SubResource("Mat_brick_wall")
+size = Vector3(8, 2.4, 0.8)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_brick_wall"]
+size = Vector3(8, 2.4, 0.8)
+
+[sub_resource type="StandardMaterial3D" id="Mat_center_raised"]
+albedo_color = Color(0.25, 0.28, 0.32, 1)
+roughness = 0.6
+
+[sub_resource type="BoxMesh" id="BoxMesh_center_raised"]
+material = SubResource("Mat_center_raised")
+size = Vector3(14, 0.5, 14)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_center_raised"]
+size = Vector3(14, 0.5, 14)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_kill"]
+size = Vector3(140, 6, 140)
+
+[node name="PendulumYard" type="Node3D"]
+script = ExtResource("1_arena")
+arena_name = "Pendulum Yard"
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Env_yard")
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.866025, -0.353553, 0.353553, 0, 0.707107, 0.707107, -0.5, -0.612372, 0.612372, 0, 25, 0)
+light_color = Color(1, 0.94, 0.88, 1)
+light_energy = 1.2
+shadow_enabled = true
+
+[node name="Geometry" type="Node3D" parent="."]
+
+[node name="MainFloor" type="StaticBody3D" parent="Geometry"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.5, 0)
+collision_layer = 1
+collision_mask = 0
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Geometry/MainFloor"]
+mesh = SubResource("BoxMesh_main_floor")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Geometry/MainFloor"]
+shape = SubResource("BoxShape3D_main_floor")
+
+[node name="CenterRaised" type="StaticBody3D" parent="Geometry"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.25, 0)
+collision_layer = 1
+collision_mask = 0
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Geometry/CenterRaised"]
+mesh = SubResource("BoxMesh_center_raised")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Geometry/CenterRaised"]
+shape = SubResource("BoxShape3D_center_raised")
+
+[node name="OverheadBeam1" type="MeshInstance3D" parent="Geometry"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 7, -8)
+mesh = SubResource("BoxMesh_overhead_beam")
+
+[node name="OverheadBeam2" type="MeshInstance3D" parent="Geometry"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 7, 8)
+mesh = SubResource("BoxMesh_overhead_beam")
+
+[node name="OverheadBeamZ1" type="MeshInstance3D" parent="Geometry"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -12, 7, 0)
+mesh = SubResource("BoxMesh_overhead_beam_z")
+
+[node name="OverheadBeamZ2" type="MeshInstance3D" parent="Geometry"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 7, 0)
+mesh = SubResource("BoxMesh_overhead_beam_z")
+
+[node name="WallNW" type="StaticBody3D" parent="Geometry"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -14, 1.2, -18)
+collision_layer = 1
+collision_mask = 0
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Geometry/WallNW"]
+mesh = SubResource("BoxMesh_brick_wall")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Geometry/WallNW"]
+shape = SubResource("BoxShape3D_brick_wall")
+
+[node name="WallNE" type="StaticBody3D" parent="Geometry"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 14, 1.2, -18)
+collision_layer = 1
+collision_mask = 0
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Geometry/WallNE"]
+mesh = SubResource("BoxMesh_brick_wall")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Geometry/WallNE"]
+shape = SubResource("BoxShape3D_brick_wall")
+
+[node name="WallSW" type="StaticBody3D" parent="Geometry"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -14, 1.2, 18)
+collision_layer = 1
+collision_mask = 0
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Geometry/WallSW"]
+mesh = SubResource("BoxMesh_brick_wall")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Geometry/WallSW"]
+shape = SubResource("BoxShape3D_brick_wall")
+
+[node name="WallSE" type="StaticBody3D" parent="Geometry"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 14, 1.2, 18)
+collision_layer = 1
+collision_mask = 0
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Geometry/WallSE"]
+mesh = SubResource("BoxMesh_brick_wall")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Geometry/WallSE"]
+shape = SubResource("BoxShape3D_brick_wall")
+
+[node name="Pendulums" type="Node3D" parent="."]
+
+[node name="PendulumNorth" parent="Pendulums" instance=ExtResource("3_pendulum")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -8)
+
+[node name="PendulumSouth" parent="Pendulums" instance=ExtResource("3_pendulum")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 8)
+
+[node name="PendulumWest" parent="Pendulums" instance=ExtResource("3_pendulum")]
+transform = Transform3D(-4.37114e-08, 0, 1, 0, 1, 0, -1, 0, -4.37114e-08, -12, 0, 0)
+
+[node name="PendulumEast" parent="Pendulums" instance=ExtResource("3_pendulum")]
+transform = Transform3D(-4.37114e-08, 0, 1, 0, 1, 0, -1, 0, -4.37114e-08, 12, 0, 0)
+
+[node name="Props" type="Node3D" parent="."]
+
+[node name="PhysicsCrate1" parent="Props" instance=ExtResource("2_crate")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5, 0.8, -5)
+
+[node name="PhysicsCrate2" parent="Props" instance=ExtResource("2_crate")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5, 0.8, 5)
+
+[node name="PhysicsCrate3" parent="Props" instance=ExtResource("2_crate")]
+transform = Transform3D(0.92388, 0, 0.382683, 0, 1, 0, -0.382683, 0, 0.92388, -8, 0.8, 4)
+
+[node name="PhysicsCrate4" parent="Props" instance=ExtResource("2_crate")]
+transform = Transform3D(0.92388, 0, -0.382683, 0, 1, 0, 0.382683, 0, 0.92388, 8, 0.8, -4)
+
+[node name="SpawnPoints" type="Node3D" parent="."]
+
+[node name="SpawnPoint1" type="Marker3D" parent="SpawnPoints"]
+transform = Transform3D(-1, 0, -8.74228e-08, 0, 1, 0, 8.74228e-08, 0, -1, 0, 0.5, 22)
+
+[node name="SpawnPoint2" type="Marker3D" parent="SpawnPoints"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, -22)
+
+[node name="SpawnPoint3" type="Marker3D" parent="SpawnPoints"]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -22, 0.5, 0)
+
+[node name="SpawnPoint4" type="Marker3D" parent="SpawnPoints"]
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 22, 0.5, 0)
+
+[node name="SpawnPoint5" type="Marker3D" parent="SpawnPoints"]
+transform = Transform3D(-0.707107, 0, -0.707107, 0, 1, 0, 0.707107, 0, -0.707107, -16, 0.5, 16)
+
+[node name="SpawnPoint6" type="Marker3D" parent="SpawnPoints"]
+transform = Transform3D(0.707107, 0, 0.707107, 0, 1, 0, -0.707107, 0, 0.707107, 16, 0.5, -16)
+
+[node name="SpawnPoint7" type="Marker3D" parent="SpawnPoints"]
+transform = Transform3D(-0.707107, 0, 0.707107, 0, 1, 0, -0.707107, 0, -0.707107, 16, 0.5, 16)
+
+[node name="SpawnPoint8" type="Marker3D" parent="SpawnPoints"]
+transform = Transform3D(0.707107, 0, -0.707107, 0, 1, 0, 0.707107, 0, 0.707107, -16, 0.5, -16)
+
+[node name="KillVolume" type="Area3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -10, 0)
+collision_layer = 0
+collision_mask = 2
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="KillVolume"]
+shape = SubResource("BoxShape3D_kill")

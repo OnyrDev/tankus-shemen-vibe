@@ -14,8 +14,14 @@ extends Node
 @export var body_turn_speed: float = 12.0
 
 var speed_multiplier: float = 1.0
+var is_on_ice: bool = false
+@export var ice_acceleration_multiplier: float = 0.35
+@export var ice_braking_multiplier: float = 0.08
 
 var _tank_body: Tank = null
+
+func set_on_ice(val: bool) -> void:
+	is_on_ice = val
 var _is_jumping: bool = false
 var _coyote_timer: float = 0.0
 var _can_double_jump: bool = false
@@ -90,10 +96,13 @@ func process_physics(input: TankInput, delta: float) -> void:
 	elif not on_floor:
 		_tank_body.velocity.y -= gravity * delta
 
-	# Перемещение с поддержкой наклонных плоскостей (рамп)
+	# Перемещение с поддержкой наклонных плоскостей (рамп) и скольжения на льду
 	var move_dir: Vector3 = input.move_direction_world if input else Vector3.ZERO
 	var current_accel: float = acceleration if on_floor else (acceleration * air_control)
 	var current_brake: float = braking if on_floor else (braking * air_control)
+	if on_floor and is_on_ice:
+		current_accel *= ice_acceleration_multiplier
+		current_brake *= ice_braking_multiplier
 	var effective_speed := move_speed * speed_multiplier
 
 	if move_dir.length_squared() > 0.01:
@@ -132,3 +141,13 @@ func process_physics(input: TankInput, delta: float) -> void:
 		_tank_body.floor_snap_length = 0.4
 
 	_tank_body.move_and_slide()
+
+	# Передача импульса в физические тела (маятники, ящики) при таране
+	for i in range(_tank_body.get_slide_collision_count()):
+		var col := _tank_body.get_slide_collision(i)
+		var rbody := col.get_collider() as RigidBody3D
+		if rbody:
+			var push_dir := -col.get_normal()
+			push_dir.y = 0.0
+			var push_impulse := push_dir.normalized() * (effective_speed * 2.0)
+			rbody.apply_impulse(push_impulse, col.get_position() - rbody.global_position)

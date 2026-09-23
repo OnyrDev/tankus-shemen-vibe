@@ -42,6 +42,13 @@ const TEAM_COLORS: Array[Color] = [
 	Color(0.85, 0.85, 0.85)  # Серый (8)
 ]
 
+const MAP_NAMES: Array[String] = [
+	"sky_courtyard",
+	"iceworks",
+	"pendulum_yard",
+	"shift"
+]
+
 var _is_local_ready: bool = false
 
 func _ready() -> void:
@@ -126,7 +133,10 @@ func _setup_ui_options() -> void:
 
 	if opt_map:
 		opt_map.clear()
-		opt_map.add_item("Sky Courtyard (Test Sandbox)", 0)
+		opt_map.add_item("Sky Courtyard", 0)
+		opt_map.add_item("Iceworks", 1)
+		opt_map.add_item("Pendulum Yard", 2)
+		opt_map.add_item("Shift", 3)
 
 func _update_lobby_ui() -> void:
 	var is_host: bool = Network.is_host or not Network.is_multiplayer_active()
@@ -343,6 +353,10 @@ func _apply_host_settings_to_rules() -> void:
 		r.team_count = opt_team_count.get_selected_id()
 	if chk_friendly_fire:
 		r.friendly_fire = chk_friendly_fire.button_pressed
+	if opt_map:
+		var map_idx := opt_map.selected
+		if map_idx >= 0 and map_idx < MAP_NAMES.size():
+			r.selected_map = MAP_NAMES[map_idx]
 
 	if opt_team_count and opt_game_mode:
 		opt_team_count.disabled = (opt_game_mode.selected == 0)
@@ -367,5 +381,11 @@ func _sync_settings_from_game_rules() -> void:
 		opt_team_count.disabled = not r.is_team_mode or not Network.is_host
 	if chk_friendly_fire:
 		chk_friendly_fire.button_pressed = r.friendly_fire
+	if opt_map:
+		var map_found_idx := MAP_NAMES.find(r.selected_map)
+		if map_found_idx >= 0:
+			opt_map.select(map_found_idx)
+		else:
+			opt_map.select(0)
 
 	_refresh_player_cards()

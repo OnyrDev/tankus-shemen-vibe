@@ -1,9 +1,9 @@
 class_name TestSandbox
 extends Node3D
 
-## Скрипт тестовой песочницы TANKUS (Phase 4: Сетевой LAN-слой и песочница).
-## Поддерживает как одиночное тестирование механик, так и полноценный сетевой мультиплеер
-## с серверным авторитетом, динамическим спавном через MultiplayerSpawner и LAN Discovery.
+## Скрипт песочницы и арены TANKUS (Фаза 6: 4 Арены, интерактивная физика и спавн-менеджер).
+## Поддерживает одиночное тестирование, сетевой мультиплеер, динамическую смену карт
+## (Sky Courtyard, Iceworks, Pendulum Yard, Shift) и разведение спавнов.
 
 const TEAM_COLORS: Array[Color] = [
 	Color(0.18, 0.55, 0.95), # Синий (Хост)
@@ -16,19 +16,25 @@ const TEAM_COLORS: Array[Color] = [
 	Color(0.85, 0.85, 0.85)  # Белый
 ]
 
+const MAP_SCENES: Dictionary = {
+	"sky_courtyard": "res://maps/sky_courtyard.tscn",
+	"iceworks": "res://maps/iceworks.tscn",
+	"pendulum_yard": "res://maps/pendulum_yard.tscn",
+	"shift": "res://maps/shift.tscn"
+}
+
+@onready var map_container: Node3D = get_node_or_null("MapContainer")
+var current_arena: BaseArena = null
+
 @onready var tank: Tank = get_node_or_null("Tank")
 @onready var dummy_tank: Tank = get_node_or_null("DummyTank")
 @onready var camera: TPSCamera = $TPSCamera
-@onready var spawn_marker: Marker3D = get_node_or_null("SpawnPoint")
-@onready var dummy_spawn_marker: Marker3D = get_node_or_null("DummySpawnPoint")
-@onready var kill_volume: Area3D = $KillVolume
 @onready var hud: HUD = get_node_or_null("HUD")
 @onready var card_draft: CardDraft = get_node_or_null("CardDraft")
 
 @onready var lan_menu: LANMenu = get_node_or_null("LANMenu")
 @onready var spawned_tanks: Node3D = get_node_or_null("SpawnedTanks")
 @onready var projectiles: Node3D = get_node_or_null("Projectiles")
-@onready var spawn_points_container: Node3D = get_node_or_null("SpawnPoints")
 @onready var tank_spawner: MultiplayerSpawner = get_node_or_null("TankSpawner")
 @onready var proj_spawner: MultiplayerSpawner = get_node_or_null("ProjSpawner")
 
@@ -37,11 +43,14 @@ const TEAM_COLORS: Array[Color] = [
 @onready var scoreboard: Scoreboard = get_node_or_null("Scoreboard")
 @onready var lobby: Lobby = get_node_or_null("Lobby")
 
+var spawn_points_container: Node3D = null
+var kill_volume: Area3D = null
 var _active_local_tank: Tank = null
+var _peer_spawn_slots: Dictionary = {} # peer_id: int -> slot_index: int
 
 func _ready() -> void:
-	if kill_volume:
-		kill_volume.body_entered.connect(_on_kill_volume_body_entered)
+	# Загружаем выбранную карту арены
+	load_map(Game.rules.selected_map)
 
 	_setup_network_signals()
 	_setup_phase5_systems()
@@ -51,6 +60,46 @@ func _ready() -> void:
 
 	# По умолчанию настраиваем одиночный танк
 	_setup_solo_mode()
+
+## Динамическая загрузка и переключение карты арены
+func load_map(map_name: String) -> void:
+	if not MAP_SCENES.has(map_name):
+		map_name = "sky_courtyard"
+
+	var scene_path: String = MAP_SCENES[map_name]
+	var packed := load(scene_path) as PackedScene
+	if not packed:
+		return
+
+	if not map_container:
+		map_container = Node3D.new()
+		map_container.name = "MapContainer"
+		add_child(map_container)
+		move_child(map_container, 0)
+
+	# Очищаем предыдущую арену
+	if current_arena and is_instance_valid(current_arena):
+		current_arena.queue_free()
+		current_arena = null
+
+	for child in map_container.get_children():
+		child.queue_free()
+
+	current_arena = packed.instantiate() as BaseArena
+	map_container.add_child(current_arena)
+
+	spawn_points_container = current_arena.spawn_points_container if current_arena.spawn_points_container else current_arena.get_node_or_null("SpawnPoints")
+	kill_volume = current_arena.kill_volume if current_arena.kill_volume else current_arena.get_node_or_null("KillVolume")
+
+	if current_arena:
+		current_arena.tank_fell.connect(_on_kill_volume_body_entered)
+
+	if match_controller:
+		match_controller.spawn_points_container = spawn_points_container
+
+@rpc("authority", "reliable", "call_local")
+func s2c_load_map(map_name: String) -> void:
+	load_map(map_name)
 
 func _setup_phase5_systems() -> void:
 	if match_controller:
@@ -66,7 +115,6 @@ func _setup_phase5_systems() -> void:
 				lobby.close_lobby()
 		)
 
-
 	if tank_overhead_manager and spawned_tanks:
 		tank_overhead_manager.setup_container(spawned_tanks)
 
@@ -80,7 +128,6 @@ func _setup_phase5_systems() -> void:
 	if lan_menu:
 		lan_menu.session_joined.connect(_on_session_joined)
 
-
 func _setup_network_signals() -> void:
 	Network.server_created.connect(_on_server_created)
 	Network.server_closed.connect(_on_session_ended)
@@ -93,21 +140,20 @@ func _setup_network_signals() -> void:
 		lan_menu.game_started.connect(_on_lan_game_started)
 
 func _setup_solo_mode() -> void:
+	var tf1 := _get_spawn_transform_for_peer(1)
 	if tank and camera:
 		_bind_local_tank(tank)
+		tank.spawn_point = tf1
+		tank.global_transform = tf1
 
-	if spawn_marker and tank:
-		tank.spawn_point = spawn_marker.global_transform
-		tank.global_transform = spawn_marker.global_transform
-
+	var tf2 := _get_spawn_transform_for_peer(2)
 	if dummy_tank:
 		dummy_tank.team_id = 1
 		dummy_tank.set_team_color(Color(0.95, 0.25, 0.25))
 		if dummy_tank.input:
 			dummy_tank.input.enabled = false
-		if dummy_spawn_marker:
-			dummy_tank.spawn_point = dummy_spawn_marker.global_transform
-			dummy_tank.global_transform = dummy_spawn_marker.global_transform
+		dummy_tank.spawn_point = tf2
+		dummy_tank.global_transform = tf2
 
 func _bind_local_tank(target_tank: Tank) -> void:
 	_active_local_tank = target_tank
@@ -132,18 +178,13 @@ func _unhandled_input(event: InputEvent) -> void:
 				else:
 					card_draft.open_draft(_active_local_tank)
 
-
 # --- Сетевой спавн танков ---
 
 func _on_server_created() -> void:
-	# Скрываем локальные соло-танки
 	_set_solo_tanks_active(false)
-
-	# Сервер спавнит танк хоста (peer 1)
 	_server_spawn_tank_for_peer(1)
 
 func _on_connected_to_server() -> void:
-	# Клиент подключился к серверу: скрываем соло-танки
 	_set_solo_tanks_active(false)
 	_check_and_bind_my_tank()
 
@@ -155,11 +196,8 @@ func _on_peer_disconnected(peer_id: int) -> void:
 	if Network.is_server():
 		_server_remove_tank_for_peer(peer_id)
 
-var _peer_spawn_slots: Dictionary = {} # peer_id: int -> slot_index: int
-
 func _on_session_ended() -> void:
 	_peer_spawn_slots.clear()
-	# Очищаем сетевые танки и возвращаем соло режим
 	if spawned_tanks:
 		for child in spawned_tanks.get_children():
 			child.queue_free()
@@ -189,12 +227,10 @@ func _get_or_assign_spawn_slot(peer_id: int) -> int:
 	if _peer_spawn_slots.has(peer_id):
 		return _peer_spawn_slots[peer_id]
 
-	# Хост (1) всегда занимает слот 0
 	if peer_id == 1:
 		_peer_spawn_slots[1] = 0
 		return 0
 
-	# Клиенты занимают следующий свободный слот от 1 до 7
 	var used: Array = _peer_spawn_slots.values()
 	for slot in range(1, 8):
 		if slot not in used:
@@ -209,7 +245,6 @@ func _server_spawn_tank_for_peer(peer_id: int) -> void:
 	if not Network.is_server() or not spawned_tanks:
 		return
 
-	# Проверяем, не заспавнен ли уже танк для этого пира
 	var node_name := "Tank_%d" % peer_id
 	if spawned_tanks.has_node(node_name):
 		return
@@ -223,7 +258,6 @@ func _server_spawn_tank_for_peer(peer_id: int) -> void:
 	var spawn_tf := _get_spawn_transform_for_peer(peer_id)
 	var team_col := TEAM_COLORS[slot % TEAM_COLORS.size()]
 
-	# Подключаем смерть танка к авто-респавну на сервере через 2 секунды
 	t.died.connect(func(killer): _on_tank_died(t, killer))
 
 	spawned_tanks.add_child(t, true)
@@ -233,11 +267,9 @@ func _server_spawn_tank_for_peer(peer_id: int) -> void:
 	t.setup_network(peer_id, slot, team_col)
 
 func _on_tank_died(dead_tank: Tank, _killer: Node) -> void:
-	# Если погиб локальный танк — переводим камеру в режим Spectator
 	if dead_tank.peer_id == Network.get_unique_id() and match_controller:
 		match_controller.on_local_tank_died()
 
-	# Если мы вне раундового матча (свободная песочница) — респавним через 2 секунды
 	if not Game.is_in_match and Network.is_server():
 		var timer := get_tree().create_timer(2.0)
 		timer.timeout.connect(func():
@@ -253,6 +285,13 @@ func _on_session_joined() -> void:
 func _on_match_start_requested() -> void:
 	if lobby:
 		lobby.close_lobby()
+
+	# Хост синхронизирует выбранную карту перед стартом матча
+	if multiplayer.has_multiplayer_peer():
+		s2c_load_map.rpc(Game.rules.selected_map)
+	else:
+		load_map(Game.rules.selected_map)
+
 	if match_controller and (Network.is_host or not Network.is_multiplayer_active()):
 		match_controller.start_new_match()
 
@@ -263,7 +302,6 @@ func _on_lobby_left() -> void:
 func _on_returned_to_lobby() -> void:
 	if lobby:
 		lobby.open_lobby()
-
 
 func _server_remove_tank_for_peer(peer_id: int) -> void:
 	_peer_spawn_slots.erase(peer_id)
@@ -287,7 +325,6 @@ func _on_spawned_tank_entered(node: Node) -> void:
 			if id_str.is_valid_int():
 				t.peer_id = id_str.to_int()
 
-		# Даем кадру пройти для инициализации всех дочерних нод
 		await get_tree().process_frame
 		if is_instance_valid(t):
 			if t.peer_id == Network.get_unique_id():
@@ -309,21 +346,13 @@ func _check_and_bind_my_tank() -> void:
 func _get_spawn_transform_for_peer(peer_id: int) -> Transform3D:
 	var slot := _get_or_assign_spawn_slot(peer_id)
 	if spawn_points_container and spawn_points_container.get_child_count() > 0:
-		var child_cnt := spawn_points_container.get_child_count()
-		var point_idx := slot % child_cnt
-		var marker := spawn_points_container.get_child(point_idx) as Marker3D
-		if marker:
-			return marker.global_transform
+		var markers: Array[Marker3D] = []
+		for child in spawn_points_container.get_children():
+			if child is Marker3D:
+				markers.append(child)
+		return SpawnManager.get_fallback_transform(slot, markers)
 
-	if spawn_marker:
-		return spawn_marker.global_transform
 	return Transform3D.IDENTITY
-
-func _get_team_for_peer(peer_id: int) -> int:
-	var info := Network.get_player_info(peer_id)
-	if info:
-		return info.team_id
-	return (peer_id - 1) % TEAM_COLORS.size()
 
 func _on_lan_game_started() -> void:
 	if lan_menu:
@@ -337,22 +366,22 @@ func _on_kill_volume_body_entered(body: Node3D) -> void:
 		t.fell_into_void.emit()
 
 		if Network.is_multiplayer_active():
-			# В мультиплеере только сервер выполняет респавн
 			if Network.is_server():
 				var spawn_tf := _get_spawn_transform_for_peer(t.peer_id)
 				t.respawn(spawn_tf)
 		else:
-			# Одиночный режим
 			if t == tank:
 				_respawn_tank()
-			elif t == dummy_tank and dummy_spawn_marker:
-				dummy_tank.respawn(dummy_spawn_marker.global_transform)
+			elif t == dummy_tank:
+				var tf2 := _get_spawn_transform_for_peer(2)
+				dummy_tank.respawn(tf2)
 
 func _respawn_tank() -> void:
-	if _active_local_tank and spawn_marker:
-		_active_local_tank.respawn(spawn_marker.global_transform)
+	if _active_local_tank:
+		var spawn_tf := _get_spawn_transform_for_peer(1)
+		_active_local_tank.respawn(spawn_tf)
 		if camera:
-			camera.global_position = spawn_marker.global_position + camera.target_offset
+			camera.global_position = spawn_tf.origin + camera.target_offset
 
 func _respawn_all() -> void:
 	if Network.is_multiplayer_active():
@@ -364,5 +393,6 @@ func _respawn_all() -> void:
 					t.respawn(spawn_tf)
 	else:
 		_respawn_tank()
-		if dummy_tank and dummy_spawn_marker:
-			dummy_tank.respawn(dummy_spawn_marker.global_transform)
+		if dummy_tank:
+			var tf2 := _get_spawn_transform_for_peer(2)
+			dummy_tank.respawn(tf2)

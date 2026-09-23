@@ -218,9 +218,13 @@ func _server_apply_client_movement(delta: float) -> void:
 	elif not on_floor:
 		_tank.velocity.y -= _tank.controller.gravity * delta
 
-	# Движение с поддержкой наклонных плоскостей (рамп)
+	# Движение с поддержкой наклонных плоскостей (рамп) и льда
+	var is_on_ice: bool = _tank.controller.is_on_ice if _tank.controller else false
 	var current_accel: float = _tank.controller.acceleration if on_floor else (_tank.controller.acceleration * _tank.controller.air_control)
 	var current_brake: float = _tank.controller.braking if on_floor else (_tank.controller.braking * _tank.controller.air_control)
+	if on_floor and is_on_ice and _tank.controller:
+		current_accel *= _tank.controller.ice_acceleration_multiplier
+		current_brake *= _tank.controller.ice_braking_multiplier
 	var effective_speed := _tank.controller.move_speed * _tank.controller.speed_multiplier
 
 	if _client_move_dir.length_squared() > 0.01:
@@ -250,6 +254,16 @@ func _server_apply_client_movement(delta: float) -> void:
 			_tank.rotation.y += signf(diff) * minf(absf(diff), _tank.controller.body_turn_speed * delta)
 
 	_tank.move_and_slide()
+
+	# Передача импульса в физические тела при таране
+	for i in range(_tank.get_slide_collision_count()):
+		var col := _tank.get_slide_collision(i)
+		var rbody := col.get_collider() as RigidBody3D
+		if rbody:
+			var push_dir := -col.get_normal()
+			push_dir.y = 0.0
+			var push_impulse := push_dir.normalized() * (effective_speed * 2.0)
+			rbody.apply_impulse(push_impulse, col.get_position() - rbody.global_position)
 
 	# Доворот башни на сервере
 	if _tank.turret and _client_is_aim_valid:

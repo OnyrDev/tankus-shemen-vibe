@@ -379,10 +379,20 @@ func _server_reset_and_place_tanks() -> void:
 		for p in p_node.get_children():
 			p.queue_free()
 
+	var markers: Array[Marker3D] = []
+	if spawn_points_container:
+		for child in spawn_points_container.get_children():
+			if child is Marker3D:
+				markers.append(child)
+
+	var spawns: Dictionary = {}
+	if not markers.is_empty():
+		spawns = SpawnManager.assign_spawns(Network.get_all_players(), markers, Game.rules.is_team_mode)
+
 	if multiplayer.has_multiplayer_peer():
-		s2c_reset_and_place_tanks.rpc()
+		s2c_reset_and_place_tanks.rpc(spawns)
 	else:
-		s2c_reset_and_place_tanks()
+		s2c_reset_and_place_tanks(spawns)
 
 func _server_start_combat() -> void:
 	current_state = State.PLAYING
@@ -536,7 +546,7 @@ func _get_spawn_transform_for_tank(tank: Tank, index: int) -> Transform3D:
 # --- Клиентские RPC обработчики событий ---
 
 @rpc("authority", "reliable", "call_local")
-func s2c_reset_and_place_tanks() -> void:
+func s2c_reset_and_place_tanks(assigned_spawns: Dictionary = {}) -> void:
 	_stop_spectating()
 	if _pnl_round_end:
 		_pnl_round_end.visible = false
@@ -544,7 +554,12 @@ func s2c_reset_and_place_tanks() -> void:
 	var tanks := _get_all_tanks()
 	for i in range(tanks.size()):
 		var t := tanks[i]
-		var spawn_tf := _get_spawn_transform_for_tank(t, i)
+		var spawn_tf: Transform3D = Transform3D.IDENTITY
+		if assigned_spawns.has(t.peer_id):
+			spawn_tf = assigned_spawns[t.peer_id]
+		else:
+			spawn_tf = _get_spawn_transform_for_tank(t, i)
+
 		t.respawn(spawn_tf)
 		t.is_frozen = true
 

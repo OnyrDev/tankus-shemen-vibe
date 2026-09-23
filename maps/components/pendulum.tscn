@@ -1,0 +1,79 @@
+[gd_scene format=3 uid="uid://c6pndulum001"]
+
+[ext_resource type="Script" path="res://maps/components/pendulum.gd" id="1_pend"]
+
+[sub_resource type="StandardMaterial3D" id="Mat_beam"]
+albedo_color = Color(0.2, 0.22, 0.26, 1)
+roughness = 0.7
+
+[sub_resource type="BoxMesh" id="BoxMesh_beam"]
+material = SubResource("Mat_beam")
+size = Vector3(1.2, 0.6, 1.2)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_beam"]
+size = Vector3(1.2, 0.6, 1.2)
+
+[sub_resource type="StandardMaterial3D" id="Mat_bob"]
+albedo_color = Color(0.95, 0.55, 0.15, 1)
+roughness = 0.4
+metallic = 0.2
+
+[sub_resource type="BoxMesh" id="BoxMesh_bob"]
+material = SubResource("Mat_bob")
+size = Vector3(2.2, 2.2, 2.2)
+
+[sub_resource type="StandardMaterial3D" id="Mat_cable"]
+albedo_color = Color(0.12, 0.14, 0.16, 1)
+roughness = 0.5
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_cable"]
+material = SubResource("Mat_cable")
+top_radius = 0.06
+bottom_radius = 0.06
+height = 5.2
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_bob"]
+size = Vector3(2.2, 2.2, 2.2)
+
+[node name="Pendulum" type="Node3D"]
+script = ExtResource("1_pend")
+
+[node name="Anchor" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 7, 0)
+collision_layer = 1
+collision_mask = 0
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Anchor"]
+mesh = SubResource("BoxMesh_beam")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Anchor"]
+shape = SubResource("BoxShape3D_beam")
+
+[node name="Bob" type="RigidBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.6, 0)
+collision_layer = 1
+collision_mask = 3
+mass = 25.0
+can_sleep = false
+linear_damp = 0.4
+angular_damp = 0.6
+
+[node name="CubeMesh" type="MeshInstance3D" parent="Bob"]
+mesh = SubResource("BoxMesh_bob")
+
+[node name="CableMesh" type="MeshInstance3D" parent="Bob"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.7, 0)
+mesh = SubResource("CylinderMesh_cable")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Bob"]
+shape = SubResource("BoxShape3D_bob")
+
+[node name="HingeJoint3D" type="HingeJoint3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 7, 0)
+node_a = NodePath("../Anchor")
+node_b = NodePath("../Bob")
+angular_limit/enable = true
+angular_limit/upper = 1.15
+angular_limit/lower = -1.15
+angular_limit/bias = 0.3
+angular_limit/softness = 0.8

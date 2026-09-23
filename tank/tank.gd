@@ -162,3 +162,7 @@ func _apply_team_color() -> void:
 		chassis_mesh.material_override = team_mat
 	if turret_mesh:
 		turret_mesh.material_override = team_mat
+
+func set_on_ice(val: bool) -> void:
+	if controller:
+		controller.set_on_ice(val)

@@ -267,6 +267,12 @@ func _handle_collision(collision: KinematicCollision3D) -> void:
 		_destroy()
 		return
 
+	# Если попали в физическое тело RigidBody3D (маятник или ящик) — передаем импульс
+	if collider is RigidBody3D:
+		var rbody := collider as RigidBody3D
+		var hit_impulse := direction * (damage * 0.4 + knockout_force * 2.0)
+		rbody.apply_impulse(hit_impulse, col_point - rbody.global_position)
+
 	# 2. Попадание в стену или статическое препятствие -> РИКОШЕТ
 	if bounces_left > 0:
 		bounces_left -= 1

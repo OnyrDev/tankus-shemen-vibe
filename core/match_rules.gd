@@ -8,6 +8,7 @@ extends Resource
 @export var draft_timeout_sec: float = 20.0
 @export var initial_draft_count: int = 5
 @export var round_time_limit_sec: float = 0.0 # 0.0 = unlimited
+@export var selected_map: String = "sky_courtyard"
 
 func to_dict() -> Dictionary:
 	return {
@@ -17,7 +18,8 @@ func to_dict() -> Dictionary:
 		"friendly_fire": friendly_fire,
 		"draft_timeout_sec": draft_timeout_sec,
 		"initial_draft_count": initial_draft_count,
-		"round_time_limit_sec": round_time_limit_sec
+		"round_time_limit_sec": round_time_limit_sec,
+		"selected_map": selected_map
 	}
 
 func load_dict(d: Dictionary) -> void:
@@ -28,3 +30,4 @@ func load_dict(d: Dictionary) -> void:
 	draft_timeout_sec = d.get("draft_timeout_sec", draft_timeout_sec)
 	initial_draft_count = d.get("initial_draft_count", initial_draft_count)
 	round_time_limit_sec = d.get("round_time_limit_sec", round_time_limit_sec)
+	selected_map = d.get("selected_map", selected_map)
