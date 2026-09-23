@@ -59,7 +59,7 @@ light_energy = 0.8
 omni_range = 3.5
 
 [node name="GPUParticles3D" type="GPUParticles3D" parent="."]
-amount = 16
-lifetime = 0.25
+amount = 24
+lifetime = 0.3
 process_material = SubResource("ParticleProcessMaterial_trail")
 draw_pass_1 = SubResource("SphereMesh_particle")

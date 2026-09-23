@@ -94,6 +94,14 @@ func _fire() -> void:
 	_play_recoil()
 	_spawn_muzzle_flash()
 
+	var muzzle_p: Vector3 = _turret.get_muzzle_position() if _turret else (_tank.global_position if _tank else Vector3.ZERO)
+	if SoundManager:
+		SoundManager.play_sfx_3d("shoot", muzzle_p)
+
+	# Легкая отдача в камеру для локального танка
+	if Game and _tank and ((_tank.net_sync and _tank.net_sync.is_local_owner()) or not _tank.net_sync):
+		Game.shake_camera(0.09)
+
 	if current_ammo <= 0:
 		start_reload()
 
@@ -230,6 +238,8 @@ func _complete_reload() -> void:
 	reload_completed.emit()
 	if _tank and _tank.events:
 		_tank.events.emit_reload_completed()
+	if SoundManager and _tank:
+		SoundManager.play_sfx_3d("reload_done", _tank.global_position)
 
 func reset() -> void:
 	_is_reloading = false

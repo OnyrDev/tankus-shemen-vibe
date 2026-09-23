@@ -14,6 +14,8 @@ signal successful_block(blocked_projectile: Node)
 @export var block_duration: float = 0.35
 @export var cooldown: float = 3.0
 
+const SHIELD_PULSE_SCENE: PackedScene = preload("res://vfx/shield_pulse_vfx.tscn")
+
 var _is_blocking: bool = false
 var _is_on_cooldown: bool = false
 var _block_timer: float = 0.0
@@ -81,6 +83,9 @@ func activate_block() -> bool:
 	_cooldown_timer = cooldown
 
 	_show_shield()
+	if SoundManager and _tank:
+		SoundManager.play_sfx_3d("block", _tank.global_position, -2.0, 0.08)
+
 	block_started.emit(block_duration)
 	if _tank and _tank.events:
 		_tank.events.emit_block_started(block_duration)
@@ -95,6 +100,20 @@ func absorb_projectile(projectile: Node) -> void:
 		_tank.events.emit_successful_block(projectile)
 
 	_pulse_shield()
+
+	if SHIELD_PULSE_SCENE and _tank:
+		var pulse := SHIELD_PULSE_SCENE.instantiate() as ShieldPulseVFX
+		if pulse:
+			var parent := _tank.get_parent() if _tank.get_parent() else _tank
+			parent.add_child(pulse)
+			pulse.global_position = _tank.global_position + Vector3.UP * 0.5
+			pulse.setup(_tank.team_color)
+
+	if SoundManager and _tank:
+		SoundManager.play_sfx_3d("block", _tank.global_position, 3.0, 0.04)
+
+	if Game:
+		Game.shake_camera(0.22)
 
 	if is_instance_valid(projectile):
 		projectile.queue_free()

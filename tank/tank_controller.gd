@@ -18,7 +18,15 @@ var is_on_ice: bool = false
 @export var ice_acceleration_multiplier: float = 0.35
 @export var ice_braking_multiplier: float = 0.08
 
+const DUST_PUFF_SCENE: PackedScene = preload("res://vfx/dust_puff_vfx.tscn")
+
 var _tank_body: Tank = null
+
+# Game feel: динамический наклон подвески (Pitch/Roll) и сжатие (Squash/Stretch)
+var _prev_velocity: Vector3 = Vector3.ZERO
+var _current_tilt_pitch: float = 0.0
+var _current_tilt_roll: float = 0.0
+var _current_visual_scale: Vector3 = Vector3.ONE
 
 func set_on_ice(val: bool) -> void:
 	is_on_ice = val
@@ -60,6 +68,12 @@ func process_physics(input: TankInput, delta: float) -> void:
 			var fall_dist := maxf(0.0, _peak_y - _tank_body.global_position.y)
 			if _tank_body.events:
 				_tank_body.events.emit_land(fall_dist)
+			if SoundManager and fall_dist > 0.4:
+				SoundManager.play_sfx_3d("land", _tank_body.global_position)
+			_spawn_land_dust(fall_dist)
+			_apply_land_squash(fall_dist)
+			if fall_dist > 1.8 and Game:
+				Game.shake_camera(0.22)
 			_was_in_air = false
 
 		_coyote_timer = COYOTE_TIME
@@ -86,6 +100,9 @@ func process_physics(input: TankInput, delta: float) -> void:
 		_peak_y = _tank_body.global_position.y
 		if _tank_body.events:
 			_tank_body.events.emit_jump()
+		if SoundManager:
+			SoundManager.play_sfx_3d("jump", _tank_body.global_position)
+		_apply_jump_stretch()
 	elif wants_jump and not on_floor and _can_double_jump:
 		# Выполнение Double Jump в воздухе
 		_can_double_jump = false
@@ -93,6 +110,9 @@ func process_physics(input: TankInput, delta: float) -> void:
 		_peak_y = _tank_body.global_position.y
 		if _tank_body.events:
 			_tank_body.events.emit_jump()
+		if SoundManager:
+			SoundManager.play_sfx_3d("jump", _tank_body.global_position)
+		_apply_jump_stretch()
 	elif not on_floor:
 		_tank_body.velocity.y -= gravity * delta
 
@@ -142,6 +162,8 @@ func process_physics(input: TankInput, delta: float) -> void:
 
 	_tank_body.move_and_slide()
 
+	_update_chassis_tilt(delta)
+
 	# Передача импульса в физические тела (маятники, ящики) при таране
 	for i in range(_tank_body.get_slide_collision_count()):
 		var col := _tank_body.get_slide_collision(i)
@@ -151,3 +173,48 @@ func process_physics(input: TankInput, delta: float) -> void:
 			push_dir.y = 0.0
 			var push_impulse := push_dir.normalized() * (effective_speed * 2.0)
 			rbody.apply_impulse(push_impulse, col.get_position() - rbody.global_position)
+
+func _apply_jump_stretch() -> void:
+	_current_visual_scale = Vector3(0.92, 1.16, 0.92)
+
+func _apply_land_squash(fall_dist: float) -> void:
+	var factor := clampf(fall_dist * 0.05, 0.08, 0.25)
+	_current_visual_scale = Vector3(1.0 + factor, 1.0 - factor, 1.0 + factor)
+
+func _spawn_land_dust(fall_dist: float) -> void:
+	if not DUST_PUFF_SCENE or not _tank_body:
+		return
+	var dust := DUST_PUFF_SCENE.instantiate() as DustPuffVFX
+	if dust:
+		var parent: Node = _tank_body.get_parent() if _tank_body.get_parent() else _tank_body
+		parent.add_child(dust)
+		dust.global_position = _tank_body.global_position
+		dust.setup(clampf(fall_dist / 2.5, 0.8, 1.8))
+
+func _update_chassis_tilt(delta: float) -> void:
+	if not _tank_body or not _tank_body.visuals:
+		return
+
+	var current_vel := _tank_body.velocity
+	var accel_world := (current_vel - _prev_velocity) / maxf(delta, 0.001)
+	_prev_velocity = current_vel
+
+	# Проекция ускорения в локальный базис танка
+	var local_accel := _tank_body.global_transform.basis.inverse() * accel_world
+
+	# Наклон корпуса:
+	# Торможение (local_accel.z > 0) -> клевок носом (pitch вниз > 0)
+	# Разгон вперед (local_accel.z < 0) -> подъем носа (pitch вверх < 0)
+	var target_pitch := clampf(local_accel.z * 0.0035, -0.12, 0.12)
+	# Боковой крен при заносе/повороте
+	var target_roll := clampf(-local_accel.x * 0.0025, -0.08, 0.08)
+
+	_current_tilt_pitch = lerpf(_current_tilt_pitch, target_pitch, 14.0 * delta)
+	_current_tilt_roll = lerpf(_current_tilt_roll, target_roll, 14.0 * delta)
+
+	_tank_body.visuals.rotation.x = _current_tilt_pitch
+	_tank_body.visuals.rotation.z = _current_tilt_roll
+
+	# Плавное возвращение формы после squash / stretch
+	_current_visual_scale = _current_visual_scale.lerp(Vector3.ONE, 10.0 * delta)
+	_tank_body.visuals.scale = _current_visual_scale

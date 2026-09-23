@@ -1,0 +1,19 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://vfx/shield_pulse_vfx.gd" id="1_pulse"]
+
+[sub_resource type="StandardMaterial3D" id="Material_pulse"]
+transparency = 1
+shading_mode = 0
+albedo_color = Color(0.25, 0.85, 1, 0.85)
+
+[sub_resource type="SphereMesh" id="SphereMesh_pulse"]
+radius = 1.35
+height = 2.7
+
+[node name="ShieldPulseVFX" type="Node3D"]
+script = ExtResource("1_pulse")
+
+[node name="PulseMesh" type="MeshInstance3D" parent="."]
+material_override = SubResource("Material_pulse")
+mesh = SubResource("SphereMesh_pulse")

@@ -23,6 +23,16 @@ var is_spectating: bool = false
 var _spectate_targets: Array[Node3D] = []
 var _spectate_index: int = 0
 
+# Trauma Camera Shake
+@export var max_pitch_shake: float = 0.06
+@export var max_yaw_shake: float = 0.06
+@export var max_roll_shake: float = 0.08
+@export var max_offset_shake: float = 0.35
+@export var trauma_decay: float = 1.6
+
+var trauma: float = 0.0
+var _shake_timer: float = 0.0
+
 
 func _ready() -> void:
 	top_level = true
@@ -36,6 +46,12 @@ func _ready() -> void:
 	pitch = deg_to_rad(12.0)
 	if spring_arm:
 		spring_arm.rotation.x = -pitch
+
+	if Game and not Game.camera_shake_requested.is_connected(add_trauma):
+		Game.camera_shake_requested.connect(add_trauma)
+
+func add_trauma(amount: float) -> void:
+	trauma = clampf(trauma + amount, 0.0, 1.0)
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
@@ -131,6 +147,37 @@ func _physics_process(delta: float) -> void:
 	var desired_pos := target_node.global_position + target_offset
 	var weight := 1.0 - exp(-smooth_speed * delta)
 	global_position = global_position.lerp(desired_pos, weight)
+
+	_process_camera_shake(delta)
+
+func _process_camera_shake(delta: float) -> void:
+	if trauma > 0.0:
+		trauma = maxf(0.0, trauma - trauma_decay * delta)
+		var shake := trauma * trauma
+		_shake_timer += delta * 42.0
+
+		var pitch_offset := sin(_shake_timer * 1.1) * max_pitch_shake * shake
+		var yaw_offset := cos(_shake_timer * 1.3) * max_yaw_shake * shake
+		var roll_offset := sin(_shake_timer * 1.7) * max_roll_shake * shake
+		var h_offset := sin(_shake_timer * 2.1) * max_offset_shake * shake
+		var v_offset := cos(_shake_timer * 2.3) * max_offset_shake * shake
+
+		if camera:
+			camera.h_offset = h_offset
+			camera.v_offset = v_offset
+			camera.rotation.z = roll_offset
+
+		if spring_arm:
+			spring_arm.rotation.x = -pitch + pitch_offset
+			spring_arm.rotation.y = yaw_offset
+	else:
+		if camera:
+			camera.h_offset = 0.0
+			camera.v_offset = 0.0
+			camera.rotation.z = 0.0
+		if spring_arm:
+			spring_arm.rotation.x = -pitch
+			spring_arm.rotation.y = 0.0
 
 func get_camera() -> Camera3D:
 	return camera

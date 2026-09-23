@@ -165,11 +165,19 @@ func _create_card_widget(card: CardDefinition, index: int) -> Control:
 		_select_by_index(index)
 	)
 
+	root_btn.mouse_entered.connect(func():
+		if SoundManager and _is_draft_active:
+			SoundManager.play_sfx("card_hover", -4.0)
+	)
+
 	return root_btn
 
 func _select_by_index(idx: int) -> void:
 	if not _is_draft_active or idx < 0 or idx >= _current_offer.size():
 		return
+
+	if SoundManager:
+		SoundManager.play_sfx("card_select", 2.0)
 
 	var chosen_card := _current_offer[idx]
 

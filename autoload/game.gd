@@ -4,6 +4,7 @@ signal match_state_changed(new_state: String)
 signal round_started(round_number: int)
 signal round_ended(winner_team_or_peer: int)
 signal match_ended(winner_team_or_peer: int)
+signal camera_shake_requested(intensity: float)
 
 var rules: MatchRules = MatchRules.new()
 var current_round: int = 0
@@ -28,3 +29,6 @@ func reset_match() -> void:
 	current_round = 0
 	is_in_match = false
 	set_match_state("LOBBY")
+
+func shake_camera(intensity: float = 0.5) -> void:
+	camera_shake_requested.emit(intensity)
