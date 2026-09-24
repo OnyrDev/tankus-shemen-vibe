@@ -10,6 +10,7 @@ var _passed_count: int = 0
 var _failed_count: int = 0
 
 func _ready() -> void:
+	var app_tree := get_tree()
 	print("\n========================================================")
 	print("   TANKUS — MAIN MENU & INPUT SAFETY AUTOMATED TEST")
 	print("========================================================\n")
@@ -32,7 +33,8 @@ func _ready() -> void:
 	else:
 		print(">>> ALL MAIN MENU & INPUT SAFETY TESTS PASSED! <<<\n")
 
-	get_tree().quit(0 if _failed_count == 0 else 1)
+	if app_tree:
+		app_tree.quit(0 if _failed_count == 0 else 1)
 
 func _assert_test(condition: bool, test_name: String) -> void:
 	if condition:
@@ -160,4 +162,11 @@ func _test_standalone_lobby_screen() -> void:
 	_assert_test(mat != null and mat.albedo_color == LobbyScreenScript.TEAM_COLORS[1], "Танк в шоуруме перекрашивается в цвет команды игрока (Команда 2 - Красный)")
 
 	Network.local_team_id = 1
+
+	# Проверка нажатия кнопки 'Покинуть лобби' без краша get_tree()
+	Network.create_host(7099)
+	_assert_test(Network.is_host == true, "Хост успешно поднят перед тестом выхода из лобби")
+	lobby_scr._on_btn_leave_lobby_pressed()
+	_assert_test(Network.is_host == false, "Нажатие 'Покинуть лобби' закрывает сессию без краша get_tree()")
+
 	lobby_scr.queue_free()

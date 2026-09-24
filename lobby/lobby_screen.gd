@@ -54,6 +54,7 @@ const MAP_NAMES: Array[String] = [
 
 var _is_local_ready: bool = false
 var _rotation_time: float = 0.0
+var _is_transitioning: bool = false
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -320,17 +321,33 @@ func _on_btn_start_match_pressed() -> void:
 
 @rpc("authority", "reliable", "call_local")
 func s2c_launch_match(map_name: String) -> void:
+	_launch_match_local(map_name)
+
+func _launch_match_local(map_name: String) -> void:
+	if _is_transitioning:
+		return
+	_is_transitioning = true
 	Game.rules.selected_map = map_name
 	Game.is_in_match = true
-	get_tree().change_scene_to_file("res://maps/test_sandbox.tscn")
+	var tree := get_tree()
+	if tree:
+		tree.change_scene_to_file("res://maps/test_sandbox.tscn")
 
 func _on_btn_leave_lobby_pressed() -> void:
 	_play_select_sound()
 	Network.disconnect_session()
-	get_tree().change_scene_to_file("res://ui/main_menu.tscn")
+	_leave_to_main_menu()
 
 func _on_server_disconnected() -> void:
-	get_tree().change_scene_to_file("res://ui/main_menu.tscn")
+	_leave_to_main_menu()
+
+func _leave_to_main_menu() -> void:
+	if _is_transitioning:
+		return
+	_is_transitioning = true
+	var tree := get_tree()
+	if tree:
+		tree.change_scene_to_file("res://ui/main_menu.tscn")
 
 func _on_name_submitted(new_name: String) -> void:
 	Network.set_local_name(new_name)

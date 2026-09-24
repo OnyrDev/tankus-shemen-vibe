@@ -22,7 +22,9 @@ func return_to_main_menu() -> void:
 	set_match_state("IDLE")
 	if Network.is_multiplayer_active() or Network.is_host:
 		Network.disconnect_session()
-	get_tree().change_scene_to_file("res://ui/main_menu.tscn")
+	var tree := get_tree()
+	if tree:
+		tree.change_scene_to_file("res://ui/main_menu.tscn")
 
 func set_match_state(new_state: String) -> void:
 	match_state = new_state
