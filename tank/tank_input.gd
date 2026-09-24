@@ -51,8 +51,13 @@ func _exit_tree() -> void:
 	if is_instance_valid(_crosshair):
 		_crosshair.queue_free()
 
+func _is_aim_input_active() -> bool:
+	if DisplayServer.get_name() == "headless":
+		return true
+	return Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
+
 func _process(_delta: float) -> void:
-	if not enabled:
+	if not enabled or not _is_aim_input_active():
 		if is_instance_valid(_crosshair):
 			_crosshair.visible = false
 		return
@@ -73,7 +78,8 @@ func _physics_process(_delta: float) -> void:
 
 	if Input.is_action_just_pressed("jump"):
 		jump_requested = true
-	if Input.is_action_pressed("fire"):
+	# Стрельба возможна ТОЛЬКО в режиме захваченного прицела (исключает стрельбу при кликах в UI/меню/лобби)
+	if _is_aim_input_active() and Input.is_action_pressed("fire"):
 		fire_requested = true
 	if Input.is_action_just_pressed("reload"):
 		reload_requested = true
@@ -86,9 +92,12 @@ func consume_jump() -> bool:
 	return requested
 
 func is_fire_held() -> bool:
-	return enabled and (_tank_body == null or not _tank_body.is_frozen) and Input.is_action_pressed("fire")
+	return enabled and (_tank_body == null or not _tank_body.is_frozen) and _is_aim_input_active() and Input.is_action_pressed("fire")
 
 func consume_fire() -> bool:
+	if not _is_aim_input_active():
+		fire_requested = false
+		return false
 	var requested := fire_requested
 	fire_requested = false
 	return requested

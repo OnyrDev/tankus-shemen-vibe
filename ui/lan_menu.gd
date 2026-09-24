@@ -99,8 +99,8 @@ func _connect_ui_signals() -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:
-		if event.keycode == KEY_ESCAPE:
-			set_menu_visible(not visible)
+		if event.keycode == KEY_ESCAPE and visible:
+			set_menu_visible(false)
 			get_viewport().set_input_as_handled()
 
 func _on_player_name_changed(new_name: String) -> void:

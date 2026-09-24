@@ -42,6 +42,7 @@ var current_arena: BaseArena = null
 @onready var tank_overhead_manager: TankOverheadManager = get_node_or_null("TankOverheadManager")
 @onready var scoreboard: Scoreboard = get_node_or_null("Scoreboard")
 @onready var lobby: Lobby = get_node_or_null("Lobby")
+@onready var pause_menu: CanvasLayer = get_node_or_null("PauseMenu")
 
 var spawn_points_container: Node3D = null
 var kill_volume: Area3D = null
@@ -55,11 +56,34 @@ func _ready() -> void:
 	_setup_network_signals()
 	_setup_phase5_systems()
 
+	if pause_menu:
+		pause_menu.respawn_requested.connect(_respawn_all)
+		pause_menu.open_lan_requested.connect(func():
+			if lan_menu:
+				lan_menu.set_menu_visible(true)
+		)
+
 	if spawned_tanks:
 		spawned_tanks.child_entered_tree.connect(_on_spawned_tank_entered)
 
-	# По умолчанию настраиваем одиночный танк
-	_setup_solo_mode()
+	# Если активна сетевая сессия хоста или клиента
+	if Network.is_multiplayer_active() or Network.is_host:
+		if lan_menu:
+			lan_menu.set_menu_visible(false)
+		_set_solo_tanks_active(false)
+		if Network.is_host:
+			_server_spawn_tank_for_peer(1)
+		else:
+			_check_and_bind_my_tank()
+		if lobby:
+			lobby.open_lobby()
+	else:
+		# По умолчанию настраиваем одиночный танк
+		_setup_solo_mode()
+		if Game.is_solo_practice:
+			if lan_menu:
+				lan_menu.set_menu_visible(false)
+			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 ## Динамическая загрузка и переключение карты арены
 func load_map(map_name: String) -> void:
@@ -168,7 +192,28 @@ func _bind_local_tank(target_tank: Tank) -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:
-		if event.keycode == KEY_F1 or event.keycode == KEY_BACKSPACE:
+		if event.keycode == KEY_ESCAPE:
+			if pause_menu and pause_menu.is_open():
+				pause_menu.close()
+				get_viewport().set_input_as_handled()
+				return
+			if card_draft and card_draft.visible:
+				card_draft.close_draft()
+				get_viewport().set_input_as_handled()
+				return
+			if lan_menu and lan_menu.visible:
+				lan_menu.set_menu_visible(false)
+				get_viewport().set_input_as_handled()
+				return
+			if lobby and lobby.visible:
+				lobby.close_lobby()
+				get_viewport().set_input_as_handled()
+				return
+			if pause_menu:
+				pause_menu.open()
+				get_viewport().set_input_as_handled()
+				return
+		elif event.keycode == KEY_F1 or event.keycode == KEY_BACKSPACE:
 			_respawn_all()
 		elif event.keycode == KEY_F2:
 			if card_draft and _active_local_tank:

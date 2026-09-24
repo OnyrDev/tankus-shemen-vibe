@@ -1,8 +1,8 @@
-[gd_scene format=3 uid="uid://iceworks_map_002"]
+[gd_scene format=3 uid="uid://dyy4lttbk7c4u"]
 
-[ext_resource type="Script" path="res://maps/base_arena.gd" id="1_arena"]
+[ext_resource type="Script" uid="uid://cr2tcoc8ct0on" path="res://maps/base_arena.gd" id="1_arena"]
 [ext_resource type="PackedScene" uid="uid://crat3phys001" path="res://maps/components/physics_crate.tscn" id="2_crate"]
-[ext_resource type="PackedScene" uid="uid://b5ic3z0n3map0" path="res://maps/components/ice_zone.tscn" id="3_ice"]
+[ext_resource type="PackedScene" uid="uid://b5ic300n3map0" path="res://maps/components/ice_zone.tscn" id="3_ice"]
 
 [sub_resource type="ProceduralSkyMaterial" id="SkyMat_ice"]
 sky_top_color = Color(0.18, 0.45, 0.85, 1)
@@ -34,8 +34,8 @@ size = Vector3(64, 1, 64)
 
 [sub_resource type="StandardMaterial3D" id="Mat_steel_plat"]
 albedo_color = Color(0.25, 0.3, 0.38, 1)
-roughness = 0.4
 metallic = 0.5
+roughness = 0.4
 
 [sub_resource type="BoxMesh" id="BoxMesh_plat"]
 material = SubResource("Mat_steel_plat")
@@ -43,21 +43,6 @@ size = Vector3(14, 1.8, 12)
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_plat"]
 size = Vector3(14, 1.8, 12)
-
-[sub_resource type="StandardMaterial3D" id="Mat_ice_pillar"]
-albedo_color = Color(0.45, 0.8, 0.95, 1)
-roughness = 0.1
-metallic = 0.2
-emission_enabled = true
-emission = Color(0.2, 0.6, 0.8, 1)
-emission_energy_multiplier = 0.3
-
-[sub_resource type="BoxMesh" id="BoxMesh_ice_pillar"]
-material = SubResource("Mat_ice_pillar")
-size = Vector3(2.4, 4.2, 2.4)
-
-[sub_resource type="BoxShape3D" id="BoxShape3D_ice_pillar"]
-size = Vector3(2.4, 4.2, 2.4)
 
 [sub_resource type="StandardMaterial3D" id="Mat_ramp"]
 albedo_color = Color(0.32, 0.38, 0.46, 1)
@@ -69,6 +54,21 @@ size = Vector3(6, 0.3, 6)
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_ramp"]
 size = Vector3(6, 0.3, 6)
+
+[sub_resource type="StandardMaterial3D" id="Mat_ice_pillar"]
+albedo_color = Color(0.45, 0.8, 0.95, 1)
+metallic = 0.2
+roughness = 0.1
+emission_enabled = true
+emission = Color(0.2, 0.6, 0.8, 1)
+emission_energy_multiplier = 0.3
+
+[sub_resource type="BoxMesh" id="BoxMesh_ice_pillar"]
+material = SubResource("Mat_ice_pillar")
+size = Vector3(2.4, 4.2, 2.4)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_ice_pillar"]
+size = Vector3(2.4, 4.2, 2.4)
 
 [sub_resource type="StandardMaterial3D" id="Mat_ice_wall"]
 albedo_color = Color(0.2, 0.35, 0.5, 1)
@@ -84,197 +84,180 @@ size = Vector3(12, 2.4, 0.8)
 [sub_resource type="BoxShape3D" id="BoxShape3D_kill"]
 size = Vector3(140, 6, 140)
 
-[node name="Iceworks" type="Node3D"]
+[node name="Iceworks" type="Node3D" unique_id=1429360218]
 script = ExtResource("1_arena")
 arena_name = "Iceworks"
 
-[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+[node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=1631656793]
 environment = SubResource("Env_ice")
 
-[node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=654010051]
 transform = Transform3D(0.866025, -0.353553, 0.353553, 0, 0.707107, 0.707107, -0.5, -0.612372, 0.612372, 0, 25, 0)
 light_color = Color(0.92, 0.96, 1, 1)
 light_energy = 1.2
 shadow_enabled = true
 
-[node name="Geometry" type="Node3D" parent="."]
+[node name="Geometry" type="Node3D" parent="." unique_id=1625089374]
 
-[node name="MainFloor" type="StaticBody3D" parent="Geometry"]
+[node name="MainFloor" type="StaticBody3D" parent="Geometry" unique_id=480046469]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.5, 0)
-collision_layer = 1
 collision_mask = 0
 
-[node name="MeshInstance3D" type="MeshInstance3D" parent="Geometry/MainFloor"]
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Geometry/MainFloor" unique_id=951684809]
 mesh = SubResource("BoxMesh_main_floor")
 
-[node name="CollisionShape3D" type="CollisionShape3D" parent="Geometry/MainFloor"]
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Geometry/MainFloor" unique_id=1911167138]
 shape = SubResource("BoxShape3D_main_floor")
 
-[node name="NorthPlat" type="StaticBody3D" parent="Geometry"]
+[node name="NorthPlat" type="StaticBody3D" parent="Geometry" unique_id=1973420784]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9, -20)
-collision_layer = 1
 collision_mask = 0
 
-[node name="MeshInstance3D" type="MeshInstance3D" parent="Geometry/NorthPlat"]
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Geometry/NorthPlat" unique_id=637378576]
 mesh = SubResource("BoxMesh_plat")
 
-[node name="CollisionShape3D" type="CollisionShape3D" parent="Geometry/NorthPlat"]
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Geometry/NorthPlat" unique_id=938471842]
 shape = SubResource("BoxShape3D_plat")
 
-[node name="SouthPlat" type="StaticBody3D" parent="Geometry"]
+[node name="SouthPlat" type="StaticBody3D" parent="Geometry" unique_id=2037000764]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9, 20)
-collision_layer = 1
 collision_mask = 0
 
-[node name="MeshInstance3D" type="MeshInstance3D" parent="Geometry/SouthPlat"]
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Geometry/SouthPlat" unique_id=495595221]
 mesh = SubResource("BoxMesh_plat")
 
-[node name="CollisionShape3D" type="CollisionShape3D" parent="Geometry/SouthPlat"]
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Geometry/SouthPlat" unique_id=604995267]
 shape = SubResource("BoxShape3D_plat")
 
-[node name="RampNorth" type="StaticBody3D" parent="Geometry"]
+[node name="RampNorth" type="StaticBody3D" parent="Geometry" unique_id=1856993845]
 transform = Transform3D(1, 0, 0, 0, 0.965926, -0.258819, 0, 0.258819, 0.965926, 0, 0.7, -12.5)
-collision_layer = 1
 collision_mask = 0
 
-[node name="MeshInstance3D" type="MeshInstance3D" parent="Geometry/RampNorth"]
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Geometry/RampNorth" unique_id=2146984499]
 mesh = SubResource("BoxMesh_ramp")
 
-[node name="CollisionShape3D" type="CollisionShape3D" parent="Geometry/RampNorth"]
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Geometry/RampNorth" unique_id=261985316]
 shape = SubResource("BoxShape3D_ramp")
 
-[node name="RampSouth" type="StaticBody3D" parent="Geometry"]
+[node name="RampSouth" type="StaticBody3D" parent="Geometry" unique_id=2011457088]
 transform = Transform3D(1, 0, 0, 0, 0.965926, 0.258819, 0, -0.258819, 0.965926, 0, 0.7, 12.5)
-collision_layer = 1
 collision_mask = 0
 
-[node name="MeshInstance3D" type="MeshInstance3D" parent="Geometry/RampSouth"]
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Geometry/RampSouth" unique_id=704629740]
 mesh = SubResource("BoxMesh_ramp")
 
-[node name="CollisionShape3D" type="CollisionShape3D" parent="Geometry/RampSouth"]
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Geometry/RampSouth" unique_id=805548291]
 shape = SubResource("BoxShape3D_ramp")
 
-[node name="IcePillar1" type="StaticBody3D" parent="Geometry"]
+[node name="IcePillar1" type="StaticBody3D" parent="Geometry" unique_id=979169515]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8, 2.1, -8)
-collision_layer = 1
 collision_mask = 0
 
-[node name="MeshInstance3D" type="MeshInstance3D" parent="Geometry/IcePillar1"]
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Geometry/IcePillar1" unique_id=1184711153]
 mesh = SubResource("BoxMesh_ice_pillar")
 
-[node name="CollisionShape3D" type="CollisionShape3D" parent="Geometry/IcePillar1"]
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Geometry/IcePillar1" unique_id=1174845744]
 shape = SubResource("BoxShape3D_ice_pillar")
 
-[node name="IcePillar2" type="StaticBody3D" parent="Geometry"]
+[node name="IcePillar2" type="StaticBody3D" parent="Geometry" unique_id=583189486]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8, 2.1, -8)
-collision_layer = 1
 collision_mask = 0
 
-[node name="MeshInstance3D" type="MeshInstance3D" parent="Geometry/IcePillar2"]
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Geometry/IcePillar2" unique_id=280361177]
 mesh = SubResource("BoxMesh_ice_pillar")
 
-[node name="CollisionShape3D" type="CollisionShape3D" parent="Geometry/IcePillar2"]
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Geometry/IcePillar2" unique_id=1436853664]
 shape = SubResource("BoxShape3D_ice_pillar")
 
-[node name="IcePillar3" type="StaticBody3D" parent="Geometry"]
+[node name="IcePillar3" type="StaticBody3D" parent="Geometry" unique_id=1619463484]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8, 2.1, 8)
-collision_layer = 1
 collision_mask = 0
 
-[node name="MeshInstance3D" type="MeshInstance3D" parent="Geometry/IcePillar3"]
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Geometry/IcePillar3" unique_id=63750620]
 mesh = SubResource("BoxMesh_ice_pillar")
 
-[node name="CollisionShape3D" type="CollisionShape3D" parent="Geometry/IcePillar3"]
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Geometry/IcePillar3" unique_id=1429827452]
 shape = SubResource("BoxShape3D_ice_pillar")
 
-[node name="IcePillar4" type="StaticBody3D" parent="Geometry"]
+[node name="IcePillar4" type="StaticBody3D" parent="Geometry" unique_id=1869346854]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8, 2.1, 8)
-collision_layer = 1
 collision_mask = 0
 
-[node name="MeshInstance3D" type="MeshInstance3D" parent="Geometry/IcePillar4"]
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Geometry/IcePillar4" unique_id=1791712393]
 mesh = SubResource("BoxMesh_ice_pillar")
 
-[node name="CollisionShape3D" type="CollisionShape3D" parent="Geometry/IcePillar4"]
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Geometry/IcePillar4" unique_id=2033228295]
 shape = SubResource("BoxShape3D_ice_pillar")
 
-[node name="WallWest" type="StaticBody3D" parent="Geometry"]
+[node name="WallWest" type="StaticBody3D" parent="Geometry" unique_id=249215056]
 transform = Transform3D(-4.37114e-08, 0, 1, 0, 1, 0, -1, 0, -4.37114e-08, -18, 1.2, 0)
-collision_layer = 1
 collision_mask = 0
 
-[node name="MeshInstance3D" type="MeshInstance3D" parent="Geometry/WallWest"]
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Geometry/WallWest" unique_id=528190359]
 mesh = SubResource("BoxMesh_wall")
 
-[node name="CollisionShape3D" type="CollisionShape3D" parent="Geometry/WallWest"]
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Geometry/WallWest" unique_id=1349376723]
 shape = SubResource("BoxShape3D_wall")
 
-[node name="WallEast" type="StaticBody3D" parent="Geometry"]
+[node name="WallEast" type="StaticBody3D" parent="Geometry" unique_id=849278948]
 transform = Transform3D(-4.37114e-08, 0, 1, 0, 1, 0, -1, 0, -4.37114e-08, 18, 1.2, 0)
-collision_layer = 1
 collision_mask = 0
 
-[node name="MeshInstance3D" type="MeshInstance3D" parent="Geometry/WallEast"]
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Geometry/WallEast" unique_id=644920081]
 mesh = SubResource("BoxMesh_wall")
 
-[node name="CollisionShape3D" type="CollisionShape3D" parent="Geometry/WallEast"]
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Geometry/WallEast" unique_id=1199737463]
 shape = SubResource("BoxShape3D_wall")
 
-[node name="IceZones" type="Node3D" parent="."]
+[node name="IceZones" type="Node3D" parent="." unique_id=1081258763]
 
-[node name="CenterRink" parent="IceZones" instance=ExtResource("3_ice")]
+[node name="CenterRink" parent="IceZones" unique_id=1473465445 instance=ExtResource("3_ice")]
 transform = Transform3D(1.5, 0, 0, 0, 1, 0, 0, 0, 1.5, 0, 0.05, 0)
 
-[node name="WestIceTrack" parent="IceZones" instance=ExtResource("3_ice")]
+[node name="WestIceTrack" parent="IceZones" unique_id=1246108683 instance=ExtResource("3_ice")]
 transform = Transform3D(0.65, 0, 0, 0, 1, 0, 0, 0, 2.2, -24, 0.05, 0)
 
-[node name="EastIceTrack" parent="IceZones" instance=ExtResource("3_ice")]
+[node name="EastIceTrack" parent="IceZones" unique_id=842074468 instance=ExtResource("3_ice")]
 transform = Transform3D(0.65, 0, 0, 0, 1, 0, 0, 0, 2.2, 24, 0.05, 0)
 
-[node name="Props" type="Node3D" parent="."]
+[node name="Props" type="Node3D" parent="." unique_id=1914892672]
 
-[node name="PhysicsCrate1" parent="Props" instance=ExtResource("2_crate")]
+[node name="PhysicsCrate1" parent="Props" unique_id=103445049 instance=ExtResource("2_crate")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4, 0.8, -4)
 
-[node name="PhysicsCrate2" parent="Props" instance=ExtResource("2_crate")]
+[node name="PhysicsCrate2" parent="Props" unique_id=2083711819 instance=ExtResource("2_crate")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4, 0.8, 4)
 
-[node name="PhysicsCrate3" parent="Props" instance=ExtResource("2_crate")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.6, -20)
+[node name="SpawnPoints" type="Node3D" parent="." unique_id=657285892]
 
-[node name="PhysicsCrate4" parent="Props" instance=ExtResource("2_crate")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.6, 20)
+[node name="SpawnPoint1" type="Marker3D" parent="SpawnPoints" unique_id=1265315531]
+transform = Transform3D(-1, 0, -8.74228e-08, 0, 1, 0, 8.74228e-08, 0, -1, 0, 2, 20)
 
-[node name="SpawnPoints" type="Node3D" parent="."]
+[node name="SpawnPoint2" type="Marker3D" parent="SpawnPoints" unique_id=696499052]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2, -20)
 
-[node name="SpawnPoint1" type="Marker3D" parent="SpawnPoints"]
-transform = Transform3D(-1, 0, -8.74228e-08, 0, 1, 0, 8.74228e-08, 0, -1, 0, 2.0, 20)
-
-[node name="SpawnPoint2" type="Marker3D" parent="SpawnPoints"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.0, -20)
-
-[node name="SpawnPoint3" type="Marker3D" parent="SpawnPoints"]
+[node name="SpawnPoint3" type="Marker3D" parent="SpawnPoints" unique_id=237247925]
 transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -24, 0.5, 0)
 
-[node name="SpawnPoint4" type="Marker3D" parent="SpawnPoints"]
+[node name="SpawnPoint4" type="Marker3D" parent="SpawnPoints" unique_id=208015852]
 transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 24, 0.5, 0)
 
-[node name="SpawnPoint5" type="Marker3D" parent="SpawnPoints"]
+[node name="SpawnPoint5" type="Marker3D" parent="SpawnPoints" unique_id=1564693456]
 transform = Transform3D(-0.707107, 0, -0.707107, 0, 1, 0, 0.707107, 0, -0.707107, -14, 0.5, 16)
 
-[node name="SpawnPoint6" type="Marker3D" parent="SpawnPoints"]
+[node name="SpawnPoint6" type="Marker3D" parent="SpawnPoints" unique_id=458967946]
 transform = Transform3D(0.707107, 0, 0.707107, 0, 1, 0, -0.707107, 0, 0.707107, 14, 0.5, -16)
 
-[node name="SpawnPoint7" type="Marker3D" parent="SpawnPoints"]
+[node name="SpawnPoint7" type="Marker3D" parent="SpawnPoints" unique_id=2047978528]
 transform = Transform3D(-0.707107, 0, 0.707107, 0, 1, 0, -0.707107, 0, -0.707107, 14, 0.5, 16)
 
-[node name="SpawnPoint8" type="Marker3D" parent="SpawnPoints"]
+[node name="SpawnPoint8" type="Marker3D" parent="SpawnPoints" unique_id=1864734367]
 transform = Transform3D(0.707107, 0, -0.707107, 0, 1, 0, 0.707107, 0, 0.707107, -14, 0.5, -16)
 
-[node name="KillVolume" type="Area3D" parent="."]
+[node name="KillVolume" type="Area3D" parent="." unique_id=565345902]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -10, 0)
 collision_layer = 0
 collision_mask = 2
 
-[node name="CollisionShape3D" type="CollisionShape3D" parent="KillVolume"]
+[node name="CollisionShape3D" type="CollisionShape3D" parent="KillVolume" unique_id=1126469420]
 shape = SubResource("BoxShape3D_kill")

@@ -10,6 +10,7 @@
 [ext_resource type="Script" path="res://tank/tank_overhead_manager.gd" id="9_overhead_mgr"]
 [ext_resource type="PackedScene" path="res://ui/scoreboard.tscn" id="10_scoreboard"]
 [ext_resource type="PackedScene" path="res://lobby/lobby.tscn" id="11_lobby"]
+[ext_resource type="PackedScene" path="res://ui/pause_menu.tscn" id="12_pause"]
 
 [node name="TestSandbox" type="Node3D"]
 script = ExtResource("1_sandbox")
@@ -57,8 +58,8 @@ text = "WASD: Движение | Space: Прыжок
 LMB: Огонь | R: Перезарядка
 E: Защитный блок
 Tab: Драфт способностей (1 из 5)
-Esc: Меню лобби / выбор карт (Мультиплеер)
-F1 / Backspace: Респавн всех танков"
+Esc: Меню паузы (Продолжить / Респавн / Главное меню)
+F1 / Backspace: Быстрый респавн всех танков"
 
 [node name="SpawnedTanks" type="Node3D" parent="."]
 
@@ -84,3 +85,6 @@ script = ExtResource("9_overhead_mgr")
 
 [node name="Lobby" parent="." instance=ExtResource("11_lobby")]
 visible = false
+
+[node name="PauseMenu" parent="." instance=ExtResource("12_pause")]
+
