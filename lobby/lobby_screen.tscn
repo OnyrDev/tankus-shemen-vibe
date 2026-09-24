@@ -1,0 +1,392 @@
+[gd_scene format=3 uid="uid://lobbyscreen_tankus_01"]
+
+[ext_resource type="Script" path="res://lobby/lobby_screen.gd" id="1_screen"]
+
+[sub_resource type="Environment" id="Environment_lobby"]
+background_mode = 1
+background_color = Color(0.04, 0.05, 0.08, 1)
+ambient_light_source = 2
+ambient_light_color = Color(0.12, 0.16, 0.22, 1)
+ambient_light_energy = 0.8
+glow_enabled = true
+glow_intensity = 0.8
+glow_bloom = 0.15
+
+[sub_resource type="StandardMaterial3D" id="Material_pedestal"]
+albedo_color = Color(0.12, 0.14, 0.18, 1)
+metallic = 0.4
+roughness = 0.5
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_pedestal"]
+material = SubResource("Material_pedestal")
+top_radius = 2.2
+bottom_radius = 2.4
+height = 0.25
+
+[sub_resource type="StandardMaterial3D" id="Material_neon_rim"]
+shading_mode = 0
+albedo_color = Color(0, 0.85, 1, 1)
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_neon_rim"]
+material = SubResource("Material_neon_rim")
+top_radius = 2.22
+bottom_radius = 2.22
+height = 0.04
+
+[sub_resource type="StandardMaterial3D" id="Material_chassis_blue"]
+albedo_color = Color(0.18, 0.55, 0.95, 1)
+metallic = 0.25
+roughness = 0.35
+
+[sub_resource type="BoxMesh" id="BoxMesh_chassis"]
+material = SubResource("Material_chassis_blue")
+size = Vector3(1.15, 0.45, 1.7)
+
+[sub_resource type="StandardMaterial3D" id="Material_track"]
+albedo_color = Color(0.15, 0.16, 0.18, 1)
+roughness = 0.85
+
+[sub_resource type="BoxMesh" id="BoxMesh_track"]
+material = SubResource("Material_track")
+size = Vector3(0.26, 0.38, 1.8)
+
+[sub_resource type="BoxMesh" id="BoxMesh_turret"]
+material = SubResource("Material_chassis_blue")
+size = Vector3(0.85, 0.38, 0.95)
+
+[sub_resource type="StandardMaterial3D" id="Material_dark_metal"]
+albedo_color = Color(0.22, 0.24, 0.28, 1)
+metallic = 0.5
+roughness = 0.4
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_hatch"]
+material = SubResource("Material_dark_metal")
+top_radius = 0.2
+bottom_radius = 0.2
+height = 0.08
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_barrel"]
+material = SubResource("Material_dark_metal")
+top_radius = 0.08
+bottom_radius = 0.09
+height = 1.1
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_panel"]
+bg_color = Color(0.06, 0.07, 0.1, 0.85)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0, 0.85, 1, 0.35)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+
+[node name="LobbyScreen" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_screen")
+
+[node name="Showroom3D" type="Node3D" parent="."]
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="Showroom3D"]
+environment = SubResource("Environment_lobby")
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="Showroom3D"]
+transform = Transform3D(0.707107, -0.5, 0.5, 0, 0.707107, 0.707107, -0.707107, -0.5, 0.5, 0, 6, 0)
+light_color = Color(0.85, 0.92, 1, 1)
+light_energy = 0.9
+shadow_enabled = true
+
+[node name="SpotLight3D" type="SpotLight3D" parent="Showroom3D"]
+transform = Transform3D(1, 0, 0, 0, -4.37114e-08, 1, 0, -1, -4.37114e-08, 0, 4.5, 0)
+light_color = Color(0, 0.85, 1, 1)
+light_energy = 2.2
+spot_range = 8.0
+spot_angle = 42.0
+
+[node name="OmniLightAccent" type="OmniLight3D" parent="Showroom3D"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.5, 1, -2)
+light_color = Color(1, 0.45, 0.15, 1)
+light_energy = 1.5
+omni_range = 6.0
+
+[node name="Platform" type="Node3D" parent="Showroom3D"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.2, 0, 0)
+
+[node name="PedestalMesh" type="MeshInstance3D" parent="Showroom3D/Platform"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.125, 0)
+mesh = SubResource("CylinderMesh_pedestal")
+
+[node name="NeonRim" type="MeshInstance3D" parent="Showroom3D/Platform"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.01, 0)
+mesh = SubResource("CylinderMesh_neon_rim")
+
+[node name="ShowroomTank" type="Node3D" parent="Showroom3D"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.2, 0.02, 0)
+
+[node name="ChassisMesh" type="MeshInstance3D" parent="Showroom3D/ShowroomTank"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.45, 0)
+mesh = SubResource("BoxMesh_chassis")
+
+[node name="LeftTrack" type="MeshInstance3D" parent="Showroom3D/ShowroomTank"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.68, 0.36, 0)
+mesh = SubResource("BoxMesh_track")
+
+[node name="RightTrack" type="MeshInstance3D" parent="Showroom3D/ShowroomTank"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.68, 0.36, 0)
+mesh = SubResource("BoxMesh_track")
+
+[node name="TurretMount" type="Node3D" parent="Showroom3D/ShowroomTank"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.72, 0.05)
+
+[node name="TurretMesh" type="MeshInstance3D" parent="Showroom3D/ShowroomTank/TurretMount"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.19, -0.05)
+mesh = SubResource("BoxMesh_turret")
+
+[node name="HatchMesh" type="MeshInstance3D" parent="Showroom3D/ShowroomTank/TurretMount"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.42, 0.15)
+mesh = SubResource("CylinderMesh_hatch")
+
+[node name="BarrelMount" type="Node3D" parent="Showroom3D/ShowroomTank/TurretMount"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.19, -0.5)
+
+[node name="BarrelMesh" type="MeshInstance3D" parent="Showroom3D/ShowroomTank/TurretMount/BarrelMount"]
+transform = Transform3D(1, 0, 0, 0, -4.37114e-08, -1, 0, 1, -4.37114e-08, 0, 0, -0.55)
+mesh = SubResource("CylinderMesh_barrel")
+
+[node name="Camera3D" type="Camera3D" parent="Showroom3D"]
+transform = Transform3D(0.852869, 0.126084, 0.506692, 0, 0.97042, -0.241424, -0.522123, 0.205903, 0.827641, 3.6, 1.45, 3.3)
+fov = 48.0
+
+[node name="UILayer" type="CanvasLayer" parent="."]
+
+[node name="BackgroundTint" type="ColorRect" parent="UILayer"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0.03, 0.04, 0.06, 0.4)
+
+[node name="Margin" type="MarginContainer" parent="UILayer"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 32
+theme_override_constants/margin_top = 24
+theme_override_constants/margin_right = 32
+theme_override_constants/margin_bottom = 24
+
+[node name="VBox" type="VBoxContainer" parent="UILayer/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="Header" type="VBoxContainer" parent="UILayer/Margin/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="LblHeader" type="Label" parent="UILayer/Margin/VBox/Header"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.2, 0.85, 1, 1)
+theme_override_font_sizes/font_size = 28
+text = "TANKUS // СЕТЕВОЕ ЛОББИ"
+
+[node name="LblStatus" type="Label" parent="UILayer/Margin/VBox/Header"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.4, 0.85, 0.45, 1)
+theme_override_font_sizes/font_size = 14
+text = "Статус: Ожидание игроков..."
+
+[node name="HSeparator1" type="HSeparator" parent="UILayer/Margin/VBox"]
+layout_mode = 2
+
+[node name="MainContent" type="HBoxContainer" parent="UILayer/Margin/VBox"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 20
+
+[node name="LeftPanel" type="PanelContainer" parent="UILayer/Margin/VBox/MainContent"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
+
+[node name="Margin" type="MarginContainer" parent="UILayer/Margin/VBox/MainContent/LeftPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 18
+theme_override_constants/margin_top = 14
+theme_override_constants/margin_right = 18
+theme_override_constants/margin_bottom = 14
+
+[node name="VBox" type="VBoxContainer" parent="UILayer/Margin/VBox/MainContent/LeftPanel/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="LblPlayersHeader" type="Label" parent="UILayer/Margin/VBox/MainContent/LeftPanel/Margin/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0, 0.85, 1, 1)
+theme_override_font_sizes/font_size = 16
+text = "👥 УЧАСТНИКИ МАТЧА"
+
+[node name="HSeparator" type="HSeparator" parent="UILayer/Margin/VBox/MainContent/LeftPanel/Margin/VBox"]
+layout_mode = 2
+
+[node name="PlayerScroll" type="ScrollContainer" parent="UILayer/Margin/VBox/MainContent/LeftPanel/Margin/VBox"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="PlayerList" type="VBoxContainer" parent="UILayer/Margin/VBox/MainContent/LeftPanel/Margin/VBox/PlayerScroll"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 8
+
+[node name="RightPanel" type="PanelContainer" parent="UILayer/Margin/VBox/MainContent"]
+custom_minimum_size = Vector2(400, 0)
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
+
+[node name="Margin" type="MarginContainer" parent="UILayer/Margin/VBox/MainContent/RightPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 18
+theme_override_constants/margin_top = 14
+theme_override_constants/margin_right = 18
+theme_override_constants/margin_bottom = 14
+
+[node name="HostSettings" type="VBoxContainer" parent="UILayer/Margin/VBox/MainContent/RightPanel/Margin"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="LblSettingsHeader" type="Label" parent="UILayer/Margin/VBox/MainContent/RightPanel/Margin/HostSettings"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0, 0.85, 1, 1)
+theme_override_font_sizes/font_size = 16
+text = "⚙️ НАСТРОЙКИ МАТЧА"
+
+[node name="HSeparator" type="HSeparator" parent="UILayer/Margin/VBox/MainContent/RightPanel/Margin/HostSettings"]
+layout_mode = 2
+
+[node name="GridSettings" type="GridContainer" parent="UILayer/Margin/VBox/MainContent/RightPanel/Margin/HostSettings"]
+layout_mode = 2
+theme_override_constants/h_separation = 12
+theme_override_constants/v_separation = 10
+columns = 2
+
+[node name="LblMode" type="Label" parent="UILayer/Margin/VBox/MainContent/RightPanel/Margin/HostSettings/GridSettings"]
+layout_mode = 2
+text = "Режим игры:"
+
+[node name="OptGameMode" type="OptionButton" parent="UILayer/Margin/VBox/MainContent/RightPanel/Margin/HostSettings/GridSettings"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="LblTargetWins" type="Label" parent="UILayer/Margin/VBox/MainContent/RightPanel/Margin/HostSettings/GridSettings"]
+layout_mode = 2
+text = "Побед до выигрыша:"
+
+[node name="OptTargetWins" type="OptionButton" parent="UILayer/Margin/VBox/MainContent/RightPanel/Margin/HostSettings/GridSettings"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="LblTeamCount" type="Label" parent="UILayer/Margin/VBox/MainContent/RightPanel/Margin/HostSettings/GridSettings"]
+layout_mode = 2
+text = "Число команд:"
+
+[node name="OptTeamCount" type="OptionButton" parent="UILayer/Margin/VBox/MainContent/RightPanel/Margin/HostSettings/GridSettings"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="LblFriendlyFire" type="Label" parent="UILayer/Margin/VBox/MainContent/RightPanel/Margin/HostSettings/GridSettings"]
+layout_mode = 2
+text = "Огонь по своим:"
+
+[node name="ChkFriendlyFire" type="CheckBox" parent="UILayer/Margin/VBox/MainContent/RightPanel/Margin/HostSettings/GridSettings"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="LblMap" type="Label" parent="UILayer/Margin/VBox/MainContent/RightPanel/Margin/HostSettings/GridSettings"]
+layout_mode = 2
+text = "Карта арены:"
+
+[node name="OptMap" type="OptionButton" parent="UILayer/Margin/VBox/MainContent/RightPanel/Margin/HostSettings/GridSettings"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="LblHostOnlyHint" type="Label" parent="UILayer/Margin/VBox/MainContent/RightPanel/Margin/HostSettings"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_override_colors/font_color = Color(0.65, 0.75, 0.85, 1)
+theme_override_font_sizes/font_size = 12
+text = "* Настройки матча определяет хост комнаты"
+
+[node name="Spacer" type="Control" parent="UILayer/Margin/VBox/MainContent/RightPanel/Margin/HostSettings"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="Footer" type="PanelContainer" parent="UILayer/Margin/VBox"]
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
+
+[node name="Margin" type="MarginContainer" parent="UILayer/Margin/VBox/Footer"]
+layout_mode = 2
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_top = 10
+theme_override_constants/margin_right = 16
+theme_override_constants/margin_bottom = 10
+
+[node name="HBox" type="HBoxContainer" parent="UILayer/Margin/VBox/Footer/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="LblName" type="Label" parent="UILayer/Margin/VBox/Footer/Margin/HBox"]
+layout_mode = 2
+text = "Ваш ник:"
+
+[node name="LineEditName" type="LineEdit" parent="UILayer/Margin/VBox/Footer/Margin/HBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(160, 0)
+layout_mode = 2
+text = "Player"
+
+[node name="BtnReady" type="Button" parent="UILayer/Margin/VBox/Footer/Margin/HBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(160, 42)
+layout_mode = 2
+theme_override_font_sizes/font_size = 15
+text = "Я ГОТОВ!"
+
+[node name="Spacer" type="Control" parent="UILayer/Margin/VBox/Footer/Margin/HBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="BtnStartMatch" type="Button" parent="UILayer/Margin/VBox/Footer/Margin/HBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(210, 42)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.2, 1, 0.4, 1)
+theme_override_font_sizes/font_size = 16
+text = "⚔️ НАЧАТЬ МАТЧ"
+
+[node name="BtnLeaveLobby" type="Button" parent="UILayer/Margin/VBox/Footer/Margin/HBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(160, 42)
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.4, 0.4, 1)
+theme_override_font_sizes/font_size = 15
+text = "🚪 ПОКИНУТЬ ЛОББИ"

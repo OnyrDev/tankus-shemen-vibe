@@ -287,9 +287,9 @@ func _on_create_host_pressed() -> void:
 	if err == OK:
 		if _lan_discovery:
 			_lan_discovery.start_broadcasting(s_name, port, 8)
-		# Переходим на арену в режиме хоста
+		# Переходим на самостоятельный экран лобби
 		Game.rules.selected_map = _selected_map_key
-		get_tree().change_scene_to_file("res://maps/test_sandbox.tscn")
+		get_tree().change_scene_to_file("res://lobby/lobby_screen.tscn")
 	else:
 		if lbl_lan_status:
 			lbl_lan_status.text = "Ошибка создания сервера: %s" % error_string(err)
@@ -323,7 +323,7 @@ func _on_network_server_created() -> void:
 func _on_network_connected_to_server() -> void:
 	if _lan_discovery:
 		_lan_discovery.stop_listening()
-	get_tree().change_scene_to_file("res://maps/test_sandbox.tscn")
+	get_tree().change_scene_to_file("res://lobby/lobby_screen.tscn")
 
 func _on_network_connection_failed() -> void:
 	if lbl_lan_status:

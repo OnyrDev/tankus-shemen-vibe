@@ -59,7 +59,9 @@ func _ready() -> void:
 	if pause_menu:
 		pause_menu.respawn_requested.connect(_respawn_all)
 		pause_menu.open_lan_requested.connect(func():
-			if lan_menu:
+			if Network.is_multiplayer_active() or Network.is_host:
+				get_tree().change_scene_to_file("res://lobby/lobby_screen.tscn")
+			elif lan_menu:
 				lan_menu.set_menu_visible(true)
 		)
 
@@ -70,13 +72,18 @@ func _ready() -> void:
 	if Network.is_multiplayer_active() or Network.is_host:
 		if lan_menu:
 			lan_menu.set_menu_visible(false)
+		if lobby:
+			lobby.close_lobby()
 		_set_solo_tanks_active(false)
+		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+
 		if Network.is_host:
-			_server_spawn_tank_for_peer(1)
+			for peer_id in Network.players.keys():
+				_server_spawn_tank_for_peer(peer_id)
+			if match_controller:
+				match_controller.start_new_match()
 		else:
 			_check_and_bind_my_tank()
-		if lobby:
-			lobby.open_lobby()
 	else:
 		# По умолчанию настраиваем одиночный танк
 		_setup_solo_mode()
@@ -340,12 +347,21 @@ func _on_match_start_requested() -> void:
 		match_controller.start_new_match()
 
 func _on_lobby_left() -> void:
-	if lan_menu:
-		lan_menu.set_menu_visible(true)
+	Game.return_to_main_menu()
 
 func _on_returned_to_lobby() -> void:
-	if lobby:
-		lobby.open_lobby()
+	if multiplayer.has_multiplayer_peer() and Network.is_multiplayer_active():
+		s2c_return_to_lobby.rpc()
+	else:
+		_return_to_lobby_local()
+
+@rpc("authority", "reliable", "call_local")
+func s2c_return_to_lobby() -> void:
+	_return_to_lobby_local()
+
+func _return_to_lobby_local() -> void:
+	Game.is_in_match = false
+	get_tree().change_scene_to_file("res://lobby/lobby_screen.tscn")
 
 func _server_remove_tank_for_peer(peer_id: int) -> void:
 	_peer_spawn_slots.erase(peer_id)

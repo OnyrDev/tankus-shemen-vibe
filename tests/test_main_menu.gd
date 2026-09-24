@@ -4,6 +4,7 @@ extends Node
 
 const MainMenuScript = preload("res://ui/main_menu.gd")
 const PauseMenuScript = preload("res://ui/pause_menu.gd")
+const LobbyScreenScript = preload("res://lobby/lobby_screen.gd")
 
 var _passed_count: int = 0
 var _failed_count: int = 0
@@ -20,6 +21,7 @@ func _ready() -> void:
 	_test_settings_bus_control()
 	_test_background_fire_prevention()
 	_test_pause_menu()
+	_test_standalone_lobby_screen()
 
 	print("\n========================================================")
 	print("   TEST RESULTS: %d PASSED | %d FAILED" % [_passed_count, _failed_count])
@@ -136,3 +138,26 @@ func _test_pause_menu() -> void:
 	_assert_test(pause.is_open() == false, "close() скрывает PauseMenu")
 
 	pause.queue_free()
+
+func _test_standalone_lobby_screen() -> void:
+	print("\n--- 6. Standalone LobbyScreen Test ---")
+	var lobby_scene: PackedScene = load("res://lobby/lobby_screen.tscn")
+	_assert_test(lobby_scene != null, "res://lobby/lobby_screen.tscn успешно загружена")
+
+	var lobby_scr: Control = lobby_scene.instantiate()
+	add_child(lobby_scr)
+
+	_assert_test(lobby_scr.showroom_tank != null, "LobbyScreen содержит 3D модель танка в шоуруме")
+	_assert_test(lobby_scr.player_list_vbox != null, "LobbyScreen содержит контейнер списка участников")
+	_assert_test(lobby_scr.host_settings_panel != null, "LobbyScreen содержит панель настроек хоста")
+	_assert_test(lobby_scr.btn_start_match != null, "LobbyScreen содержит кнопку старта матча")
+	_assert_test(lobby_scr.btn_leave_lobby != null, "LobbyScreen содержит кнопку выхода из лобби")
+
+	# Проверка динамической перекраски танка под команду игрока
+	Network.local_team_id = 2
+	lobby_scr._update_tank_team_color()
+	var mat: StandardMaterial3D = lobby_scr.chassis_mesh.material_override
+	_assert_test(mat != null and mat.albedo_color == LobbyScreenScript.TEAM_COLORS[1], "Танк в шоуруме перекрашивается в цвет команды игрока (Команда 2 - Красный)")
+
+	Network.local_team_id = 1
+	lobby_scr.queue_free()
