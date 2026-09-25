@@ -563,6 +563,16 @@ func s2c_reset_and_place_tanks(assigned_spawns: Dictionary = {}) -> void:
 		t.respawn(spawn_tf)
 		t.is_frozen = true
 
+	# Сброс интерактивных ящиков и маятников на арене при старте раунда
+	var tree := get_tree()
+	if tree:
+		for crate in tree.get_nodes_in_group("physics_crates"):
+			if crate.has_method("reset_to_start"):
+				crate.reset_to_start()
+		for pendulum in tree.get_nodes_in_group("pendulums"):
+			if pendulum.has_method("reset_to_start"):
+				pendulum.reset_to_start()
+
 @rpc("authority", "reliable", "call_local")
 func s2c_match_started(rules_dict: Dictionary) -> void:
 	Game.rules.load_dict(rules_dict)
