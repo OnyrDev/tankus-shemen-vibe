@@ -65,6 +65,8 @@ const MAP_INFO: Dictionary = {
 # --- Элементы настроек ---
 @onready var slider_sfx: HSlider = %SliderSFX
 @onready var lbl_sfx_val: Label = %LblSFXVal
+@onready var slider_ui: HSlider = %SliderUI
+@onready var lbl_ui_val: Label = %LblUIVal
 @onready var slider_music: HSlider = %SliderMusic
 @onready var lbl_music_val: Label = %LblMusicVal
 @onready var chk_fullscreen: CheckBox = %ChkFullscreen
@@ -119,6 +121,8 @@ func _connect_signals() -> void:
 	# Настройки
 	if slider_sfx:
 		slider_sfx.value_changed.connect(_on_sfx_slider_changed)
+	if slider_ui:
+		slider_ui.value_changed.connect(_on_ui_slider_changed)
 	if slider_music:
 		slider_music.value_changed.connect(_on_music_slider_changed)
 	if chk_fullscreen:
@@ -332,7 +336,7 @@ func _on_network_connection_failed() -> void:
 # --- Настройки звука и дисплея ---
 
 func _init_settings() -> void:
-	# SFX Bus
+	# SFX Bus (Звуки игры)
 	var sfx_bus := AudioServer.get_bus_index("SFX")
 	if sfx_bus != -1 and slider_sfx:
 		var db := AudioServer.get_bus_volume_db(sfx_bus)
@@ -340,6 +344,15 @@ func _init_settings() -> void:
 		slider_sfx.value = linear * 100.0
 		if lbl_sfx_val:
 			lbl_sfx_val.text = "%d%%" % int(slider_sfx.value)
+
+	# UI Bus (Звуки меню)
+	var ui_bus := AudioServer.get_bus_index("UI")
+	if ui_bus != -1 and slider_ui:
+		var db := AudioServer.get_bus_volume_db(ui_bus)
+		var linear := db_to_linear(db)
+		slider_ui.value = linear * 100.0
+		if lbl_ui_val:
+			lbl_ui_val.text = "%d%%" % int(slider_ui.value)
 
 	# Music Bus
 	var music_bus := AudioServer.get_bus_index("Music")
@@ -355,20 +368,32 @@ func _init_settings() -> void:
 		chk_fullscreen.button_pressed = (DisplayServer.window_get_mode() == DisplayServer.WINDOW_MODE_FULLSCREEN)
 
 func _on_sfx_slider_changed(val: float) -> void:
-	var sfx_bus := AudioServer.get_bus_index("SFX")
-	if sfx_bus != -1:
+	if SoundManager:
+		SoundManager.set_sfx_volume_linear(val / 100.0)
+	elif AudioServer.get_bus_index("SFX") != -1:
 		var linear := val / 100.0
 		var db := linear_to_db(linear) if linear > 0.001 else -80.0
-		AudioServer.set_bus_volume_db(sfx_bus, db)
+		AudioServer.set_bus_volume_db(AudioServer.get_bus_index("SFX"), db)
 	if lbl_sfx_val:
 		lbl_sfx_val.text = "%d%%" % int(val)
 
-func _on_music_slider_changed(val: float) -> void:
-	var music_bus := AudioServer.get_bus_index("Music")
-	if music_bus != -1:
+func _on_ui_slider_changed(val: float) -> void:
+	if SoundManager:
+		SoundManager.set_ui_volume_linear(val / 100.0)
+	elif AudioServer.get_bus_index("UI") != -1:
 		var linear := val / 100.0
 		var db := linear_to_db(linear) if linear > 0.001 else -80.0
-		AudioServer.set_bus_volume_db(music_bus, db)
+		AudioServer.set_bus_volume_db(AudioServer.get_bus_index("UI"), db)
+	if lbl_ui_val:
+		lbl_ui_val.text = "%d%%" % int(val)
+
+func _on_music_slider_changed(val: float) -> void:
+	if MusicManager:
+		MusicManager.set_music_volume_linear(val / 100.0)
+	elif AudioServer.get_bus_index("Music") != -1:
+		var linear := val / 100.0
+		var db := linear_to_db(linear) if linear > 0.001 else -80.0
+		AudioServer.set_bus_volume_db(AudioServer.get_bus_index("Music"), db)
 	if lbl_music_val:
 		lbl_music_val.text = "%d%%" % int(val)
 

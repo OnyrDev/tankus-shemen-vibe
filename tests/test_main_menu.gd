@@ -100,11 +100,25 @@ func _test_settings_bus_control() -> void:
 	menu._on_btn_settings_pressed()
 	_assert_test(menu.panel_settings.visible == true, "Панель настроек открывается")
 
-	# Меняем значение SFX слайдера на 60%
+	# Меняем значение SFX (игра) слайдера на 60%
 	menu._on_sfx_slider_changed(60.0)
 	var sfx_bus := AudioServer.get_bus_index("SFX")
 	var sfx_db := AudioServer.get_bus_volume_db(sfx_bus)
-	_assert_test(sfx_db < 0.0 and sfx_db > -10.0, "Громкость шины SFX синхронизирована со слайдером (~60%)")
+	_assert_test(sfx_db < 0.0 and sfx_db > -10.0, "Громкость шины SFX (игра) синхронизирована со слайдером (~60%)")
+
+	# Меняем значение UI (меню) слайдера на 40%
+	_assert_test(menu.slider_ui != null, "Слайдер звуков меню (UI) присутствует в настройках")
+	menu._on_ui_slider_changed(40.0)
+	var ui_bus := AudioServer.get_bus_index("UI")
+	var ui_db := AudioServer.get_bus_volume_db(ui_bus)
+	_assert_test(ui_db < -5.0 and ui_db > -15.0, "Громкость шины UI (меню) синхронизирована со слайдером (~40%)")
+
+	# Проверяем маршрутизацию SoundManager в шины
+	var p_ui := SoundManager.play_sfx("card_select")
+	_assert_test(p_ui != null and p_ui.bus == "UI", "Звук меню card_select направлен в шину 'UI'")
+
+	var p_3d := SoundManager.play_sfx_3d("shoot", Vector3.ZERO)
+	_assert_test(p_3d != null and p_3d.bus == "SFX", "3D звук выстрела направлен в шину 'SFX'")
 
 	menu.queue_free()
 
@@ -135,9 +149,33 @@ func _test_pause_menu() -> void:
 	_assert_test(pause.visible == false, "PauseMenu изначально скрыто")
 	pause.open()
 	_assert_test(pause.is_open() == true, "open() делает PauseMenu видимым")
+	_assert_test(pause.main_vbox != null and pause.main_vbox.visible == true, "MainVBox с кнопками паузы видим при открытии")
+	_assert_test(pause.btn_settings != null, "Кнопка 'Настройки' присутствует в PauseMenu")
 
-	pause.close()
-	_assert_test(pause.is_open() == false, "close() скрывает PauseMenu")
+	# Переход в настройки внутри PauseMenu
+	pause._on_btn_settings_pressed()
+	_assert_test(pause.settings_vbox != null and pause.settings_vbox.visible == true, "SettingsVBox открывается по нажатию 'Настройки'")
+	_assert_test(pause.main_vbox.visible == false, "MainVBox скрывается при открытии настроек паузы")
+
+	# Проверка слайдеров внутри меню паузы
+	_assert_test(pause.slider_game_sfx != null and pause.slider_menu_sfx != null and pause.slider_music != null, "Все три слайдера звука (Game, Menu, Music) присутствуют в PauseMenu")
+	pause._on_game_sfx_slider_changed(70.0)
+	var sfx_bus := AudioServer.get_bus_index("SFX")
+	var sfx_db := AudioServer.get_bus_volume_db(sfx_bus)
+	_assert_test(sfx_db < 0.0, "Слайдер звуков игры в PauseMenu регулирует шину SFX")
+
+	pause._on_menu_sfx_slider_changed(50.0)
+	var ui_bus := AudioServer.get_bus_index("UI")
+	var ui_db := AudioServer.get_bus_volume_db(ui_bus)
+	_assert_test(ui_db < 0.0, "Слайдер звуков меню в PauseMenu регулирует шину UI")
+
+	# Тестирование отмены/возврата по handle_cancel()
+	pause.handle_cancel()
+	_assert_test(pause.settings_vbox.visible == false and pause.main_vbox.visible == true, "handle_cancel() возвращает из настроек в основное меню паузы")
+	_assert_test(pause.is_open() == true, "PauseMenu остается открытым при возврате из настроек")
+
+	pause.handle_cancel()
+	_assert_test(pause.is_open() == false, "Второй handle_cancel() закрывает PauseMenu и возобновляет игру")
 
 	pause.queue_free()
 

@@ -100,8 +100,6 @@ func process_physics(input: TankInput, delta: float) -> void:
 		_peak_y = _tank_body.global_position.y
 		if _tank_body.events:
 			_tank_body.events.emit_jump()
-		if SoundManager:
-			SoundManager.play_sfx_3d("jump", _tank_body.global_position)
 		_apply_jump_stretch()
 	elif wants_jump and not on_floor and _can_double_jump:
 		# Выполнение Double Jump в воздухе
@@ -110,8 +108,6 @@ func process_physics(input: TankInput, delta: float) -> void:
 		_peak_y = _tank_body.global_position.y
 		if _tank_body.events:
 			_tank_body.events.emit_jump()
-		if SoundManager:
-			SoundManager.play_sfx_3d("jump", _tank_body.global_position)
 		_apply_jump_stretch()
 	elif not on_floor:
 		_tank_body.velocity.y -= gravity * delta

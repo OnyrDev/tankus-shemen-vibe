@@ -201,7 +201,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:
 		if event.keycode == KEY_ESCAPE:
 			if pause_menu and pause_menu.is_open():
-				pause_menu.close()
+				pause_menu.handle_cancel()
 				get_viewport().set_input_as_handled()
 				return
 			if card_draft and card_draft.visible:

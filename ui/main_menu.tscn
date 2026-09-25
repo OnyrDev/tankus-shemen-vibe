@@ -516,7 +516,7 @@ layout_mode = 2
 [node name="Lbl" type="Label" parent="UILayer/ModalsContainer/SettingsPanel/Margin/VBox/HBoxSFX"]
 custom_minimum_size = Vector2(160, 0)
 layout_mode = 2
-text = "Звуковые эффекты:"
+text = "Звуки в игре:"
 
 [node name="SliderSFX" type="HSlider" parent="UILayer/ModalsContainer/SettingsPanel/Margin/VBox/HBoxSFX"]
 unique_name_in_owner = true
@@ -526,6 +526,28 @@ size_flags_vertical = 4
 value = 80.0
 
 [node name="LblSFXVal" type="Label" parent="UILayer/ModalsContainer/SettingsPanel/Margin/VBox/HBoxSFX"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(50, 0)
+layout_mode = 2
+text = "80%"
+horizontal_alignment = 2
+
+[node name="HBoxUI" type="HBoxContainer" parent="UILayer/ModalsContainer/SettingsPanel/Margin/VBox"]
+layout_mode = 2
+
+[node name="Lbl" type="Label" parent="UILayer/ModalsContainer/SettingsPanel/Margin/VBox/HBoxUI"]
+custom_minimum_size = Vector2(160, 0)
+layout_mode = 2
+text = "Звуки меню:"
+
+[node name="SliderUI" type="HSlider" parent="UILayer/ModalsContainer/SettingsPanel/Margin/VBox/HBoxUI"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+value = 80.0
+
+[node name="LblUIVal" type="Label" parent="UILayer/ModalsContainer/SettingsPanel/Margin/VBox/HBoxUI"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(50, 0)
 layout_mode = 2

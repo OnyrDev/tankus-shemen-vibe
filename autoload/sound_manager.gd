@@ -30,16 +30,23 @@ var _index_3d: int = 0
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
-	_ensure_sfx_bus()
+	_ensure_buses()
 	_load_sound_streams()
 	_create_player_pools()
 
 func _ensure_sfx_bus() -> void:
-	var bus_idx := AudioServer.get_bus_index("SFX")
+	_ensure_bus("SFX")
+
+func _ensure_buses() -> void:
+	_ensure_bus("SFX")
+	_ensure_bus("UI")
+
+func _ensure_bus(bus_name: String) -> void:
+	var bus_idx := AudioServer.get_bus_index(bus_name)
 	if bus_idx == -1:
 		AudioServer.add_bus()
 		bus_idx = AudioServer.bus_count - 1
-		AudioServer.set_bus_name(bus_idx, "SFX")
+		AudioServer.set_bus_name(bus_idx, bus_name)
 		AudioServer.set_bus_send(bus_idx, "Master")
 
 func _load_sound_streams() -> void:
@@ -72,8 +79,13 @@ func _create_player_pools() -> void:
 		add_child(p3)
 		_players_3d.append(p3)
 
+const UI_SFX_NAMES: Array[String] = [
+	"card_hover",
+	"card_select",
+]
+
 ## Воспроизведение 2D звука (UI, локальный щелчок, выбор карты)
-func play_sfx(sfx_name_or_stream: Variant, volume_db: float = 0.0, pitch_variance: float = 0.05) -> AudioStreamPlayer:
+func play_sfx(sfx_name_or_stream: Variant, volume_db: float = 0.0, pitch_variance: float = 0.05, custom_bus: String = "") -> AudioStreamPlayer:
 	var stream: AudioStream = _resolve_stream(sfx_name_or_stream)
 	if not stream or _players_2d.is_empty():
 		return null
@@ -81,6 +93,13 @@ func play_sfx(sfx_name_or_stream: Variant, volume_db: float = 0.0, pitch_varianc
 	var player := _players_2d[_index_2d]
 	_index_2d = (_index_2d + 1) % _players_2d.size()
 
+	var target_bus := "SFX"
+	if not custom_bus.is_empty():
+		target_bus = custom_bus
+	elif sfx_name_or_stream is String and (sfx_name_or_stream in UI_SFX_NAMES or (sfx_name_or_stream as String).begins_with("ui_")):
+		target_bus = "UI"
+
+	player.bus = target_bus
 	player.stream = stream
 	player.volume_db = volume_db
 	player.pitch_scale = 1.0 + randf_range(-pitch_variance, pitch_variance)
@@ -96,6 +115,7 @@ func play_sfx_3d(sfx_name_or_stream: Variant, world_pos: Vector3, volume_db: flo
 	var player := _players_3d[_index_3d]
 	_index_3d = (_index_3d + 1) % _players_3d.size()
 
+	player.bus = "SFX"
 	player.global_position = world_pos
 	player.max_distance = max_dist
 	player.stream = stream
@@ -115,9 +135,22 @@ func _resolve_stream(val: Variant) -> AudioStream:
 			return load(s_name) as AudioStream
 	return null
 
-## Установка громкости шины SFX (0.0 .. 1.0)
+## Установка громкости шины SFX (звуки игры) (0.0 .. 1.0)
 func set_sfx_volume_linear(linear: float) -> void:
-	var bus_idx := AudioServer.get_bus_index("SFX")
+	_set_bus_volume_linear("SFX", linear)
+
+func get_sfx_volume_linear() -> float:
+	return _get_bus_volume_linear("SFX")
+
+## Установка громкости шины UI (звуки интерфейса/меню) (0.0 .. 1.0)
+func set_ui_volume_linear(linear: float) -> void:
+	_set_bus_volume_linear("UI", linear)
+
+func get_ui_volume_linear() -> float:
+	return _get_bus_volume_linear("UI")
+
+func _set_bus_volume_linear(bus_name: String, linear: float) -> void:
+	var bus_idx := AudioServer.get_bus_index(bus_name)
 	if bus_idx == -1:
 		return
 	var clamped := clampf(linear, 0.0, 1.0)
@@ -127,8 +160,8 @@ func set_sfx_volume_linear(linear: float) -> void:
 		AudioServer.set_bus_mute(bus_idx, false)
 		AudioServer.set_bus_volume_db(bus_idx, linear_to_db(clamped))
 
-func get_sfx_volume_linear() -> float:
-	var bus_idx := AudioServer.get_bus_index("SFX")
+func _get_bus_volume_linear(bus_name: String) -> float:
+	var bus_idx := AudioServer.get_bus_index(bus_name)
 	if bus_idx == -1:
 		return 1.0
 	if AudioServer.is_bus_mute(bus_idx):

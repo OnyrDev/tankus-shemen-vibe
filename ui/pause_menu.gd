@@ -2,53 +2,175 @@ class_name PauseMenu
 extends CanvasLayer
 
 ## Внутриигровое меню паузы TANKUS.
-## Предоставляет игроку возможность продолжить бой, перезапустить танки,
-## открыть сетевое лобби или выйти в Главное Меню.
+## Предоставляет игроку возможность продолжить бой, настроить звуки/графику,
+## перезапустить танки, открыть сетевое лобби или выйти в Главное Меню.
 
 signal resumed()
 signal respawn_requested()
 signal open_lan_requested()
 
+# --- Контейнеры меню ---
 @onready var panel_container: PanelContainer = $CenterContainer/Panel
-@onready var btn_resume: Button = $CenterContainer/Panel/Margin/VBox/BtnResume
-@onready var btn_respawn: Button = $CenterContainer/Panel/Margin/VBox/BtnRespawn
-@onready var btn_lan: Button = $CenterContainer/Panel/Margin/VBox/BtnLAN
-@onready var btn_main_menu: Button = $CenterContainer/Panel/Margin/VBox/BtnMainMenu
+@onready var main_vbox: VBoxContainer = %MainVBox
+@onready var settings_vbox: VBoxContainer = %SettingsVBox
+
+# --- Главные кнопки ---
+@onready var btn_resume: Button = %BtnResume
+@onready var btn_settings: Button = %BtnSettings
+@onready var btn_respawn: Button = %BtnRespawn
+@onready var btn_lan: Button = %BtnLAN
+@onready var btn_main_menu: Button = %BtnMainMenu
+
+# --- Элементы настроек ---
+@onready var slider_game_sfx: HSlider = %SliderGameSFX
+@onready var lbl_game_sfx_val: Label = %LblGameSFXVal
+@onready var slider_menu_sfx: HSlider = %SliderMenuSFX
+@onready var lbl_menu_sfx_val: Label = %LblMenuSFXVal
+@onready var slider_music: HSlider = %SliderMusic
+@onready var lbl_music_val: Label = %LblMusicVal
+@onready var chk_fullscreen: CheckBox = %ChkFullscreen
+@onready var btn_settings_back: Button = %BtnSettingsBack
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	visible = false
 
+	_connect_signals()
+	_setup_button_audio_recursively(self)
+	_sync_settings()
+	_show_main_view()
+
+func _connect_signals() -> void:
 	if btn_resume:
 		btn_resume.pressed.connect(_on_btn_resume_pressed)
-		btn_resume.mouse_entered.connect(_play_hover)
+	if btn_settings:
+		btn_settings.pressed.connect(_on_btn_settings_pressed)
 	if btn_respawn:
 		btn_respawn.pressed.connect(_on_btn_respawn_pressed)
-		btn_respawn.mouse_entered.connect(_play_hover)
 	if btn_lan:
 		btn_lan.pressed.connect(_on_btn_lan_pressed)
-		btn_lan.mouse_entered.connect(_play_hover)
 	if btn_main_menu:
 		btn_main_menu.pressed.connect(_on_btn_main_menu_pressed)
-		btn_main_menu.mouse_entered.connect(_play_hover)
+	if btn_settings_back:
+		btn_settings_back.pressed.connect(_on_btn_settings_back_pressed)
+
+	if slider_game_sfx:
+		slider_game_sfx.value_changed.connect(_on_game_sfx_slider_changed)
+	if slider_menu_sfx:
+		slider_menu_sfx.value_changed.connect(_on_menu_sfx_slider_changed)
+	if slider_music:
+		slider_music.value_changed.connect(_on_music_slider_changed)
+	if chk_fullscreen:
+		chk_fullscreen.toggled.connect(_on_fullscreen_toggled)
 
 func open() -> void:
 	visible = true
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	_show_main_view()
 	if btn_resume:
 		btn_resume.grab_focus()
 
 func close() -> void:
 	visible = false
+	_show_main_view()
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	resumed.emit()
+
+func handle_cancel() -> void:
+	if settings_vbox and settings_vbox.visible:
+		_play_click()
+		_show_main_view()
+	else:
+		close()
 
 func is_open() -> bool:
 	return visible
 
+func _show_main_view() -> void:
+	if main_vbox:
+		main_vbox.visible = true
+	if settings_vbox:
+		settings_vbox.visible = false
+	if btn_resume and visible:
+		btn_resume.grab_focus()
+
+func _show_settings_view() -> void:
+	_sync_settings()
+	if main_vbox:
+		main_vbox.visible = false
+	if settings_vbox:
+		settings_vbox.visible = true
+	if btn_settings_back and visible:
+		btn_settings_back.grab_focus()
+
+func _sync_settings() -> void:
+	# SFX Bus (Звуки игры)
+	var sfx_bus := AudioServer.get_bus_index("SFX")
+	if sfx_bus != -1 and slider_game_sfx:
+		var db := AudioServer.get_bus_volume_db(sfx_bus)
+		var linear := db_to_linear(db)
+		slider_game_sfx.value = linear * 100.0
+		if lbl_game_sfx_val:
+			lbl_game_sfx_val.text = "%d%%" % int(slider_game_sfx.value)
+
+	# UI Bus (Звуки меню)
+	var ui_bus := AudioServer.get_bus_index("UI")
+	if ui_bus != -1 and slider_menu_sfx:
+		var db := AudioServer.get_bus_volume_db(ui_bus)
+		var linear := db_to_linear(db)
+		slider_menu_sfx.value = linear * 100.0
+		if lbl_menu_sfx_val:
+			lbl_menu_sfx_val.text = "%d%%" % int(slider_menu_sfx.value)
+
+	# Music Bus
+	var music_bus := AudioServer.get_bus_index("Music")
+	if music_bus != -1 and slider_music:
+		var db := AudioServer.get_bus_volume_db(music_bus)
+		var linear := db_to_linear(db)
+		slider_music.value = linear * 100.0
+		if lbl_music_val:
+			lbl_music_val.text = "%d%%" % int(slider_music.value)
+
+	# Fullscreen
+	if chk_fullscreen:
+		chk_fullscreen.button_pressed = (DisplayServer.window_get_mode() == DisplayServer.WINDOW_MODE_FULLSCREEN)
+
+func _on_game_sfx_slider_changed(val: float) -> void:
+	if SoundManager:
+		SoundManager.set_sfx_volume_linear(val / 100.0)
+	if lbl_game_sfx_val:
+		lbl_game_sfx_val.text = "%d%%" % int(val)
+
+func _on_menu_sfx_slider_changed(val: float) -> void:
+	if SoundManager:
+		SoundManager.set_ui_volume_linear(val / 100.0)
+	if lbl_menu_sfx_val:
+		lbl_menu_sfx_val.text = "%d%%" % int(val)
+
+func _on_music_slider_changed(val: float) -> void:
+	if MusicManager:
+		MusicManager.set_music_volume_linear(val / 100.0)
+	if lbl_music_val:
+		lbl_music_val.text = "%d%%" % int(val)
+
+func _on_fullscreen_toggled(toggled_on: bool) -> void:
+	_play_click()
+	if toggled_on:
+		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
+	else:
+		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
+
 func _on_btn_resume_pressed() -> void:
 	_play_click()
 	close()
+
+func _on_btn_settings_pressed() -> void:
+	_play_click()
+	_show_settings_view()
+
+func _on_btn_settings_back_pressed() -> void:
+	_play_click()
+	_show_main_view()
 
 func _on_btn_respawn_pressed() -> void:
 	_play_click()
@@ -64,6 +186,14 @@ func _on_btn_main_menu_pressed() -> void:
 	_play_click()
 	visible = false
 	Game.return_to_main_menu()
+
+func _setup_button_audio_recursively(node: Node) -> void:
+	for child in node.get_children():
+		if child is Button:
+			var btn := child as Button
+			if not btn.mouse_entered.is_connected(_play_hover):
+				btn.mouse_entered.connect(_play_hover)
+		_setup_button_audio_recursively(child)
 
 func _play_hover() -> void:
 	if SoundManager:
