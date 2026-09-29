@@ -24,6 +24,8 @@ func _is_multiplayer() -> bool:
 
 func _ready() -> void:
 	add_to_group("physics_crates")
+	axis_lock_angular_x = true
+	axis_lock_angular_z = true
 	_initial_transform = global_transform
 	synced_position = global_position
 	synced_rotation = rotation

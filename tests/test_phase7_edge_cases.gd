@@ -22,6 +22,7 @@ func _ready() -> void:
 	_test_blink_safety()
 	_test_debug_overlay()
 	await _test_turret_behavior()
+	await _test_physics_crate_stability()
 
 	print("\n========================================================")
 	print("   TEST RESULTS: %d PASSED | %d FAILED" % [_passed_count, _failed_count])
@@ -285,5 +286,36 @@ func _test_turret_behavior() -> void:
 	_assert_test(shoot_dir.length_squared() > 0.99, "Shoot direction is a valid normalized vector")
 
 	tank.queue_free()
+
+func _test_physics_crate_stability() -> void:
+	print("\n--- 10. Physics Crate Climbing & Stability Test ---")
+	var crate_scene: PackedScene = load("res://maps/components/physics_crate.tscn")
+	var crate := crate_scene.instantiate() as PhysicsCrate
+	add_child(crate)
+	crate.global_position = Vector3(0, 0.7, 0)
+	await get_tree().process_frame
+
+	_assert_test(crate.mass >= 30.0, "PhysicsCrate has sufficient mass (>= 30)")
+	_assert_test(crate.axis_lock_angular_x and crate.axis_lock_angular_z, "PhysicsCrate has angular X and Z locked against tipping")
+	_assert_test(crate.physics_material_override != null and crate.physics_material_override.rough, "PhysicsCrate has rough physics material")
+
+	var tank_scene: PackedScene = load("res://tank/tank.tscn")
+	var tank := tank_scene.instantiate() as Tank
+	add_child(tank)
+	tank.global_position = Vector3(0, 1.45, 0)
+	await get_tree().process_frame
+
+	_assert_test(tank.platform_on_leave == CharacterBody3D.PLATFORM_ON_LEAVE_DO_NOTHING, "Tank has platform_on_leave = PLATFORM_ON_LEAVE_DO_NOTHING")
+
+	for _i in range(10):
+		tank.controller.process_physics(null, 1.0 / 60.0)
+		crate._physics_process(1.0 / 60.0)
+
+	_assert_test(is_zero_approx(crate.rotation.x) and is_zero_approx(crate.rotation.z), "Crate pitch and roll remain strictly zero while tank stands on it")
+	_assert_test(crate.linear_velocity.length() < 1.0, "Crate does not wobble or accelerate under standing tank")
+
+	tank.queue_free()
+	crate.queue_free()
+
 
 

@@ -46,6 +46,7 @@ func _ready() -> void:
 		_tank_body.floor_constant_speed = true
 		_tank_body.floor_stop_on_slope = false
 		_tank_body.floor_block_on_wall = false
+		_tank_body.platform_on_leave = CharacterBody3D.PLATFORM_ON_LEAVE_DO_NOTHING
 
 func process_physics(input: TankInput, delta: float) -> void:
 	if not _tank_body:
@@ -165,10 +166,15 @@ func process_physics(input: TankInput, delta: float) -> void:
 		var col := _tank_body.get_slide_collision(i)
 		var rbody := col.get_collider() as RigidBody3D
 		if rbody:
-			var push_dir := -col.get_normal()
+			var col_norm := col.get_normal()
+			# Исключаем вертикальные контакты/опоры (когда танк стоит или едет сверху на ящике)
+			if col_norm.y > 0.5:
+				continue
+			var push_dir := -col_norm
 			push_dir.y = 0.0
-			var push_impulse := push_dir.normalized() * (effective_speed * 2.0)
-			rbody.apply_impulse(push_impulse, col.get_position() - rbody.global_position)
+			if push_dir.length_squared() > 0.01:
+				var push_impulse := push_dir.normalized() * (effective_speed * 2.5)
+				rbody.apply_central_impulse(push_impulse)
 
 func _apply_jump_stretch() -> void:
 	_current_visual_scale = Vector3(0.92, 1.16, 0.92)

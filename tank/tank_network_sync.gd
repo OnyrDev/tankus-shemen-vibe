@@ -260,10 +260,15 @@ func _server_apply_client_movement(delta: float) -> void:
 		var col := _tank.get_slide_collision(i)
 		var rbody := col.get_collider() as RigidBody3D
 		if rbody:
-			var push_dir := -col.get_normal()
+			var col_norm := col.get_normal()
+			# Исключаем вертикальные контакты/опоры (когда танк стоит или едет сверху на ящике)
+			if col_norm.y > 0.5:
+				continue
+			var push_dir := -col_norm
 			push_dir.y = 0.0
-			var push_impulse := push_dir.normalized() * (effective_speed * 2.0)
-			rbody.apply_impulse(push_impulse, col.get_position() - rbody.global_position)
+			if push_dir.length_squared() > 0.01:
+				var push_impulse := push_dir.normalized() * (effective_speed * 2.5)
+				rbody.apply_central_impulse(push_impulse)
 
 	# Доворот башни на сервере
 	if _tank.turret and _client_is_aim_valid:

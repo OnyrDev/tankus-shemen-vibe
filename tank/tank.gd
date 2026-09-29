@@ -55,6 +55,7 @@ func _ready() -> void:
 	_sync_peer_id_from_name()
 	add_to_group("tanks")
 	spawn_point = global_transform
+	platform_on_leave = PlatformOnLeave.PLATFORM_ON_LEAVE_DO_NOTHING
 	_apply_team_color()
 
 	if health:
