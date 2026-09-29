@@ -23,6 +23,7 @@ func _ready() -> void:
 	_test_debug_overlay()
 	await _test_turret_behavior()
 	await _test_physics_crate_stability()
+	await _test_sky_courtyard_spawns()
 
 	print("\n========================================================")
 	print("   TEST RESULTS: %d PASSED | %d FAILED" % [_passed_count, _failed_count])
@@ -316,6 +317,50 @@ func _test_physics_crate_stability() -> void:
 
 	tank.queue_free()
 	crate.queue_free()
+
+func _test_sky_courtyard_spawns() -> void:
+	print("\n--- 11. Sky Courtyard Spawns & Platform Placement Test ---")
+	var scene: PackedScene = load("res://maps/sky_courtyard.tscn")
+	var map := scene.instantiate() as BaseArena
+	add_child(map)
+	await get_tree().process_frame
+
+	var markers := map.get_spawn_points()
+	_assert_test(markers.size() == 8, "Sky Courtyard contains exactly 8 spawn points")
+
+	var sp1 := map.get_node_or_null("SpawnPoints/SpawnPoint1") as Marker3D
+	var sp2 := map.get_node_or_null("SpawnPoints/SpawnPoint2") as Marker3D
+	var sp5 := map.get_node_or_null("SpawnPoints/SpawnPoint5") as Marker3D
+	var sp6 := map.get_node_or_null("SpawnPoints/SpawnPoint6") as Marker3D
+
+	_assert_test(sp1 != null and is_equal_approx(sp1.position.y, 2.7) and is_equal_approx(sp1.position.z, 22.0), "SpawnPoint1 is on SouthTerrace (Blue platform)")
+	_assert_test(sp2 != null and is_equal_approx(sp2.position.y, 2.7) and is_equal_approx(sp2.position.z, -22.0), "SpawnPoint2 is on NorthTerrace (Red platform)")
+	_assert_test(sp5 != null and is_equal_approx(sp5.position.y, 0.5) and is_equal_approx(sp5.position.z, 16.0), "SpawnPoint5 is properly on floor at y=0.5, z=16")
+	_assert_test(sp6 != null and is_equal_approx(sp6.position.y, 0.5) and is_equal_approx(sp6.position.z, -16.0), "SpawnPoint6 is properly on floor at y=0.5, z=-16")
+
+	# Тестируем распределение спавнов для 2 игроков (1v1: Синий Хост против Красного Клиента)
+	var p1 := PlayerInfo.new(1, "HostBlue", 0)
+	var p2 := PlayerInfo.new(2, "ClientRed", 1)
+	var players: Array[PlayerInfo] = [p1, p2]
+
+	# 1. FFA режим: Красный игрок должен спавниться на противоположной платформе (SpawnPoint2)
+	var ffa_spawns := SpawnManager.assign_spawns(players, markers, false)
+	_assert_test(ffa_spawns.has(1) and ffa_spawns.has(2), "FFA spawns assigned for both players")
+	var tf_blue_ffa: Transform3D = ffa_spawns[1]
+	var tf_red_ffa: Transform3D = ffa_spawns[2]
+	_assert_test(is_equal_approx(tf_blue_ffa.origin.z, 22.0) and is_equal_approx(tf_blue_ffa.origin.y, 2.7), "FFA: Blue tank spawns on Blue Platform (z=22)")
+	_assert_test(is_equal_approx(tf_red_ffa.origin.z, -22.0) and is_equal_approx(tf_red_ffa.origin.y, 2.7), "FFA: Red tank spawns on Red Platform (z=-22), not in air")
+
+	# 2. Командный режим: Команда 2 (Красные) должна получить базу на NorthTerrace (SpawnPoint2)
+	var team_spawns := SpawnManager.assign_spawns(players, markers, true)
+	_assert_test(team_spawns.has(1) and team_spawns.has(2), "Team spawns assigned for both players")
+	var tf_blue_team: Transform3D = team_spawns[1]
+	var tf_red_team: Transform3D = team_spawns[2]
+	_assert_test(is_equal_approx(tf_blue_team.origin.z, 22.0) and is_equal_approx(tf_blue_team.origin.y, 2.7), "Teams: Blue team spawns on Blue Platform (z=22)")
+	_assert_test(is_equal_approx(tf_red_team.origin.z, -22.0) and is_equal_approx(tf_red_team.origin.y, 2.7), "Teams: Red team spawns on Red Platform (z=-22), not in air")
+
+	map.queue_free()
+
 
 
 

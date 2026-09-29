@@ -353,10 +353,10 @@ transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -22, 0.5, 0)
 transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 22, 0.5, 0)
 
 [node name="SpawnPoint5" type="Marker3D" parent="SpawnPoints"]
-transform = Transform3D(-0.707107, 0, -0.707107, 0, 1, 0, 0.707107, 0, -0.707107, -14, 2.5, 20)
+transform = Transform3D(-0.707107, 0, -0.707107, 0, 1, 0, 0.707107, 0, -0.707107, -16, 0.5, 16)
 
 [node name="SpawnPoint6" type="Marker3D" parent="SpawnPoints"]
-transform = Transform3D(0.707107, 0, 0.707107, 0, 1, 0, -0.707107, 0, 0.707107, 14, 2.5, -20)
+transform = Transform3D(0.707107, 0, 0.707107, 0, 1, 0, -0.707107, 0, 0.707107, 16, 0.5, -16)
 
 [node name="SpawnPoint7" type="Marker3D" parent="SpawnPoints"]
 transform = Transform3D(-0.707107, 0, 0.707107, 0, 1, 0, -0.707107, 0, -0.707107, 16, 0.5, 16)
