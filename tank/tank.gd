@@ -59,10 +59,13 @@ func _ready() -> void:
 	_apply_team_color()
 
 	if health:
-		health.died.connect(func(killer): died.emit(killer))
+		health.died.connect(_on_health_died)
 
 	if stats and build:
 		stats.recalculate(build.cards, CardDatabase)
+
+func _on_health_died(killer: Node) -> void:
+	died.emit(killer)
 
 func setup_network(p_peer_id: int, p_team_id: int, p_color: Color) -> void:
 	peer_id = p_peer_id
@@ -115,20 +118,10 @@ func _process_combat_input() -> void:
 		if weapon:
 			weapon.try_fire()
 
-func respawn(new_transform: Transform3D = spawn_point) -> void:
+func respawn(new_transform: Transform3D = spawn_point, reset_health: bool = true, health_penalty: float = 0.0) -> void:
 	global_transform = new_transform
 	velocity = Vector3.ZERO
 	rotation = Vector3.ZERO
-	is_active = true
-
-	if net_sync:
-		net_sync.synced_position = new_transform.origin
-		net_sync.synced_rotation_y = 0.0
-		net_sync.synced_is_active = true
-		if health:
-			net_sync.synced_health = health.max_health
-		if stats:
-			net_sync.synced_tank_scale = stats.tank_scale
 
 	if visuals:
 		visuals.visible = true
@@ -137,16 +130,47 @@ func respawn(new_transform: Transform3D = spawn_point) -> void:
 		turret.rotation = Vector3.ZERO
 
 	if health:
-		health.reset()
+		if reset_health:
+			health.reset()
+			is_active = true
+		else:
+			var actual_penalty := minf(health.current_health, health_penalty)
+			health.current_health = maxf(0.0, health.current_health - health_penalty)
+			health.damage_taken.emit(actual_penalty, null)
+			health.health_changed.emit(health.current_health, health.max_health)
+			health._play_hit_flash()
+			if SoundManager:
+				SoundManager.play_sfx_3d("hit", global_position)
+			if events:
+				events.emit_damage_taken(actual_penalty, null)
 
-	if weapon:
-		weapon.reset()
+			if health.current_health <= 0.0:
+				if events and events.check_prevent_death(null):
+					is_active = true
+				else:
+					is_active = false
+					health._die(null)
+			else:
+				is_active = true
+	else:
+		is_active = true
 
-	if block:
-		block.reset()
+	if net_sync:
+		net_sync.synced_position = new_transform.origin
+		net_sync.synced_rotation_y = 0.0
+		net_sync.synced_is_active = is_active
+		if health:
+			net_sync.synced_health = health.current_health
+		if stats:
+			net_sync.synced_tank_scale = stats.tank_scale
 
-	if stats and build:
-		stats.recalculate(build.cards, CardDatabase)
+	if reset_health:
+		if weapon:
+			weapon.reset()
+		if block:
+			block.reset()
+		if stats and build:
+			stats.recalculate(build.cards, CardDatabase)
 
 	_apply_team_color()
 

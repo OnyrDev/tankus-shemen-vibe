@@ -24,6 +24,7 @@ func _ready() -> void:
 	await _test_turret_behavior()
 	await _test_physics_crate_stability()
 	await _test_sky_courtyard_spawns()
+	await _test_void_fall_health_penalty()
 
 	print("\n========================================================")
 	print("   TEST RESULTS: %d PASSED | %d FAILED" % [_passed_count, _failed_count])
@@ -380,6 +381,73 @@ func _test_sky_courtyard_spawns() -> void:
 	_assert_test(is_equal_approx(tf_red_team.origin.z, -22.0) and is_equal_approx(tf_red_team.origin.y, 2.7), "Teams: Red team spawns on Red Platform (z=-22), not in air")
 
 	map.queue_free()
+
+func _test_void_fall_health_penalty() -> void:
+	print("\n--- 12. Void Fall Health Penalty & Edge Cases Test ---")
+	var tank_scene: PackedScene = load("res://tank/tank.tscn")
+	var tank := tank_scene.instantiate() as Tank
+	add_child(tank)
+	await get_tree().process_frame
+
+	var spawn_pos := Vector3(0.0, 1.0, 0.0)
+	var spawn_tf := Transform3D(Basis(), spawn_pos)
+
+	# 1. Обычный респавн без параметров восстанавливает полное здоровье 100 HP
+	tank.health.current_health = 40.0
+	tank.respawn(spawn_tf)
+	_assert_test(is_equal_approx(tank.health.current_health, 100.0), "Standard respawn restores full health to 100 HP")
+	_assert_test(tank.is_active, "Tank is active after standard respawn")
+	_assert_test(tank.global_position.is_equal_approx(spawn_pos), "Tank positioned at spawn point")
+
+	# 2. Падение в бездну (void fall): reset_health = false, health_penalty = 5.0
+	# С полного здоровья (100 HP) должно стать 95 HP
+	var damages_received: Array[float] = []
+	tank.health.damage_taken.connect(func(amt, _att): damages_received.append(amt))
+	tank.respawn(spawn_tf, false, 5.0)
+
+	_assert_test(is_equal_approx(tank.health.current_health, 95.0), "Void fall reduces health by 5 HP (100 -> 95)")
+	_assert_test(tank.is_active, "Tank remains active after surviving void fall")
+	_assert_test(damages_received.size() == 1 and is_equal_approx(damages_received[0], 5.0), "Damage taken signal emitted with 5.0 penalty")
+	if tank.net_sync:
+		_assert_test(is_equal_approx(tank.net_sync.synced_health, 95.0), "NetSync replicated reduced health (95.0)")
+
+	# 3. Второе падение подряд: здоровье должно уменьшиться еще на 5 (95 -> 90)
+	tank.respawn(spawn_tf, false, 5.0)
+	_assert_test(is_equal_approx(tank.health.current_health, 90.0), "Second void fall reduces health again (95 -> 90)")
+
+	# 4. Летальное падение в бездну при HP <= 5.0:
+	tank.health.current_health = 4.0
+	var died_box := [false]
+	tank.died.connect(func(_k): died_box[0] = true)
+	tank.respawn(spawn_tf, false, 5.0)
+
+	_assert_test(is_equal_approx(tank.health.current_health, 0.0), "Health drops to 0 on lethal void fall")
+	_assert_test(not tank.is_active, "Tank becomes inactive upon lethal void fall")
+	_assert_test(died_box[0], "Tank emits died signal upon lethal void fall")
+	if tank.net_sync:
+		_assert_test(not tank.net_sync.synced_is_active, "NetSync replicated inactive status")
+		_assert_test(is_equal_approx(tank.net_sync.synced_health, 0.0), "NetSync replicated 0.0 health")
+
+	# 5. Спасбросок Phoenix при падении в бездну:
+	var tank_phoenix := tank_scene.instantiate() as Tank
+	add_child(tank_phoenix)
+	await get_tree().process_frame
+
+	var phoenix_card := CardDatabase.get_card("phoenix")
+	_assert_test(phoenix_card != null, "Phoenix card definition exists")
+	tank_phoenix.build.add_card(phoenix_card)
+	tank_phoenix.health.current_health = 5.0
+
+	var phoenix_died := false
+	tank_phoenix.died.connect(func(_k): phoenix_died = true)
+	tank_phoenix.respawn(spawn_tf, false, 5.0)
+
+	_assert_test(not phoenix_died, "Phoenix prevents death upon lethal void fall")
+	_assert_test(tank_phoenix.is_active, "Tank with Phoenix stays active after lethal void fall")
+	_assert_test(is_equal_approx(tank_phoenix.health.current_health, 50.0), "Phoenix revives tank at 50% HP")
+
+	tank.queue_free()
+	tank_phoenix.queue_free()
 
 
 

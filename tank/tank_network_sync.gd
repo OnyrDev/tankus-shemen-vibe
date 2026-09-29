@@ -166,6 +166,7 @@ func _physics_process(delta: float) -> void:
 			if _tank.global_position.distance_to(synced_position) > 2.5:
 				_tank.global_position = synced_position
 				_tank.rotation.y = synced_rotation_y
+				_tank.velocity = Vector3.ZERO
 			else:
 				_tank.global_position = _tank.global_position.lerp(synced_position, clampf(25.0 * delta, 0.0, 1.0))
 				_tank.rotation.y = lerp_angle(_tank.rotation.y, synced_rotation_y, clampf(20.0 * delta, 0.0, 1.0))
@@ -402,6 +403,7 @@ func _interpolate_remote_tank(delta: float) -> void:
 	if _tank.global_position.distance_to(synced_position) > 2.5:
 		_tank.global_position = synced_position
 		_tank.rotation.y = synced_rotation_y
+		_tank.velocity = Vector3.ZERO
 	else:
 		_tank.global_position = _tank.global_position.lerp(synced_position, clampf(18.0 * delta, 0.0, 1.0))
 		_tank.rotation.y = lerp_angle(_tank.rotation.y, synced_rotation_y, clampf(15.0 * delta, 0.0, 1.0))

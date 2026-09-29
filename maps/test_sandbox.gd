@@ -428,13 +428,27 @@ func _on_kill_volume_body_entered(body: Node3D) -> void:
 		if Network.is_multiplayer_active():
 			if Network.is_server():
 				var spawn_tf := _get_spawn_transform_for_peer(t.peer_id)
-				t.respawn(spawn_tf)
+				_handle_void_fall(t, spawn_tf)
 		else:
 			if t == tank:
-				_respawn_tank()
+				var spawn_tf := _get_spawn_transform_for_peer(1)
+				_handle_void_fall(t, spawn_tf)
 			elif t == dummy_tank:
 				var tf2 := _get_spawn_transform_for_peer(2)
-				dummy_tank.respawn(tf2)
+				_handle_void_fall(t, tf2)
+			else:
+				var spawn_tf := _get_spawn_transform_for_peer(t.peer_id if t.peer_id > 0 else 1)
+				_handle_void_fall(t, spawn_tf)
+
+func _handle_void_fall(t: Tank, spawn_tf: Transform3D) -> void:
+	if not t or not t.is_active:
+		return
+	t.respawn(spawn_tf, false, 5.0)
+	if t == _active_local_tank:
+		if Game:
+			Game.shake_camera(0.25)
+		if camera and t.is_active:
+			camera.setup_target(t)
 
 func _respawn_tank() -> void:
 	if _active_local_tank:
