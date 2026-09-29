@@ -286,6 +286,26 @@ func _test_turret_behavior() -> void:
 	var shoot_dir := turret.get_shoot_direction()
 	_assert_test(shoot_dir.length_squared() > 0.99, "Shoot direction is a valid normalized vector")
 
+	# Проверяем наклон ствола и сведение выстрела в прицел (Crosshair Convergence)
+	tank.visuals.rotation = Vector3.ZERO
+	# 1. Цель выше танка (возвышенность/рампа)
+	var high_target := tank.global_position + Vector3(0, 4.0, -10.0)
+	for _i in range(20):
+		turret.aim_at(high_target, 0.1)
+	_assert_test(turret.barrel_mount.rotation.x > deg_to_rad(10.0), "Barrel tilts UP towards elevated target")
+	var shoot_dir_high := turret.get_shoot_direction()
+	var expected_dir_high := (high_target - turret.get_muzzle_position()).normalized()
+	_assert_test(shoot_dir_high.dot(expected_dir_high) > 0.999, "Shoot direction strictly converges onto high crosshair target")
+
+	# 2. Цель ниже танка (земля перед танком)
+	var low_target := tank.global_position + Vector3(0, -1.5, -8.0)
+	for _i in range(20):
+		turret.aim_at(low_target, 0.1)
+	_assert_test(turret.barrel_mount.rotation.x < deg_to_rad(-10.0), "Barrel tilts DOWN towards low ground target")
+	var shoot_dir_low := turret.get_shoot_direction()
+	var expected_dir_low := (low_target - turret.get_muzzle_position()).normalized()
+	_assert_test(shoot_dir_low.dot(expected_dir_low) > 0.999, "Shoot direction strictly converges onto low ground crosshair target")
+
 	tank.queue_free()
 
 func _test_physics_crate_stability() -> void:

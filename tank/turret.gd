@@ -8,7 +8,7 @@ extends Node3D
 
 @export var rotation_speed: float = 20.0 # рад/сек
 @export var pitch_speed: float = 16.0 # рад/сек
-@export var min_pitch_deg: float = -25.0 # наклон вниз
+@export var min_pitch_deg: float = -35.0 # наклон вниз
 @export var max_pitch_deg: float = 45.0 # наклон вверх
 
 @onready var barrel_mount: Node3D = get_node_or_null("BarrelMount")
@@ -35,14 +35,14 @@ func aim_at(target_point: Vector3, delta: float) -> void:
 	rotation.x = 0.0
 	rotation.z = 0.0
 
-	# Наклон ствола (pitch) в локальных координатах ствола вокруг локальной оси X
+	# Наклон ствола (pitch) в локальных координатах башни вокруг локальной оси X ствола
 	if barrel_mount:
-		var local_barrel_target := barrel_mount.to_local(target_point)
-		var dist_h := Vector2(local_barrel_target.x, local_barrel_target.z).length()
+		# Вектор от шарнира ствола к цели в пространстве башни (где rest pitch = 0)
+		var dir_in_turret := to_local(target_point) - barrel_mount.position
+		var dist_h := Vector2(dir_in_turret.x, dir_in_turret.z).length()
 		if dist_h > 0.01:
-			var desired_pitch := atan2(local_barrel_target.y, dist_h)
 			var target_pitch := clampf(
-				desired_pitch,
+				atan2(dir_in_turret.y, dist_h),
 				deg_to_rad(min_pitch_deg),
 				deg_to_rad(max_pitch_deg)
 			)
@@ -66,6 +66,16 @@ func get_muzzle_position() -> Vector3:
 	return global_position
 
 func get_shoot_direction() -> Vector3:
+	if _has_target and muzzle:
+		var to_target := _current_target - muzzle.global_position
+		if to_target.length_squared() > 0.01:
+			var target_dir := to_target.normalized()
+			var barrel_dir := -muzzle.global_transform.basis.z.normalized()
+			# Сведение снаряда в точку прицела (Crosshair Convergence)
+			# Если ствол наведен в сектор цели (до ~45 градусов отклонения при повороте),
+			# снаряд вылетает СТРОГО в точку прицела без отклонений по высоте.
+			if barrel_dir.dot(target_dir) > 0.7:
+				return target_dir
 	if muzzle:
 		return -muzzle.global_transform.basis.z.normalized()
 	return -global_transform.basis.z.normalized()
