@@ -154,6 +154,16 @@ func _test_chassis_tilt_and_squash() -> void:
 	tank.velocity = Vector3(0, 0, -8.0)
 	ctrl._update_chassis_tilt(0.016)
 	_assert_test(absf(ctrl._current_tilt_pitch) > 0.001 or absf(ctrl._current_tilt_roll) >= 0.0, "Chassis tilt responds to velocity")
+
+	# Проверяем изоляцию башни и ствола от squash/stretch (ствол не меняет размера)
+	ctrl._apply_land_squash(3.0)
+	ctrl._update_chassis_tilt(0.016)
+	_assert_test(is_equal_approx(tank.turret.scale.x, 1.0) and is_equal_approx(tank.turret.scale.y, 1.0) and is_equal_approx(tank.turret.scale.z, 1.0), "Turret scale remains strictly (1,1,1) during landing squash")
+	var muzzle := tank.turret.muzzle
+	var barrel_mount := tank.turret.barrel_mount
+	var barrel_len := barrel_mount.global_position.distance_to(muzzle.global_position)
+	_assert_test(is_equal_approx(barrel_len, 1.15), "Barrel length strictly preserved at 1.15m during landing squash (no elongation)")
+
 	tank.queue_free()
 
 func _test_phoenix_card() -> void:
@@ -238,7 +248,7 @@ func _test_debug_overlay() -> void:
 	print("\n--- 8. Debug Overlay Test ---")
 	var overlay_scene: PackedScene = load("res://ui/debug_overlay.tscn")
 	_assert_test(overlay_scene != null, "debug_overlay.tscn loaded")
-	var overlay: CanvasLayer = overlay_scene.instantiate()
+	var overlay = overlay_scene.instantiate()
 	add_child(overlay)
 
 	_assert_test(not overlay.visible, "Debug overlay is initially hidden")
@@ -251,6 +261,55 @@ func _test_debug_overlay() -> void:
 
 	overlay._update_debug_text()
 	_assert_test(overlay.stats_label.text.contains("PERFORMANCE") and overlay.stats_label.text.contains("FPS"), "Debug overlay populates performance & network stats")
+
+	# Проверка панели цифровых статов танка в левом нижнем углу
+	_assert_test(overlay.tank_stats_panel != null, "Tank stats panel exists in debug overlay")
+	_assert_test(overlay.stats_left != null and overlay.stats_right != null, "Numeric stats labels exist")
+
+	var tank_scene: PackedScene = load("res://tank/tank.tscn")
+	var test_tank := tank_scene.instantiate() as Tank
+	add_child(test_tank)
+	test_tank.name = "Tank_Test"
+	await get_tree().process_frame
+
+	overlay._update_tank_stats()
+	_assert_test(overlay.stats_left.text.contains("HP:") and overlay.stats_left.text.contains("Move Speed:") and overlay.stats_left.text.contains("Damage:"), "Stats panel renders numeric stats")
+	_assert_test(overlay.stats_right.text.contains("Proj Speed:") and overlay.stats_right.text.contains("Fire Rate:"), "Right column renders numeric combat stats")
+
+	# Проверка поиска карточек по названию
+	_assert_test(overlay.search_box != null, "Card search input exists")
+	_assert_test(overlay._card_widgets.size() == 45, "All 45 cards initialized in card debugger")
+
+	overlay.search_box.text = "Heavy Shell"
+	overlay._on_search_text_changed("Heavy Shell")
+	var heavy_shell_widget: Control = overlay._card_widgets.get("heavy_shell", null)
+	_assert_test(heavy_shell_widget != null and heavy_shell_widget.visible, "Card search finds 'Heavy Shell' by name")
+	var bouncy_widget: Control = overlay._card_widgets.get("bouncy", null)
+	_assert_test(bouncy_widget != null and not bouncy_widget.visible, "Card search hides non-matching cards ('Bouncy')")
+
+	# Добавление карты через отладочный интерфейс
+	var heavy_shell_def := CardDatabase.get_card("heavy_shell")
+	overlay._add_card_to_tank(heavy_shell_def)
+	_assert_test(test_tank.build.has_card("heavy_shell"), "Debug overlay adds card to local tank")
+	_assert_test(test_tank.stats.damage > 28.0, "Tank damage stat recalculated numerically (> 28.0)")
+
+	# Удаление карты и очистка
+	overlay._remove_card_from_tank(heavy_shell_def)
+	_assert_test(not test_tank.build.has_card("heavy_shell"), "Debug overlay removes card from tank")
+
+	# Проверка переключения захвата мыши по клавише Tab (Lock & Unlock)
+	var tab_event := InputEventKey.new()
+	tab_event.pressed = true
+	tab_event.keycode = KEY_TAB
+	overlay._input(tab_event)
+	_assert_test(overlay.is_mouse_captured, "Tab locks mouse for gameplay testing")
+	_assert_test(overlay.btn_toggle_cursor.text.contains("Free Mouse"), "Button updates to 'Free Mouse'")
+
+	overlay._input(tab_event)
+	_assert_test(not overlay.is_mouse_captured, "Second Tab unlocks mouse back to debug overlay")
+	_assert_test(overlay.btn_toggle_cursor.text.contains("Lock Mouse"), "Button updates to 'Lock Mouse'")
+
+	test_tank.queue_free()
 	overlay.queue_free()
 
 func _test_turret_behavior() -> void:
@@ -306,6 +365,15 @@ func _test_turret_behavior() -> void:
 	var shoot_dir_low := turret.get_shoot_direction()
 	var expected_dir_low := (low_target - turret.get_muzzle_position()).normalized()
 	_assert_test(shoot_dir_low.dot(expected_dir_low) > 0.999, "Shoot direction strictly converges onto low ground crosshair target")
+
+	# 3. Препятствие вплотную / ствол протыкает объект (Anti-Clipping Aim Clamp)
+	turret.rotation.y = 0.0
+	var close_obstacle_target := turret.global_position + (-turret.global_transform.basis.z * 0.6)
+	turret.aim_at(close_obstacle_target, 1.0)
+	var barrel_len_close := turret.barrel_mount.global_position.distance_to(turret.muzzle.global_position)
+	_assert_test(is_equal_approx(barrel_len_close, 1.15), "Barrel length strictly preserved at 1.15m when penetrating close obstacle")
+	_assert_test(absf(turret.barrel_mount.rotation.x) < deg_to_rad(30.0), "Barrel does not snap to extreme pitch when penetrating obstacle")
+	_assert_test(is_zero_approx(turret.rotation.y), "Turret does not flip backwards when target is close inside barrel")
 
 	tank.queue_free()
 

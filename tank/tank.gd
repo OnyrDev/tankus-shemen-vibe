@@ -30,6 +30,8 @@ signal died(killer: Node)
 @onready var net_sync: TankNetworkSync = get_node_or_null("TankNetworkSync")
 
 @onready var chassis_mesh: MeshInstance3D = get_node_or_null("Visuals/ChassisMesh")
+@onready var left_track: MeshInstance3D = get_node_or_null("Visuals/LeftTrack")
+@onready var right_track: MeshInstance3D = get_node_or_null("Visuals/RightTrack")
 @onready var turret_mesh: MeshInstance3D = get_node_or_null("Visuals/TurretMount/TurretMesh")
 @onready var shield_mesh: MeshInstance3D = get_node_or_null("Visuals/ShieldMesh")
 

@@ -6,6 +6,7 @@ extends Node
 ## и трансляцией событий от TankEvents к эффектам.
 
 signal card_added(card_def: CardDefinition, new_stacks: int)
+signal card_removed(card_def: CardDefinition, new_stacks: int)
 signal build_changed()
 
 var cards: Dictionary = {} # card_id (String) -> stack_count (int)
@@ -64,6 +65,31 @@ func has_card(card_id: String) -> bool:
 
 func get_stacks(card_id: String) -> int:
 	return cards.get(card_id, 0)
+
+func remove_card(card_def: CardDefinition) -> void:
+	if not card_def:
+		return
+
+	var cid := card_def.id
+	if not cards.has(cid) or cards[cid] <= 0:
+		return
+
+	var current_stacks: int = cards[cid]
+	var new_stacks := current_stacks - 1
+	if new_stacks <= 0:
+		cards.erase(cid)
+		ordered_cards.erase(cid)
+		active_effects.erase(cid)
+	else:
+		cards[cid] = new_stacks
+		if active_effects.has(cid):
+			active_effects[cid].on_applied(new_stacks)
+
+	if _tank and _tank.stats:
+		_tank.stats.recalculate(cards, CardDatabase)
+
+	card_removed.emit(card_def, new_stacks)
+	build_changed.emit()
 
 func clear_build() -> void:
 	cards.clear()

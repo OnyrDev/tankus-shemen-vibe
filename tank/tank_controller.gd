@@ -217,6 +217,25 @@ func _update_chassis_tilt(delta: float) -> void:
 	_tank_body.visuals.rotation.x = _current_tilt_pitch
 	_tank_body.visuals.rotation.z = _current_tilt_roll
 
-	# Плавное возвращение формы после squash / stretch
+	# Базовый визуальный масштаб всего танка (от карт/статов) строго изотропен
+	var base_tank_scale := _tank_body.stats.tank_scale if (_tank_body and _tank_body.stats) else 1.0
+	_tank_body.visuals.scale = Vector3.ONE * base_tank_scale
+
+	# Плавное возвращение формы подвески после squash / stretch
 	_current_visual_scale = _current_visual_scale.lerp(Vector3.ONE, 10.0 * delta)
-	_tank_body.visuals.scale = _current_visual_scale
+
+	# Применяем squash / stretch ТОЛЬКО к элементам шасси (корпус и гусеницы),
+	# чтобы ствол и башня оставались жесткими и никогда не деформировались при прыжках/ударах
+	if _tank_body.chassis_mesh:
+		_tank_body.chassis_mesh.scale = _current_visual_scale
+	if _tank_body.left_track:
+		_tank_body.left_track.scale = _current_visual_scale
+	if _tank_body.right_track:
+		_tank_body.right_track.scale = _current_visual_scale
+
+	# Башня следует по вертикали за сжатием подвески, сохраняя строгий единичный масштаб
+	if _tank_body.turret:
+		_tank_body.turret.scale = Vector3.ONE
+		_tank_body.turret.position.y = 0.72 + 0.45 * (_current_visual_scale.y - 1.0)
+		if _tank_body.turret.barrel_mount:
+			_tank_body.turret.barrel_mount.scale = Vector3.ONE

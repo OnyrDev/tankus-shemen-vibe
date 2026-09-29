@@ -17,19 +17,42 @@ extends Node3D
 var _current_target: Vector3 = Vector3.ZERO
 var _has_target: bool = false
 
+func _ready() -> void:
+	scale = Vector3.ONE
+	if barrel_mount:
+		barrel_mount.scale = Vector3.ONE
+
 func aim_at(target_point: Vector3, delta: float) -> void:
 	_current_target = target_point
 	_has_target = true
 
-	# Цель в локальных координатах башни
+	scale = Vector3.ONE
+	if barrel_mount:
+		barrel_mount.scale = Vector3.ONE
+
+	# Точка цели в локальной системе координат башни
 	var local_target := to_local(target_point)
-	var flat_target := Vector2(local_target.x, local_target.z)
+
+	# Защита от проникновения дула в препятствия и экстремальных углов вблизи (Anti-Clipping Aim Clamp):
+	# Ствол имеет длину 1.15м и заканчивается на local Z = -1.65.
+	# Если точка цели находится прямо по курсу ствола, но ближе среза (local_target.z между -1.8 и -0.1),
+	# проецируем цель вперед на безопасную дистанцию (2.5м вперед от башни),
+	# чтобы ствол не ломался под дикими углами (+45°/-35°) и не застревал в геометрии.
+	var aim_local := local_target
+	if aim_local.z < -0.1 and aim_local.z > -1.8 and absf(aim_local.x) < 1.5:
+		var forward_z := -2.5
+		var factor := forward_z / aim_local.z
+		aim_local.x *= factor
+		aim_local.y *= factor
+		aim_local.z = forward_z
+
+	var flat_target := Vector2(aim_local.x, aim_local.z)
 
 	if flat_target.length_squared() > 0.001:
 		# В Godot вперед — это -Z, поэтому angle_yaw = atan2(-x, -z)
 		var angle_yaw := atan2(-flat_target.x, -flat_target.y)
 		var step_yaw := signf(angle_yaw) * minf(absf(angle_yaw), rotation_speed * delta)
-		rotation.y += step_yaw
+		rotation.y = wrapf(rotation.y + step_yaw, -PI, PI)
 
 	# Башня всегда сидит строго на погоне корпуса — никакого наклона/крена по X и Z!
 	rotation.x = 0.0
@@ -38,7 +61,7 @@ func aim_at(target_point: Vector3, delta: float) -> void:
 	# Наклон ствола (pitch) в локальных координатах башни вокруг локальной оси X ствола
 	if barrel_mount:
 		# Вектор от шарнира ствола к цели в пространстве башни (где rest pitch = 0)
-		var dir_in_turret := to_local(target_point) - barrel_mount.position
+		var dir_in_turret := aim_local - barrel_mount.position
 		var dist_h := Vector2(dir_in_turret.x, dir_in_turret.z).length()
 		if dist_h > 0.01:
 			var target_pitch := clampf(
