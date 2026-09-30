@@ -407,6 +407,68 @@ func _test_physics_crate_stability() -> void:
 	tank.queue_free()
 	crate.queue_free()
 
+	# Проверка толкания ящика: скорость ящика не превышает скорость танка, отсутствует runaway acceleration
+	var floor_body := StaticBody3D.new()
+	floor_body.collision_layer = 1
+	var col_shape := CollisionShape3D.new()
+	var box_shape := BoxShape3D.new()
+	box_shape.size = Vector3(50, 1, 50)
+	col_shape.shape = box_shape
+	col_shape.position = Vector3(0, -0.5, 0)
+	floor_body.add_child(col_shape)
+	add_child(floor_body)
+
+	var push_tank := tank_scene.instantiate() as Tank
+	add_child(push_tank)
+	var push_crate := crate_scene.instantiate() as PhysicsCrate
+	add_child(push_crate)
+
+	push_tank.setup_network(1, 0, Color.BLUE)
+	push_tank.global_position = Vector3(0, 0.5, 0)
+	push_tank.global_rotation = Vector3.ZERO
+	push_tank.velocity = Vector3.ZERO
+
+	push_crate.global_position = Vector3(0, 0.6, -1.5)
+	push_crate.linear_velocity = Vector3.ZERO
+	push_crate.angular_velocity = Vector3.ZERO
+	push_crate.freeze = false
+
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+
+	_assert_test(push_tank.platform_floor_layers == 1, "Tank platform_floor_layers strictly locked to World layer (1)")
+	_assert_test(push_crate.collision_layer == 8, "PhysicsCrate resides on Props layer (layer 4 = 8)")
+
+	# Симулируем толкание вперед через аутентичный action_press
+	Input.action_press("move_forward")
+
+	var max_crate_speed := 0.0
+	var max_tank_speed := 0.0
+	var max_plat_speed := 0.0
+
+	for _step in range(60):
+		await get_tree().physics_frame
+		var c_speed := push_crate.linear_velocity.length()
+		var t_speed := push_tank.get_real_velocity().length()
+		var p_speed := push_tank.get_platform_velocity().length()
+
+		if c_speed > max_crate_speed:
+			max_crate_speed = c_speed
+		if t_speed > max_tank_speed:
+			max_tank_speed = t_speed
+		if p_speed > max_plat_speed:
+			max_plat_speed = p_speed
+
+	Input.action_release("move_forward")
+
+	_assert_test(max_crate_speed > 0.05 and max_crate_speed <= 8.0, "Pushed crate speed is capped below tank max speed (%.2f <= 8.0)" % max_crate_speed)
+	_assert_test(max_plat_speed <= 8.0, "Tank platform velocity does not exceed top speed (%.2f <= 8.0)" % max_plat_speed)
+	_assert_test(max_tank_speed <= 8.5, "Tank speed does not exceed normal speed while pushing crate (%.2f <= 8.5)" % max_tank_speed)
+
+	push_tank.queue_free()
+	push_crate.queue_free()
+	floor_body.queue_free()
+
 func _test_sky_courtyard_spawns() -> void:
 	print("\n--- 11. Sky Courtyard Spawns & Platform Placement Test ---")
 	var scene: PackedScene = load("res://maps/sky_courtyard.tscn")

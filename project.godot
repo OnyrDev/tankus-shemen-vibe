@@ -90,6 +90,13 @@ pause={
 ]
 }
 
+[layer_names]
+
+3d_physics/layer_1="World"
+3d_physics/layer_2="Tanks"
+3d_physics/layer_3="Projectiles"
+3d_physics/layer_4="Props"
+
 [physics]
 
 common/physics_interpolation=true

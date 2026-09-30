@@ -51,8 +51,8 @@ shape = SubResource("BoxShape3D_beam")
 
 [node name="Bob" type="RigidBody3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.6, 0)
-collision_layer = 1
-collision_mask = 3
+collision_layer = 8
+collision_mask = 15
 mass = 25.0
 can_sleep = false
 linear_damp = 0.4

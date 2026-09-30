@@ -5,7 +5,7 @@ extends Node
 ## Считывает WASD относительно взгляда камеры, прыжок и пускает луч прицела из центра экрана.
 
 @export var enabled: bool = true
-@export_flags_3d_physics var raycast_collision_mask: int = 3 # Слой 1 (мир) + Слой 2 (танки)
+@export_flags_3d_physics var raycast_collision_mask: int = 11 # Слой 1 (мир) + Слой 2 (танки) + Слой 4 (пропсы/ящики)
 
 var move_input: Vector2 = Vector2.ZERO
 var move_direction_world: Vector3 = Vector3.ZERO

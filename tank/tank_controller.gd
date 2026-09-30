@@ -161,20 +161,39 @@ func process_physics(input: TankInput, delta: float) -> void:
 
 	_update_chassis_tilt(delta)
 
-	# Передача импульса в физические тела (маятники, ящики) при таране
+	# Передача импульса в физические тела (маятники, ящики) при таране и толкании
 	for i in range(_tank_body.get_slide_collision_count()):
 		var col := _tank_body.get_slide_collision(i)
 		var rbody := col.get_collider() as RigidBody3D
-		if rbody:
+		if rbody and not rbody.freeze:
 			var col_norm := col.get_normal()
 			# Исключаем вертикальные контакты/опоры (когда танк стоит или едет сверху на ящике)
-			if col_norm.y > 0.5:
+			if col_norm.y > 0.4:
 				continue
 			var push_dir := -col_norm
 			push_dir.y = 0.0
 			if push_dir.length_squared() > 0.01:
-				var push_impulse := push_dir.normalized() * (effective_speed * 2.5)
-				rbody.apply_central_impulse(push_impulse)
+				var push_norm := push_dir.normalized()
+				# Толкаем только если вектор ввода/движения танка направлен в сторону препятствия
+				var is_pushing := move_dir.dot(push_norm) > 0.1
+				if not is_pushing:
+					continue
+
+				# Текущая скорость физического тела вдоль направления толкания
+				var current_body_speed := rbody.linear_velocity.dot(push_norm)
+				# Ограничиваем максимальную скорость толкания скоростью самого танка
+				var max_push_speed := effective_speed * 0.85
+				var speed_deficit := max_push_speed - current_body_speed
+
+				if speed_deficit > 0.0:
+					# Дозированный импульс для плавного выравнивания скорости ящика со скоростью танка
+					var push_impulse_mag := minf(speed_deficit * rbody.mass * (delta * 6.0), effective_speed * 1.5)
+					rbody.apply_central_impulse(push_norm * push_impulse_mag)
+				elif current_body_speed > max_push_speed + 0.5:
+					# Предотвращаем бесконечный разгон: мягко гасим избыточную скорость, если ящик обогнал танк
+					var excess := current_body_speed - max_push_speed
+					var damp_impulse := minf(excess * rbody.mass * (delta * 4.0), effective_speed * 1.0)
+					rbody.apply_central_impulse(-push_norm * damp_impulse)
 
 func _apply_jump_stretch() -> void:
 	_current_visual_scale = Vector3(0.92, 1.16, 0.92)
