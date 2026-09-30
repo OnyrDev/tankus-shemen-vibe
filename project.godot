@@ -24,6 +24,7 @@ Game="*res://autoload/game.gd"
 Network="*res://autoload/network.gd"
 MusicManager="*res://autoload/music_manager.gd"
 SoundManager="*res://autoload/sound_manager.gd"
+SettingsManager="*res://autoload/settings_manager.gd"
 DebugOverlay="*res://ui/debug_overlay.tscn"
 
 [display]

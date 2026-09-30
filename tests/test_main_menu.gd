@@ -23,6 +23,7 @@ func _ready() -> void:
 	_test_background_fire_prevention()
 	_test_pause_menu()
 	_test_standalone_lobby_screen()
+	_test_settings_persistence()
 
 	print("\n========================================================")
 	print("   TEST RESULTS: %d PASSED | %d FAILED" % [_passed_count, _failed_count])
@@ -208,3 +209,56 @@ func _test_standalone_lobby_screen() -> void:
 	_assert_test(Network.is_host == false, "Нажатие 'Покинуть лобби' закрывает сессию без краша get_tree()")
 
 	lobby_scr.queue_free()
+
+func _test_settings_persistence() -> void:
+	print("\n--- 7. Settings Persistence & SettingsManager Test ---")
+	_assert_test(SettingsManager != null, "Autoload синглтон SettingsManager активен")
+
+	# 1. Задаем тестовую конфигурацию
+	SettingsManager.set_sfx_volume(0.72)
+	SettingsManager.set_ui_volume(0.55)
+	SettingsManager.set_music_volume(0.33)
+	SettingsManager.set_fullscreen(true)
+	SettingsManager.set_player_name("ViviAce")
+	SettingsManager.set_selected_map("pendulum_yard")
+
+	_assert_test(FileAccess.file_exists(SettingsManager.SETTINGS_PATH), "Файл user://settings.cfg существует на диске")
+
+	# 2. Прямая проверка содержимого файла на диске через независимый ConfigFile
+	var raw_cfg := ConfigFile.new()
+	var err := raw_cfg.load(SettingsManager.SETTINGS_PATH)
+	_assert_test(err == OK, "Файл user://settings.cfg успешно прочитан независимым парсером ConfigFile")
+	_assert_test(is_equal_approx(raw_cfg.get_value("audio", "sfx_volume", 0.0), 0.72), "SFX громкость 0.72 записана в [audio]")
+	_assert_test(is_equal_approx(raw_cfg.get_value("audio", "ui_volume", 0.0), 0.55), "UI громкость 0.55 записана в [audio]")
+	_assert_test(is_equal_approx(raw_cfg.get_value("audio", "music_volume", 0.0), 0.33), "Music громкость 0.33 записана в [audio]")
+	_assert_test(raw_cfg.get_value("display", "fullscreen", false) == true, "Fullscreen true записан в [display]")
+	_assert_test(raw_cfg.get_value("network", "player_name", "") == "ViviAce", "Никнейм 'ViviAce' записан в [network]")
+	_assert_test(raw_cfg.get_value("gameplay", "selected_map", "") == "pendulum_yard", "Карта 'pendulum_yard' записана в [gameplay]")
+
+	# 3. Проверка применения настроек к движку и подсистемам
+	SettingsManager.apply_settings()
+	_assert_test(is_equal_approx(SoundManager.get_sfx_volume_linear(), 0.72), "Громкость шины SFX синхронизирована с SettingsManager (0.72)")
+	_assert_test(is_equal_approx(SoundManager.get_ui_volume_linear(), 0.55), "Громкость шины UI синхронизирована с SettingsManager (0.55)")
+	_assert_test(is_equal_approx(MusicManager.get_music_volume_linear(), 0.33), "Громкость шины Music синхронизирована с SettingsManager (0.33)")
+	_assert_test(Network.local_player_name == "ViviAce", "Имя локального игрока Network.local_player_name обновлено на 'ViviAce'")
+	_assert_test(Game.rules.selected_map == "pendulum_yard", "Game.rules.selected_map обновлена на 'pendulum_yard'")
+
+	# 4. Проверка сброса памяти и восстановления через load_settings()
+	SettingsManager.sfx_volume = 0.1
+	SettingsManager.ui_volume = 0.1
+	SettingsManager.music_volume = 0.1
+	SettingsManager.player_name = "Temp"
+	SettingsManager.load_settings()
+	_assert_test(is_equal_approx(SettingsManager.get_sfx_volume(), 0.72), "load_settings() восстановил SFX громкость 0.72 из файла")
+	_assert_test(is_equal_approx(SettingsManager.get_ui_volume(), 0.55), "load_settings() восстановил UI громкость 0.55 из файла")
+	_assert_test(is_equal_approx(SettingsManager.get_music_volume(), 0.33), "load_settings() восстановил Music громкость 0.33 из файла")
+	_assert_test(SettingsManager.get_player_name() == "ViviAce", "load_settings() восстановил имя 'ViviAce' из файла")
+
+	# 5. Проверка сохранения при закрытии игры (NOTIFICATION_WM_CLOSE_REQUEST)
+	SettingsManager.set_player_name("ViviPro", false) # Без auto_save
+	SettingsManager.notification(Node.NOTIFICATION_WM_CLOSE_REQUEST)
+
+	var check_cfg := ConfigFile.new()
+	check_cfg.load(SettingsManager.SETTINGS_PATH)
+	_assert_test(check_cfg.get_value("network", "player_name", "") == "ViviPro", "NOTIFICATION_WM_CLOSE_REQUEST успешно сохраняет настройки на диск перед закрытием")
+

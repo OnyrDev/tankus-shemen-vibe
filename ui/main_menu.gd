@@ -115,8 +115,15 @@ func _connect_signals() -> void:
 	btn_refresh_lan.pressed.connect(_start_lan_search)
 	btn_direct_connect.pressed.connect(_on_direct_connect_pressed)
 	if line_player_name:
-		line_player_name.text = Network.local_player_name
-		line_player_name.text_changed.connect(func(n): Network.local_player_name = n.strip_edges())
+		var init_name := SettingsManager.get_player_name() if SettingsManager else Network.local_player_name
+		line_player_name.text = init_name
+		Network.local_player_name = init_name
+		line_player_name.text_changed.connect(func(n: String):
+			var cleaned: String = n.strip_edges()
+			Network.local_player_name = cleaned
+			if SettingsManager:
+				SettingsManager.set_player_name(cleaned)
+		)
 
 	# Настройки
 	if slider_sfx:
@@ -173,12 +180,17 @@ func _on_btn_settings_pressed() -> void:
 
 func _on_btn_quit_pressed() -> void:
 	_play_select_sound()
+	if SettingsManager:
+		SettingsManager.save_settings()
 	get_tree().quit()
 
 # --- Выбор арены ---
 
 func _init_map_selection() -> void:
-	if not Game.rules.selected_map.is_empty():
+	if SettingsManager and not SettingsManager.get_selected_map().is_empty():
+		_selected_map_key = SettingsManager.get_selected_map()
+		Game.rules.selected_map = _selected_map_key
+	elif not Game.rules.selected_map.is_empty():
 		_selected_map_key = Game.rules.selected_map
 	else:
 		_selected_map_key = "sky_courtyard"
@@ -205,6 +217,8 @@ func _rebuild_map_buttons() -> void:
 		btn.pressed.connect(func():
 			_selected_map_key = map_key
 			Game.rules.selected_map = map_key
+			if SettingsManager:
+				SettingsManager.set_selected_map(map_key)
 			_play_select_sound()
 			_update_map_status_ui()
 			_rebuild_map_buttons()
@@ -336,39 +350,54 @@ func _on_network_connection_failed() -> void:
 # --- Настройки звука и дисплея ---
 
 func _init_settings() -> void:
-	# SFX Bus (Звуки игры)
-	var sfx_bus := AudioServer.get_bus_index("SFX")
-	if sfx_bus != -1 and slider_sfx:
-		var db := AudioServer.get_bus_volume_db(sfx_bus)
-		var linear := db_to_linear(db)
-		slider_sfx.value = linear * 100.0
-		if lbl_sfx_val:
-			lbl_sfx_val.text = "%d%%" % int(slider_sfx.value)
+	if SettingsManager:
+		if slider_sfx:
+			slider_sfx.value = SettingsManager.get_sfx_volume() * 100.0
+			if lbl_sfx_val:
+				lbl_sfx_val.text = "%d%%" % int(slider_sfx.value)
 
-	# UI Bus (Звуки меню)
-	var ui_bus := AudioServer.get_bus_index("UI")
-	if ui_bus != -1 and slider_ui:
-		var db := AudioServer.get_bus_volume_db(ui_bus)
-		var linear := db_to_linear(db)
-		slider_ui.value = linear * 100.0
-		if lbl_ui_val:
-			lbl_ui_val.text = "%d%%" % int(slider_ui.value)
+		if slider_ui:
+			slider_ui.value = SettingsManager.get_ui_volume() * 100.0
+			if lbl_ui_val:
+				lbl_ui_val.text = "%d%%" % int(slider_ui.value)
 
-	# Music Bus
-	var music_bus := AudioServer.get_bus_index("Music")
-	if music_bus != -1 and slider_music:
-		var db := AudioServer.get_bus_volume_db(music_bus)
-		var linear := db_to_linear(db)
-		slider_music.value = linear * 100.0
-		if lbl_music_val:
-			lbl_music_val.text = "%d%%" % int(slider_music.value)
+		if slider_music:
+			slider_music.value = SettingsManager.get_music_volume() * 100.0
+			if lbl_music_val:
+				lbl_music_val.text = "%d%%" % int(slider_music.value)
 
-	# Fullscreen
-	if chk_fullscreen:
-		chk_fullscreen.button_pressed = (DisplayServer.window_get_mode() == DisplayServer.WINDOW_MODE_FULLSCREEN)
+		if chk_fullscreen:
+			chk_fullscreen.button_pressed = SettingsManager.is_fullscreen()
+	else:
+		# Fallback на случай отсутствия синглтона
+		var sfx_bus := AudioServer.get_bus_index("SFX")
+		if sfx_bus != -1 and slider_sfx:
+			var db := AudioServer.get_bus_volume_db(sfx_bus)
+			slider_sfx.value = db_to_linear(db) * 100.0
+			if lbl_sfx_val:
+				lbl_sfx_val.text = "%d%%" % int(slider_sfx.value)
+
+		var ui_bus := AudioServer.get_bus_index("UI")
+		if ui_bus != -1 and slider_ui:
+			var db := AudioServer.get_bus_volume_db(ui_bus)
+			slider_ui.value = db_to_linear(db) * 100.0
+			if lbl_ui_val:
+				lbl_ui_val.text = "%d%%" % int(slider_ui.value)
+
+		var music_bus := AudioServer.get_bus_index("Music")
+		if music_bus != -1 and slider_music:
+			var db := AudioServer.get_bus_volume_db(music_bus)
+			slider_music.value = db_to_linear(db) * 100.0
+			if lbl_music_val:
+				lbl_music_val.text = "%d%%" % int(slider_music.value)
+
+		if chk_fullscreen:
+			chk_fullscreen.button_pressed = (DisplayServer.window_get_mode() == DisplayServer.WINDOW_MODE_FULLSCREEN)
 
 func _on_sfx_slider_changed(val: float) -> void:
-	if SoundManager:
+	if SettingsManager:
+		SettingsManager.set_sfx_volume(val / 100.0)
+	elif SoundManager:
 		SoundManager.set_sfx_volume_linear(val / 100.0)
 	elif AudioServer.get_bus_index("SFX") != -1:
 		var linear := val / 100.0
@@ -378,7 +407,9 @@ func _on_sfx_slider_changed(val: float) -> void:
 		lbl_sfx_val.text = "%d%%" % int(val)
 
 func _on_ui_slider_changed(val: float) -> void:
-	if SoundManager:
+	if SettingsManager:
+		SettingsManager.set_ui_volume(val / 100.0)
+	elif SoundManager:
 		SoundManager.set_ui_volume_linear(val / 100.0)
 	elif AudioServer.get_bus_index("UI") != -1:
 		var linear := val / 100.0
@@ -388,7 +419,9 @@ func _on_ui_slider_changed(val: float) -> void:
 		lbl_ui_val.text = "%d%%" % int(val)
 
 func _on_music_slider_changed(val: float) -> void:
-	if MusicManager:
+	if SettingsManager:
+		SettingsManager.set_music_volume(val / 100.0)
+	elif MusicManager:
 		MusicManager.set_music_volume_linear(val / 100.0)
 	elif AudioServer.get_bus_index("Music") != -1:
 		var linear := val / 100.0
@@ -399,7 +432,9 @@ func _on_music_slider_changed(val: float) -> void:
 
 func _on_fullscreen_toggled(toggled_on: bool) -> void:
 	_play_select_sound()
-	if toggled_on:
+	if SettingsManager:
+		SettingsManager.set_fullscreen(toggled_on)
+	elif toggled_on:
 		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
 	else:
 		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
