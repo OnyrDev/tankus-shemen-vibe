@@ -6,6 +6,7 @@ extends Node
 
 @export var enabled: bool = true
 @export_flags_3d_physics var raycast_collision_mask: int = 11 # Слой 1 (мир) + Слой 2 (танки) + Слой 4 (пропсы/ящики)
+@export var floor_aim_elevation: float = 0.35 # Высота подъема точки сведения над горизонтальным полом (метры)
 
 var move_input: Vector2 = Vector2.ZERO
 var move_direction_world: Vector3 = Vector3.ZERO
@@ -161,14 +162,14 @@ func _update_aim_raycast() -> void:
 			# Камера находится на высоте 2.5-3м и смотрит под наклоном вниз, поэтому при взгляде вдаль
 			# луч камеры пересекает плоский пол арены на 15-25 метрах. Если брать чистую точку пола,
 			# дуло танка наклоняется вниз и пули бьются о землю задолго до цели.
-			# Если луч задел горизонтальный пол (normal.y > 0.7), поднимаем точку цели на уровень танка (~0.7м),
+			# Если луч задел горизонтальный пол (normal.y > 0.7), поднимаем точку цели на уровень центра танка,
 			# чтобы снаряды летели горизонтально сквозь арену на высоте корпусов танков.
 			var is_floor: bool = hit_normal.y > 0.7 and not (collider is CharacterBody3D)
-			if is_floor:
+			if is_floor and floor_aim_elevation > 0.0:
 				# При взгляде в горизонт или вдаль (ray_dir.y >= 0) компенсация максимальна (1.0).
 				# При намеренном крутом взгляде прямо под ноги (ray_dir.y <= -0.45) компенсация сходит на нет (0.0).
 				var floor_comp := clampf(1.0 - (-minf(0.0, ray_dir.y) / 0.45), 0.0, 1.0)
-				hit_pos.y += 0.7 * floor_comp
+				hit_pos.y += floor_aim_elevation * floor_comp
 
 			aim_point = hit_pos
 			aim_normal = hit_normal
@@ -179,7 +180,7 @@ func _update_aim_raycast() -> void:
 			return
 
 	# Если препятствий нет или они позади танка, целимся вдаль по линии горизонта на рабочей высоте
-	var base_y := _tank_body.global_position.y + 0.7 if _tank_body else ray_origin.y
+	var base_y := _tank_body.global_position.y + floor_aim_elevation if _tank_body else ray_origin.y
 	var horizon_dir := ray_dir
 	if horizon_dir.y < 0.0:
 		horizon_dir.y = 0.0

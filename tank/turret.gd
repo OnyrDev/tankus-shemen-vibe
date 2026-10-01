@@ -10,7 +10,7 @@ extends Node3D
 @export var pitch_speed: float = 16.0 # рад/сек
 @export var min_pitch_deg: float = -35.0 # наклон вниз
 @export var max_pitch_deg: float = 45.0 # наклон вверх
-@export var vertical_aim_offset: float = 0.4 # подъем точки прицеливания и выстрела по высоте (метры)
+@export var vertical_aim_offset: float = 0.0 # подъем точки прицеливания и выстрела по высоте (метры)
 
 @onready var barrel_mount: Node3D = get_node_or_null("BarrelMount")
 @onready var muzzle: Marker3D = get_node_or_null("BarrelMount/Muzzle")

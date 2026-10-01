@@ -348,6 +348,7 @@ func _test_turret_behavior() -> void:
 
 	# Проверяем наклон ствола и сведение выстрела в прицел (Crosshair Convergence)
 	tank.visuals.rotation = Vector3.ZERO
+	turret.vertical_aim_offset = 0.4 # Проверяем работу вертикального оффсета возвышения
 	# 1. Цель выше танка (возвышенность/рампа)
 	var high_target := tank.global_position + Vector3(0, 4.0, -10.0)
 	for _i in range(20):
