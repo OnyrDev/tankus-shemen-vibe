@@ -154,17 +154,42 @@ func _update_aim_raycast() -> void:
 				hit_behind_tank = true
 
 		if not hit_behind_tank:
+			var hit_normal: Vector3 = result.normal as Vector3
+			var collider: Object = result.get("collider", null)
+
+			# Опция 1: Компенсация параллакса TPS-камеры над полом (Floor-Clearing Horizon Compensation).
+			# Камера находится на высоте 2.5-3м и смотрит под наклоном вниз, поэтому при взгляде вдаль
+			# луч камеры пересекает плоский пол арены на 15-25 метрах. Если брать чистую точку пола,
+			# дуло танка наклоняется вниз и пули бьются о землю задолго до цели.
+			# Если луч задел горизонтальный пол (normal.y > 0.7), поднимаем точку цели на уровень танка (~0.7м),
+			# чтобы снаряды летели горизонтально сквозь арену на высоте корпусов танков.
+			var is_floor: bool = hit_normal.y > 0.7 and not (collider is CharacterBody3D)
+			if is_floor:
+				# При взгляде в горизонт или вдаль (ray_dir.y >= 0) компенсация максимальна (1.0).
+				# При намеренном крутом взгляде прямо под ноги (ray_dir.y <= -0.45) компенсация сходит на нет (0.0).
+				var floor_comp := clampf(1.0 - (-minf(0.0, ray_dir.y) / 0.45), 0.0, 1.0)
+				hit_pos.y += 0.7 * floor_comp
+
 			aim_point = hit_pos
-			aim_normal = result.normal as Vector3
+			aim_normal = hit_normal
 			is_aim_valid = true
 			if is_instance_valid(_crosshair):
 				_crosshair.visible = true
 				_crosshair.global_position = aim_point + aim_normal * 0.03
 			return
 
-	# Если препятствий нет или они позади танка, целимся вдаль по линии взгляда
-	aim_point = ray_origin + ray_dir * 100.0
-	aim_normal = -ray_dir
+	# Если препятствий нет или они позади танка, целимся вдаль по линии горизонта на рабочей высоте
+	var base_y := _tank_body.global_position.y + 0.7 if _tank_body else ray_origin.y
+	var horizon_dir := ray_dir
+	if horizon_dir.y < 0.0:
+		horizon_dir.y = 0.0
+		horizon_dir = horizon_dir.normalized()
+	aim_point = Vector3(
+		(_tank_body.global_position.x if _tank_body else ray_origin.x) + horizon_dir.x * 100.0,
+		base_y + maxf(0.0, ray_dir.y) * 100.0,
+		(_tank_body.global_position.z if _tank_body else ray_origin.z) + horizon_dir.z * 100.0
+	)
+	aim_normal = -horizon_dir
 	is_aim_valid = true
 	if is_instance_valid(_crosshair):
 		_crosshair.visible = false
