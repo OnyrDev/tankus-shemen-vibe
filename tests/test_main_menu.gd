@@ -121,6 +121,14 @@ func _test_settings_bus_control() -> void:
 	var p_3d := SoundManager.play_sfx_3d("shoot", Vector3.ZERO)
 	_assert_test(p_3d != null and p_3d.bus == "SFX", "3D звук выстрела направлен в шину 'SFX'")
 
+	# Проверяем чекбоксы Fullscreen и VSync
+	_assert_test(menu.chk_fullscreen != null, "Чекбокс Fullscreen присутствует в настройках главного меню")
+	_assert_test(menu.chk_vsync != null, "Чекбокс V-Sync присутствует в настройках главного меню")
+	menu._on_vsync_toggled(true)
+	_assert_test(SettingsManager.is_vsync() == true, "Переключение V-Sync в меню обновляет SettingsManager")
+	menu._on_vsync_toggled(false)
+	_assert_test(SettingsManager.is_vsync() == false, "Отключение V-Sync в меню обновляет SettingsManager")
+
 	menu.queue_free()
 
 func _test_background_fire_prevention() -> void:
@@ -169,6 +177,14 @@ func _test_pause_menu() -> void:
 	var ui_bus := AudioServer.get_bus_index("UI")
 	var ui_db := AudioServer.get_bus_volume_db(ui_bus)
 	_assert_test(ui_db < 0.0, "Слайдер звуков меню в PauseMenu регулирует шину UI")
+
+	# Проверяем чекбоксы Fullscreen и VSync в меню паузы
+	_assert_test(pause.chk_fullscreen != null, "Чекбокс Fullscreen присутствует в PauseMenu")
+	_assert_test(pause.chk_vsync != null, "Чекбокс V-Sync присутствует в PauseMenu")
+	pause._on_vsync_toggled(true)
+	_assert_test(SettingsManager.is_vsync() == true, "Переключение V-Sync в PauseMenu обновляет SettingsManager")
+	pause._on_vsync_toggled(false)
+	_assert_test(SettingsManager.is_vsync() == false, "Отключение V-Sync в PauseMenu обновляет SettingsManager")
 
 	# Тестирование отмены/возврата по handle_cancel()
 	pause.handle_cancel()
@@ -219,6 +235,7 @@ func _test_settings_persistence() -> void:
 	SettingsManager.set_ui_volume(0.55)
 	SettingsManager.set_music_volume(0.33)
 	SettingsManager.set_fullscreen(true)
+	SettingsManager.set_vsync(true)
 	SettingsManager.set_player_name("ViviAce")
 	SettingsManager.set_selected_map("pendulum_yard")
 
@@ -232,6 +249,7 @@ func _test_settings_persistence() -> void:
 	_assert_test(is_equal_approx(raw_cfg.get_value("audio", "ui_volume", 0.0), 0.55), "UI громкость 0.55 записана в [audio]")
 	_assert_test(is_equal_approx(raw_cfg.get_value("audio", "music_volume", 0.0), 0.33), "Music громкость 0.33 записана в [audio]")
 	_assert_test(raw_cfg.get_value("display", "fullscreen", false) == true, "Fullscreen true записан в [display]")
+	_assert_test(raw_cfg.get_value("display", "vsync", false) == true, "VSync true записан в [display]")
 	_assert_test(raw_cfg.get_value("network", "player_name", "") == "ViviAce", "Никнейм 'ViviAce' записан в [network]")
 	_assert_test(raw_cfg.get_value("gameplay", "selected_map", "") == "pendulum_yard", "Карта 'pendulum_yard' записана в [gameplay]")
 
@@ -247,11 +265,13 @@ func _test_settings_persistence() -> void:
 	SettingsManager.sfx_volume = 0.1
 	SettingsManager.ui_volume = 0.1
 	SettingsManager.music_volume = 0.1
+	SettingsManager.vsync = false
 	SettingsManager.player_name = "Temp"
 	SettingsManager.load_settings()
 	_assert_test(is_equal_approx(SettingsManager.get_sfx_volume(), 0.72), "load_settings() восстановил SFX громкость 0.72 из файла")
 	_assert_test(is_equal_approx(SettingsManager.get_ui_volume(), 0.55), "load_settings() восстановил UI громкость 0.55 из файла")
 	_assert_test(is_equal_approx(SettingsManager.get_music_volume(), 0.33), "load_settings() восстановил Music громкость 0.33 из файла")
+	_assert_test(SettingsManager.is_vsync() == true, "load_settings() восстановил VSync true из файла")
 	_assert_test(SettingsManager.get_player_name() == "ViviAce", "load_settings() восстановил имя 'ViviAce' из файла")
 
 	# 5. Проверка сохранения при закрытии игры (NOTIFICATION_WM_CLOSE_REQUEST)

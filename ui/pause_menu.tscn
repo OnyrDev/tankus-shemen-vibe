@@ -198,6 +198,12 @@ layout_mode = 2
 theme_override_font_sizes/font_size = 14
 text = "Полноэкранный режим"
 
+[node name="ChkVSync" type="CheckBox" parent="CenterContainer/Panel/Margin/SettingsVBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+text = "Вертикальная синхронизация (V-Sync)"
+
 [node name="Spacer" type="Control" parent="CenterContainer/Panel/Margin/SettingsVBox"]
 custom_minimum_size = Vector2(0, 4)
 layout_mode = 2

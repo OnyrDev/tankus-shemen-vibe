@@ -29,6 +29,7 @@ signal open_lan_requested()
 @onready var slider_music: HSlider = %SliderMusic
 @onready var lbl_music_val: Label = %LblMusicVal
 @onready var chk_fullscreen: CheckBox = %ChkFullscreen
+@onready var chk_vsync: CheckBox = %ChkVSync
 @onready var btn_settings_back: Button = %BtnSettingsBack
 
 func _ready() -> void:
@@ -62,6 +63,8 @@ func _connect_signals() -> void:
 		slider_music.value_changed.connect(_on_music_slider_changed)
 	if chk_fullscreen:
 		chk_fullscreen.toggled.connect(_on_fullscreen_toggled)
+	if chk_vsync:
+		chk_vsync.toggled.connect(_on_vsync_toggled)
 
 func open() -> void:
 	visible = true
@@ -122,6 +125,8 @@ func _sync_settings() -> void:
 
 		if chk_fullscreen:
 			chk_fullscreen.button_pressed = SettingsManager.is_fullscreen()
+		if chk_vsync:
+			chk_vsync.button_pressed = SettingsManager.is_vsync()
 	else:
 		# Fallback
 		var sfx_bus := AudioServer.get_bus_index("SFX")
@@ -147,6 +152,8 @@ func _sync_settings() -> void:
 
 		if chk_fullscreen:
 			chk_fullscreen.button_pressed = (DisplayServer.window_get_mode() == DisplayServer.WINDOW_MODE_FULLSCREEN)
+		if chk_vsync and DisplayServer.get_name() != "headless":
+			chk_vsync.button_pressed = (DisplayServer.window_get_vsync_mode() != DisplayServer.VSYNC_DISABLED)
 
 func _on_game_sfx_slider_changed(val: float) -> void:
 	if SettingsManager:
@@ -180,6 +187,14 @@ func _on_fullscreen_toggled(toggled_on: bool) -> void:
 		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
 	else:
 		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
+
+func _on_vsync_toggled(toggled_on: bool) -> void:
+	_play_click()
+	if SettingsManager:
+		SettingsManager.set_vsync(toggled_on)
+	elif DisplayServer.get_name() != "headless":
+		var vsync_mode := DisplayServer.VSYNC_ENABLED if toggled_on else DisplayServer.VSYNC_DISABLED
+		DisplayServer.window_set_vsync_mode(vsync_mode)
 
 func _on_btn_resume_pressed() -> void:
 	_play_click()

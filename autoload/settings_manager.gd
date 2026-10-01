@@ -16,6 +16,7 @@ const DEFAULT_SFX_VOLUME: float = 0.8
 const DEFAULT_UI_VOLUME: float = 0.8
 const DEFAULT_MUSIC_VOLUME: float = 0.5
 const DEFAULT_FULLSCREEN: bool = false
+const DEFAULT_VSYNC: bool = false
 const DEFAULT_PLAYER_NAME: String = "Player"
 const DEFAULT_SELECTED_MAP: String = "sky_courtyard"
 
@@ -26,6 +27,7 @@ var sfx_volume: float = DEFAULT_SFX_VOLUME
 var ui_volume: float = DEFAULT_UI_VOLUME
 var music_volume: float = DEFAULT_MUSIC_VOLUME
 var fullscreen: bool = DEFAULT_FULLSCREEN
+var vsync: bool = DEFAULT_VSYNC
 var player_name: String = DEFAULT_PLAYER_NAME
 var selected_map: String = DEFAULT_SELECTED_MAP
 
@@ -52,6 +54,7 @@ func load_settings() -> void:
 		ui_volume = clampf(float(_config.get_value("audio", "ui_volume", DEFAULT_UI_VOLUME)), 0.0, 1.0)
 		music_volume = clampf(float(_config.get_value("audio", "music_volume", DEFAULT_MUSIC_VOLUME)), 0.0, 1.0)
 		fullscreen = bool(_config.get_value("display", "fullscreen", DEFAULT_FULLSCREEN))
+		vsync = bool(_config.get_value("display", "vsync", DEFAULT_VSYNC))
 		player_name = str(_config.get_value("network", "player_name", DEFAULT_PLAYER_NAME)).strip_edges()
 		if player_name.is_empty():
 			player_name = DEFAULT_PLAYER_NAME
@@ -68,6 +71,7 @@ func save_settings() -> void:
 	_config.set_value("audio", "ui_volume", ui_volume)
 	_config.set_value("audio", "music_volume", music_volume)
 	_config.set_value("display", "fullscreen", fullscreen)
+	_config.set_value("display", "vsync", vsync)
 	_config.set_value("network", "player_name", player_name)
 	_config.set_value("gameplay", "selected_map", selected_map)
 
@@ -95,6 +99,9 @@ func apply_settings() -> void:
 		var target_mode := DisplayServer.WINDOW_MODE_FULLSCREEN if fullscreen else DisplayServer.WINDOW_MODE_WINDOWED
 		if DisplayServer.window_get_mode() != target_mode:
 			DisplayServer.window_set_mode(target_mode)
+		var vsync_mode := DisplayServer.VSYNC_ENABLED if vsync else DisplayServer.VSYNC_DISABLED
+		if DisplayServer.window_get_vsync_mode() != vsync_mode:
+			DisplayServer.window_set_vsync_mode(vsync_mode)
 
 	# 3. Применение имени игрока
 	if Network:
@@ -119,6 +126,7 @@ func _set_default_values() -> void:
 	ui_volume = DEFAULT_UI_VOLUME
 	music_volume = DEFAULT_MUSIC_VOLUME
 	fullscreen = DEFAULT_FULLSCREEN
+	vsync = DEFAULT_VSYNC
 	player_name = DEFAULT_PLAYER_NAME
 	selected_map = DEFAULT_SELECTED_MAP
 
@@ -184,6 +192,20 @@ func set_fullscreen(val: bool, auto_save: bool = true) -> void:
 
 func is_fullscreen() -> bool:
 	return fullscreen
+
+func set_vsync(val: bool, auto_save: bool = true) -> void:
+	if vsync == val:
+		return
+	vsync = val
+	if DisplayServer.get_name() != "headless":
+		var vsync_mode := DisplayServer.VSYNC_ENABLED if vsync else DisplayServer.VSYNC_DISABLED
+		DisplayServer.window_set_vsync_mode(vsync_mode)
+	setting_changed.emit("display", "vsync", vsync)
+	if auto_save:
+		save_settings()
+
+func is_vsync() -> bool:
+	return vsync
 
 func set_player_name(val: String, auto_save: bool = true) -> void:
 	var cleaned := val.strip_edges()
