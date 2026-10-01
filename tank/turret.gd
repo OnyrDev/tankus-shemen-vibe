@@ -111,4 +111,3 @@ func get_shoot_direction() -> Vector3:
 
 func get_current_target() -> Vector3:
 	return _current_target
-
