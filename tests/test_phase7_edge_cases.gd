@@ -354,8 +354,9 @@ func _test_turret_behavior() -> void:
 		turret.aim_at(high_target, 0.1)
 	_assert_test(turret.barrel_mount.rotation.x > deg_to_rad(10.0), "Barrel tilts UP towards elevated target")
 	var shoot_dir_high := turret.get_shoot_direction()
-	var expected_dir_high := (high_target - turret.get_muzzle_position()).normalized()
+	var expected_dir_high := (high_target + Vector3.UP * turret.vertical_aim_offset - turret.get_muzzle_position()).normalized()
 	_assert_test(shoot_dir_high.dot(expected_dir_high) > 0.999, "Shoot direction strictly converges onto high crosshair target")
+	_assert_test(shoot_dir_high.y > (high_target - turret.get_muzzle_position()).normalized().y, "Shoot direction is elevated higher than raw high target")
 
 	# 2. Цель ниже танка (земля перед танком)
 	var low_target := tank.global_position + Vector3(0, -1.5, -8.0)
@@ -363,8 +364,9 @@ func _test_turret_behavior() -> void:
 		turret.aim_at(low_target, 0.1)
 	_assert_test(turret.barrel_mount.rotation.x < deg_to_rad(-10.0), "Barrel tilts DOWN towards low ground target")
 	var shoot_dir_low := turret.get_shoot_direction()
-	var expected_dir_low := (low_target - turret.get_muzzle_position()).normalized()
+	var expected_dir_low := (low_target + Vector3.UP * turret.vertical_aim_offset - turret.get_muzzle_position()).normalized()
 	_assert_test(shoot_dir_low.dot(expected_dir_low) > 0.999, "Shoot direction strictly converges onto low ground crosshair target")
+	_assert_test(shoot_dir_low.y > (low_target - turret.get_muzzle_position()).normalized().y, "Shoot direction is elevated higher than raw low target")
 
 	# 3. Препятствие вплотную / ствол протыкает объект (Anti-Clipping Aim Clamp)
 	turret.rotation.y = 0.0

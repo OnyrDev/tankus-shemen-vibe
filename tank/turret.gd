@@ -10,6 +10,7 @@ extends Node3D
 @export var pitch_speed: float = 16.0 # рад/сек
 @export var min_pitch_deg: float = -35.0 # наклон вниз
 @export var max_pitch_deg: float = 45.0 # наклон вверх
+@export var vertical_aim_offset: float = 0.4 # подъем точки прицеливания и выстрела по высоте (метры)
 
 @onready var barrel_mount: Node3D = get_node_or_null("BarrelMount")
 @onready var muzzle: Marker3D = get_node_or_null("BarrelMount/Muzzle")
@@ -23,7 +24,6 @@ func _ready() -> void:
 		barrel_mount.scale = Vector3.ONE
 
 func aim_at(target_point: Vector3, delta: float) -> void:
-	_current_target = target_point
 	_has_target = true
 
 	scale = Vector3.ONE
@@ -45,6 +45,12 @@ func aim_at(target_point: Vector3, delta: float) -> void:
 		aim_local.x *= factor
 		aim_local.y *= factor
 		aim_local.z = forward_z
+
+	# Добавляем вертикальный подъем точки прицеливания (высотный оффсет для комфортной баллистики)
+	aim_local.y += vertical_aim_offset
+
+	# Актуальная мировая точка цели для баллистики и выстрела
+	_current_target = to_global(aim_local)
 
 	var flat_target := Vector2(aim_local.x, aim_local.z)
 
@@ -102,3 +108,7 @@ func get_shoot_direction() -> Vector3:
 	if muzzle:
 		return -muzzle.global_transform.basis.z.normalized()
 	return -global_transform.basis.z.normalized()
+
+func get_current_target() -> Vector3:
+	return _current_target
+
