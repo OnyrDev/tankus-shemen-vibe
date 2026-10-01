@@ -186,13 +186,13 @@ func process_physics(input: TankInput, delta: float) -> void:
 				var speed_deficit := max_push_speed - current_body_speed
 
 				if speed_deficit > 0.0:
-					# Дозированный импульс для плавного выравнивания скорости ящика со скоростью танка
-					var push_impulse_mag := minf(speed_deficit * rbody.mass * (delta * 6.0), effective_speed * 1.5)
+					# Дозированный импульс для легкого и плавного выравнивания скорости ящика со скоростью танка
+					var push_impulse_mag := minf(speed_deficit * rbody.mass * (delta * 14.0), effective_speed * 3.5)
 					rbody.apply_central_impulse(push_norm * push_impulse_mag)
 				elif current_body_speed > max_push_speed + 0.5:
 					# Предотвращаем бесконечный разгон: мягко гасим избыточную скорость, если ящик обогнал танк
 					var excess := current_body_speed - max_push_speed
-					var damp_impulse := minf(excess * rbody.mass * (delta * 4.0), effective_speed * 1.0)
+					var damp_impulse := minf(excess * rbody.mass * (delta * 6.0), effective_speed * 2.0)
 					rbody.apply_central_impulse(-push_norm * damp_impulse)
 
 func _apply_jump_stretch() -> void:

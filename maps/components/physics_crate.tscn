@@ -9,7 +9,7 @@ metallic = 0.05
 
 [sub_resource type="PhysicsMaterial" id="PhysicsMaterial_crate"]
 rough = true
-friction = 0.6
+friction = 0.35
 
 [sub_resource type="BoxMesh" id="BoxMesh_crate"]
 material = SubResource("Mat_crate")
@@ -21,10 +21,10 @@ size = Vector3(1.4, 1.4, 1.4)
 [node name="PhysicsCrate" type="RigidBody3D"]
 collision_layer = 8
 collision_mask = 15
-mass = 40.0
+mass = 30.0
 physics_material_override = SubResource("PhysicsMaterial_crate")
-linear_damp = 1.0
-angular_damp = 2.5
+linear_damp = 0.6
+angular_damp = 2.0
 axis_lock_angular_x = true
 axis_lock_angular_z = true
 script = ExtResource("1_crate")
