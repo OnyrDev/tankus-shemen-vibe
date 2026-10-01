@@ -216,7 +216,7 @@ func _update_tank_stats() -> void:
 	var hp_curr := local_tank.health.current_health if local_tank.health else 0.0
 	var hp_max := st.max_hp if st else (local_tank.health.max_health if local_tank.health else 100.0)
 	var ammo_curr := local_tank.weapon.current_ammo if local_tank.weapon else 0
-	var ammo_max := st.magazine_size if st else (local_tank.weapon.magazine_size if local_tank.weapon else 4)
+	var ammo_max := st.magazine_size if st else (local_tank.weapon.magazine_size if local_tank.weapon else 6)
 	var speed_val := st.move_speed if st else 8.0
 	var jump_val := st.jump_velocity if st else 8.0
 	var air_ctrl := st.air_control if st else 0.3

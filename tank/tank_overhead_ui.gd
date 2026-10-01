@@ -24,7 +24,7 @@ var _ammo_pills: Array[ColorRect] = []
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	visible = false
-	_setup_ammo_pills(4)
+	_setup_ammo_pills(6)
 	if shield_indicator:
 		shield_indicator.visible = false
 

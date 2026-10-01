@@ -91,13 +91,13 @@ func _ready() -> void:
 	# Проверяем обработку респавна на клиенте
 	sync.synced_position = Vector3(10, 0.5, 10)
 	sync.synced_health = 100.0
-	sync.synced_ammo = 4
+	sync.synced_ammo = 6
 	sync.synced_is_active = true
 	sync._handle_client_tank_respawn()
 	assert(client_tank.is_active == true, "Танк должен стать активным после респавна")
 	assert(client_tank.visuals.visible == true, "Визуал танка должен стать видимым после респавна")
 	assert(client_tank.health.current_health == 100.0, "current_health должен восстановиться до 100.0")
-	assert(client_tank.weapon.current_ammo == 4, "Патроны должны восстановиться до 4")
+	assert(client_tank.weapon.current_ammo == 6, "Патроны должны восстановиться до 6")
 	assert(client_tank.global_position.distance_to(Vector3(10, 0.5, 10)) < 0.01, "Позиция танка должна обновиться на точку спавна")
 
 	client_tank.queue_free()

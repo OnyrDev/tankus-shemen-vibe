@@ -30,7 +30,7 @@ const COLOR_SHIELD_ACTIVE := Color(0.9, 0.95, 1.0)
 const COLOR_SHIELD_COOLDOWN := Color(0.4, 0.45, 0.5)
 
 func _ready() -> void:
-	_setup_ammo_pills(4)
+	_setup_ammo_pills(6)
 	if reload_bar:
 		reload_bar.visible = false
 

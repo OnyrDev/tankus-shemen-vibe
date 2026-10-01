@@ -1,13 +1,8 @@
-extends SceneTree
+extends Node
 
-var _tested := false
-
-func _process(_delta: float) -> bool:
-	if _tested:
-		return true
-	_tested = true
+func _ready() -> void:
 	_run_tests()
-	return true
+	get_tree().quit(0)
 
 func _run_tests() -> void:
 	print("\n=== [TEST] Starting Phase 3 (Cards & Ricochet) Verification ===")
@@ -16,7 +11,7 @@ func _run_tests() -> void:
 	var sandbox_scene := load("res://maps/test_sandbox.tscn") as PackedScene
 	assert(sandbox_scene != null, "ERROR: Failed to load test_sandbox.tscn")
 	var sandbox := sandbox_scene.instantiate() as TestSandbox
-	root.add_child(sandbox)
+	add_child(sandbox)
 	print("[PASS] Sandbox scene instantiated successfully")
 
 	# 2. Проверка ключевых узлов Phase 3
@@ -89,7 +84,7 @@ func _run_tests() -> void:
 	tank.build.clear_build()
 	assert(is_equal_approx(tank.stats.max_hp, 100.0), "ERROR: Base max_hp should be 100")
 	assert(is_equal_approx(tank.stats.damage, 28.0), "ERROR: Base damage should be 28")
-	assert(tank.stats.magazine_size == 4, "ERROR: Base magazine should be 4")
+	assert(tank.stats.magazine_size == 6, "ERROR: Base magazine should be 6")
 	assert(tank.stats.projectile_bounces == 0, "ERROR: Base bounces should be 0")
 
 	# Добавляем Heavy Shell (+45% dmg, -20% proj speed)
@@ -101,7 +96,7 @@ func _run_tests() -> void:
 	# Добавляем Big Magazine (+1 ammo, +15% reload time)
 	var big_mag := CardDatabase.get_card("big_magazine")
 	tank.build.add_card(big_mag)
-	assert(tank.stats.magazine_size == 5, "ERROR: Magazine size after Big Magazine should be 5")
+	assert(tank.stats.magazine_size == 7, "ERROR: Magazine size after Big Magazine should be 7")
 	assert(is_equal_approx(tank.stats.reload_time, 1.8 * 1.15), "ERROR: Reload time after Big Magazine incorrect")
 
 	# Добавляем Tankier (+40 max HP)
@@ -119,13 +114,13 @@ func _run_tests() -> void:
 	# 6. Проверка физического рикошета снаряда
 	var proj_scene := load("res://projectile/projectile.tscn") as PackedScene
 	var base_proj := proj_scene.instantiate() as Projectile
-	root.add_child(base_proj)
+	add_child(base_proj)
 	base_proj.setup(tank, Vector3(0, 1, 0), Vector3(0, 0, -1))
 	assert(base_proj.bounces_left == 0, "ERROR: Fresh projectile without cards must have 0 bounces by default!")
 	base_proj.queue_free()
 
 	var test_proj := proj_scene.instantiate() as Projectile
-	root.add_child(test_proj)
+	add_child(test_proj)
 	test_proj.setup(tank, Vector3(0, 1, 0), Vector3(0, 0, -1))
 	test_proj.bounces_left = 2
 
@@ -146,7 +141,7 @@ func _run_tests() -> void:
 	var rico_card := CardDatabase.get_card("ricochet_power")
 	tank.build.add_card(rico_card)
 	var rico_proj := proj_scene.instantiate() as Projectile
-	root.add_child(rico_proj)
+	add_child(rico_proj)
 	rico_proj.setup(tank, Vector3(0, 1, 0), Vector3(0, 0, -1))
 	tank.events.emit_projectile_spawned(rico_proj)
 	assert(rico_proj.ricochet_power_stacks == 1, "ERROR: Ricochet power stacks not set on projectile")

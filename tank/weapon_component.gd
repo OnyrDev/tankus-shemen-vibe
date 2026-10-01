@@ -2,7 +2,7 @@ class_name WeaponComponent
 extends Node
 
 ## Компонент вооружения танка TANKUS.
-## Управляет магазином на 4 снаряда, таймингом стрельбы (0.55с),
+## Управляет магазином на 6 снарядов, таймингом стрельбы (0.55с),
 ## перезарядкой (1.8с), отдачей ствола и спавном снарядов.
 
 signal ammo_changed(current: int, max_ammo: int)
@@ -11,8 +11,8 @@ signal reload_progress(current: float, total: float)
 signal reload_completed()
 signal shot_fired(projectile: Projectile)
 
-@export var magazine_size: int = 4
-@export var current_ammo: int = 4
+@export var magazine_size: int = 6
+@export var current_ammo: int = 6
 @export var fire_interval: float = 0.55
 @export var reload_time: float = 1.8
 @export var projectile_scene: PackedScene = preload("res://projectile/projectile.tscn")

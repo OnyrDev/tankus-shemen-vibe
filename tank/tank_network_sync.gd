@@ -17,7 +17,7 @@ var synced_health: float = 100.0:
 		if not _is_server() and is_node_ready():
 			_client_sync_gameplay_state()
 
-var synced_ammo: int = 4:
+var synced_ammo: int = 6:
 	set(val):
 		synced_ammo = val
 		if not _is_server() and is_node_ready():
