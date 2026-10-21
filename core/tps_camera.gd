@@ -8,9 +8,11 @@ signal spectate_target_changed(target_node: Node3D)
 
 @export var target_node: Node3D = null
 @export var mouse_sensitivity: float = 0.003
-@export var min_pitch_deg: float = -30.0 # наклон вверх (взгляд вниз)
-@export var max_pitch_deg: float = 50.0  # наклон вниз (взгляд вверх)
-@export var target_offset: Vector3 = Vector3(0.0, 1.8, 0.0)
+@export var min_pitch_deg: float = -28.0 # наклон вверх (взгляд в небо)
+@export var max_pitch_deg: float = 45.0  # наклон вниз (взгляд в землю)
+@export var default_pitch_deg: float = 3.5 # базовый угол взгляда вдаль к горизонту (не в землю)
+@export var target_offset: Vector3 = Vector3(0.0, 2.2, 0.0)
+@export var pitch_elevation_max: float = 2.4 # подъем шарнира при взгляде в небо (Anti-Occlusion)
 @export var smooth_speed: float = 22.0
 
 @onready var spring_arm: SpringArm3D = $SpringArm3D
@@ -23,19 +25,44 @@ var is_spectating: bool = false
 var _spectate_targets: Array[Node3D] = []
 var _spectate_index: int = 0
 
+# Trauma Camera Shake
+@export var max_pitch_shake: float = 0.06
+@export var max_yaw_shake: float = 0.06
+@export var max_roll_shake: float = 0.08
+@export var max_offset_shake: float = 0.35
+@export var trauma_decay: float = 1.6
+
+var trauma: float = 0.0
+var _shake_timer: float = 0.0
+
 
 func _ready() -> void:
 	top_level = true
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
+	pitch = deg_to_rad(default_pitch_deg)
+	if spring_arm:
+		spring_arm.rotation.x = -pitch
+
 	if target_node:
-		global_position = target_node.global_position + target_offset
+		setup_target(target_node)
+
+	if Game and not Game.camera_shake_requested.is_connected(add_trauma):
+		Game.camera_shake_requested.connect(add_trauma)
+
+func setup_target(new_target: Node3D) -> void:
+	target_node = new_target
+	if is_instance_valid(target_node):
+		var base_pos := target_node.global_position + target_offset
+		var up_factor := clampf((deg_to_rad(default_pitch_deg) - pitch) / maxf(0.001, deg_to_rad(default_pitch_deg - min_pitch_deg)), 0.0, 1.0)
+		var elevation := up_factor * pitch_elevation_max
+		global_position = base_pos + Vector3(0.0, elevation, 0.0)
 		yaw = target_node.global_rotation.y
 		rotation.y = yaw
 
-	pitch = deg_to_rad(12.0)
-	if spring_arm:
-		spring_arm.rotation.x = -pitch
+
+func add_trauma(amount: float) -> void:
+	trauma = clampf(trauma + amount, 0.0, 1.0)
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
@@ -128,9 +155,44 @@ func _physics_process(delta: float) -> void:
 	if not is_instance_valid(target_node):
 		return
 
-	var desired_pos := target_node.global_position + target_offset
+	var base_pos := target_node.global_position + target_offset
+	var up_factor := clampf((deg_to_rad(default_pitch_deg) - pitch) / maxf(0.001, deg_to_rad(default_pitch_deg - min_pitch_deg)), 0.0, 1.0)
+	var elevation := up_factor * pitch_elevation_max
+	var desired_pos := base_pos + Vector3(0.0, elevation, 0.0)
+
 	var weight := 1.0 - exp(-smooth_speed * delta)
 	global_position = global_position.lerp(desired_pos, weight)
+
+	_process_camera_shake(delta)
+
+func _process_camera_shake(delta: float) -> void:
+	if trauma > 0.0:
+		trauma = maxf(0.0, trauma - trauma_decay * delta)
+		var shake := trauma * trauma
+		_shake_timer += delta * 42.0
+
+		var pitch_offset := sin(_shake_timer * 1.1) * max_pitch_shake * shake
+		var yaw_offset := cos(_shake_timer * 1.3) * max_yaw_shake * shake
+		var roll_offset := sin(_shake_timer * 1.7) * max_roll_shake * shake
+		var h_offset := sin(_shake_timer * 2.1) * max_offset_shake * shake
+		var v_offset := cos(_shake_timer * 2.3) * max_offset_shake * shake
+
+		if camera:
+			camera.h_offset = h_offset
+			camera.v_offset = v_offset
+			camera.rotation.z = roll_offset
+
+		if spring_arm:
+			spring_arm.rotation.x = -pitch + pitch_offset
+			spring_arm.rotation.y = yaw_offset
+	else:
+		if camera:
+			camera.h_offset = 0.0
+			camera.v_offset = 0.0
+			camera.rotation.z = 0.0
+		if spring_arm:
+			spring_arm.rotation.x = -pitch
+			spring_arm.rotation.y = 0.0
 
 func get_camera() -> Camera3D:
 	return camera

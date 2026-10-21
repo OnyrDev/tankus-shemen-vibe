@@ -2,7 +2,7 @@ class_name WeaponComponent
 extends Node
 
 ## Компонент вооружения танка TANKUS.
-## Управляет магазином на 4 снаряда, таймингом стрельбы (0.55с),
+## Управляет магазином на 6 снарядов, таймингом стрельбы (0.55с),
 ## перезарядкой (1.8с), отдачей ствола и спавном снарядов.
 
 signal ammo_changed(current: int, max_ammo: int)
@@ -11,8 +11,8 @@ signal reload_progress(current: float, total: float)
 signal reload_completed()
 signal shot_fired(projectile: Projectile)
 
-@export var magazine_size: int = 4
-@export var current_ammo: int = 4
+@export var magazine_size: int = 6
+@export var current_ammo: int = 6
 @export var fire_interval: float = 0.55
 @export var reload_time: float = 1.8
 @export var projectile_scene: PackedScene = preload("res://projectile/projectile.tscn")
@@ -93,6 +93,14 @@ func _fire() -> void:
 	_spawn_projectile()
 	_play_recoil()
 	_spawn_muzzle_flash()
+
+	var muzzle_p: Vector3 = _turret.get_muzzle_position() if _turret else (_tank.global_position if _tank else Vector3.ZERO)
+	if SoundManager:
+		SoundManager.play_sfx_3d("shoot", muzzle_p)
+
+	# Легкая отдача в камеру для локального танка
+	if Game and _tank and ((_tank.net_sync and _tank.net_sync.is_local_owner()) or not _tank.net_sync):
+		Game.shake_camera(0.09)
 
 	if current_ammo <= 0:
 		start_reload()
@@ -230,6 +238,8 @@ func _complete_reload() -> void:
 	reload_completed.emit()
 	if _tank and _tank.events:
 		_tank.events.emit_reload_completed()
+	if SoundManager and _tank:
+		SoundManager.play_sfx_3d("reload_done", _tank.global_position)
 
 func reset() -> void:
 	_is_reloading = false

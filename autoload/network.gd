@@ -35,6 +35,12 @@ func _ready() -> void:
 	multiplayer.connection_failed.connect(_on_connection_failed)
 	multiplayer.server_disconnected.connect(_on_server_disconnected)
 
+func get_ping_ms() -> int:
+	var my_id: int = get_unique_id()
+	if players.has(my_id):
+		return players[my_id].ping_ms
+	return 0
+
 func is_server() -> bool:
 	if not is_multiplayer_active():
 		return true # В одиночной игре поведение серверное

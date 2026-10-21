@@ -472,7 +472,7 @@ Acceleration \~= 20
 
 Jump Velocity \~= 8
 
-Magazine Size = 4
+Magazine Size = 6
 
 Fire Interval \~= 0.55 sec
 

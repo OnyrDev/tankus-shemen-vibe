@@ -17,7 +17,7 @@ var synced_health: float = 100.0:
 		if not _is_server() and is_node_ready():
 			_client_sync_gameplay_state()
 
-var synced_ammo: int = 4:
+var synced_ammo: int = 6:
 	set(val):
 		synced_ammo = val
 		if not _is_server() and is_node_ready():
@@ -166,6 +166,7 @@ func _physics_process(delta: float) -> void:
 			if _tank.global_position.distance_to(synced_position) > 2.5:
 				_tank.global_position = synced_position
 				_tank.rotation.y = synced_rotation_y
+				_tank.velocity = Vector3.ZERO
 			else:
 				_tank.global_position = _tank.global_position.lerp(synced_position, clampf(25.0 * delta, 0.0, 1.0))
 				_tank.rotation.y = lerp_angle(_tank.rotation.y, synced_rotation_y, clampf(20.0 * delta, 0.0, 1.0))
@@ -218,9 +219,13 @@ func _server_apply_client_movement(delta: float) -> void:
 	elif not on_floor:
 		_tank.velocity.y -= _tank.controller.gravity * delta
 
-	# Движение с поддержкой наклонных плоскостей (рамп)
+	# Движение с поддержкой наклонных плоскостей (рамп) и льда
+	var is_on_ice: bool = _tank.controller.is_on_ice if _tank.controller else false
 	var current_accel: float = _tank.controller.acceleration if on_floor else (_tank.controller.acceleration * _tank.controller.air_control)
 	var current_brake: float = _tank.controller.braking if on_floor else (_tank.controller.braking * _tank.controller.air_control)
+	if on_floor and is_on_ice and _tank.controller:
+		current_accel *= _tank.controller.ice_acceleration_multiplier
+		current_brake *= _tank.controller.ice_braking_multiplier
 	var effective_speed := _tank.controller.move_speed * _tank.controller.speed_multiplier
 
 	if _client_move_dir.length_squared() > 0.01:
@@ -250,6 +255,21 @@ func _server_apply_client_movement(delta: float) -> void:
 			_tank.rotation.y += signf(diff) * minf(absf(diff), _tank.controller.body_turn_speed * delta)
 
 	_tank.move_and_slide()
+
+	# Передача импульса в физические тела при таране
+	for i in range(_tank.get_slide_collision_count()):
+		var col := _tank.get_slide_collision(i)
+		var rbody := col.get_collider() as RigidBody3D
+		if rbody:
+			var col_norm := col.get_normal()
+			# Исключаем вертикальные контакты/опоры (когда танк стоит или едет сверху на ящике)
+			if col_norm.y > 0.5:
+				continue
+			var push_dir := -col_norm
+			push_dir.y = 0.0
+			if push_dir.length_squared() > 0.01:
+				var push_impulse := push_dir.normalized() * (effective_speed * 2.5)
+				rbody.apply_central_impulse(push_impulse)
 
 	# Доворот башни на сервере
 	if _tank.turret and _client_is_aim_valid:
@@ -365,7 +385,7 @@ func _update_synced_properties_from_tank() -> void:
 
 
 	if _tank.turret:
-		synced_turret_yaw = _tank.turret.global_rotation.y
+		synced_turret_yaw = _tank.turret.rotation.y
 		if _tank.turret.barrel_mount:
 			synced_turret_pitch = _tank.turret.barrel_mount.rotation.x
 
@@ -383,14 +403,19 @@ func _interpolate_remote_tank(delta: float) -> void:
 	if _tank.global_position.distance_to(synced_position) > 2.5:
 		_tank.global_position = synced_position
 		_tank.rotation.y = synced_rotation_y
+		_tank.velocity = Vector3.ZERO
 	else:
 		_tank.global_position = _tank.global_position.lerp(synced_position, clampf(18.0 * delta, 0.0, 1.0))
 		_tank.rotation.y = lerp_angle(_tank.rotation.y, synced_rotation_y, clampf(15.0 * delta, 0.0, 1.0))
 
 	if _tank.turret:
-		_tank.turret.global_rotation.y = lerp_angle(_tank.turret.global_rotation.y, synced_turret_yaw, clampf(22.0 * delta, 0.0, 1.0))
+		_tank.turret.rotation.y = lerp_angle(_tank.turret.rotation.y, synced_turret_yaw, clampf(22.0 * delta, 0.0, 1.0))
+		_tank.turret.rotation.x = 0.0
+		_tank.turret.rotation.z = 0.0
 		if _tank.turret.barrel_mount:
 			_tank.turret.barrel_mount.rotation.x = lerp_angle(_tank.turret.barrel_mount.rotation.x, synced_turret_pitch, clampf(18.0 * delta, 0.0, 1.0))
+			_tank.turret.barrel_mount.rotation.y = 0.0
+			_tank.turret.barrel_mount.rotation.z = 0.0
 
 # --- Клиентская синхронизация авторитетного геймплейного состояния с сервера ---
 

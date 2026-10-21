@@ -1,0 +1,216 @@
+[gd_scene format=3 uid="uid://pause_menu_tankus_01"]
+
+[ext_resource type="Script" path="res://ui/pause_menu.gd" id="1_pause"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_pause"]
+bg_color = Color(0.08, 0.1, 0.14, 0.95)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0, 0.85, 1, 0.6)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+shadow_color = Color(0, 0, 0, 0.5)
+shadow_size = 12
+
+[node name="PauseMenu" type="CanvasLayer"]
+process_mode = 3
+layer = 20
+script = ExtResource("1_pause")
+
+[node name="DimOverlay" type="ColorRect" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.02, 0.03, 0.05, 0.65)
+
+[node name="CenterContainer" type="CenterContainer" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Panel" type="PanelContainer" parent="CenterContainer"]
+custom_minimum_size = Vector2(400, 390)
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_pause")
+
+[node name="Margin" type="MarginContainer" parent="CenterContainer/Panel"]
+layout_mode = 2
+theme_override_constants/margin_left = 28
+theme_override_constants/margin_top = 24
+theme_override_constants/margin_right = 28
+theme_override_constants/margin_bottom = 24
+
+[node name="MainVBox" type="VBoxContainer" parent="CenterContainer/Panel/Margin"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Title" type="Label" parent="CenterContainer/Panel/Margin/MainVBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0, 0.85, 1, 1)
+theme_override_font_sizes/font_size = 24
+text = "TANKUS // ПАУЗА"
+horizontal_alignment = 1
+
+[node name="HSeparator" type="HSeparator" parent="CenterContainer/Panel/Margin/MainVBox"]
+layout_mode = 2
+
+[node name="BtnResume" type="Button" parent="CenterContainer/Panel/Margin/MainVBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 42)
+layout_mode = 2
+theme_override_font_sizes/font_size = 15
+text = "▶  ПРОДОЛЖИТЬ"
+
+[node name="BtnSettings" type="Button" parent="CenterContainer/Panel/Margin/MainVBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 42)
+layout_mode = 2
+theme_override_font_sizes/font_size = 15
+text = "⚙️  НАСТРОЙКИ"
+
+[node name="BtnRespawn" type="Button" parent="CenterContainer/Panel/Margin/MainVBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 42)
+layout_mode = 2
+theme_override_font_sizes/font_size = 15
+text = "🔄  РЕСПАВН ТАНКОВ (F1)"
+
+[node name="BtnLAN" type="Button" parent="CenterContainer/Panel/Margin/MainVBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 42)
+layout_mode = 2
+theme_override_font_sizes/font_size = 15
+text = "🌐  СЕТЕВОЕ МЕНЮ (LAN)"
+
+[node name="BtnMainMenu" type="Button" parent="CenterContainer/Panel/Margin/MainVBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 42)
+layout_mode = 2
+theme_override_font_sizes/font_size = 15
+text = "🏠  В ГЛАВНОЕ МЕНЮ"
+
+[node name="SettingsVBox" type="VBoxContainer" parent="CenterContainer/Panel/Margin"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="SettingsTitle" type="Label" parent="CenterContainer/Panel/Margin/SettingsVBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0, 0.85, 1, 1)
+theme_override_font_sizes/font_size = 22
+text = "⚙️  НАСТРОЙКИ"
+horizontal_alignment = 1
+
+[node name="HSeparatorSettings" type="HSeparator" parent="CenterContainer/Panel/Margin/SettingsVBox"]
+layout_mode = 2
+
+[node name="HBoxGameSFX" type="HBoxContainer" parent="CenterContainer/Panel/Margin/SettingsVBox"]
+layout_mode = 2
+
+[node name="LblGameSFX" type="Label" parent="CenterContainer/Panel/Margin/SettingsVBox/HBoxGameSFX"]
+custom_minimum_size = Vector2(130, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.85, 0.9, 0.95, 1)
+theme_override_font_sizes/font_size = 14
+text = "Звуки игры:"
+
+[node name="SliderGameSFX" type="HSlider" parent="CenterContainer/Panel/Margin/SettingsVBox/HBoxGameSFX"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+value = 80.0
+
+[node name="LblGameSFXVal" type="Label" parent="CenterContainer/Panel/Margin/SettingsVBox/HBoxGameSFX"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(45, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(0, 0.85, 1, 1)
+theme_override_font_sizes/font_size = 14
+text = "80%"
+horizontal_alignment = 2
+
+[node name="HBoxMenuSFX" type="HBoxContainer" parent="CenterContainer/Panel/Margin/SettingsVBox"]
+layout_mode = 2
+
+[node name="LblMenuSFX" type="Label" parent="CenterContainer/Panel/Margin/SettingsVBox/HBoxMenuSFX"]
+custom_minimum_size = Vector2(130, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.85, 0.9, 0.95, 1)
+theme_override_font_sizes/font_size = 14
+text = "Звуки меню:"
+
+[node name="SliderMenuSFX" type="HSlider" parent="CenterContainer/Panel/Margin/SettingsVBox/HBoxMenuSFX"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+value = 80.0
+
+[node name="LblMenuSFXVal" type="Label" parent="CenterContainer/Panel/Margin/SettingsVBox/HBoxMenuSFX"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(45, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(0, 0.85, 1, 1)
+theme_override_font_sizes/font_size = 14
+text = "80%"
+horizontal_alignment = 2
+
+[node name="HBoxMusic" type="HBoxContainer" parent="CenterContainer/Panel/Margin/SettingsVBox"]
+layout_mode = 2
+
+[node name="LblMusic" type="Label" parent="CenterContainer/Panel/Margin/SettingsVBox/HBoxMusic"]
+custom_minimum_size = Vector2(130, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.85, 0.9, 0.95, 1)
+theme_override_font_sizes/font_size = 14
+text = "Музыка:"
+
+[node name="SliderMusic" type="HSlider" parent="CenterContainer/Panel/Margin/SettingsVBox/HBoxMusic"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+value = 50.0
+
+[node name="LblMusicVal" type="Label" parent="CenterContainer/Panel/Margin/SettingsVBox/HBoxMusic"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(45, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(0, 0.85, 1, 1)
+theme_override_font_sizes/font_size = 14
+text = "50%"
+horizontal_alignment = 2
+
+[node name="ChkFullscreen" type="CheckBox" parent="CenterContainer/Panel/Margin/SettingsVBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+text = "Полноэкранный режим"
+
+[node name="ChkVSync" type="CheckBox" parent="CenterContainer/Panel/Margin/SettingsVBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+text = "Вертикальная синхронизация (V-Sync)"
+
+[node name="Spacer" type="Control" parent="CenterContainer/Panel/Margin/SettingsVBox"]
+custom_minimum_size = Vector2(0, 4)
+layout_mode = 2
+
+[node name="BtnSettingsBack" type="Button" parent="CenterContainer/Panel/Margin/SettingsVBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 42)
+layout_mode = 2
+theme_override_font_sizes/font_size = 15
+text = "←  НАЗАД"

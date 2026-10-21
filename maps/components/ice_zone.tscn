@@ -1,0 +1,32 @@
+[gd_scene format=3 uid="uid://b5ic3z0n3map0"]
+
+[ext_resource type="Script" path="res://maps/components/ice_zone.gd" id="1_ice"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ice"]
+transparency = 1
+albedo_color = Color(0.62, 0.86, 0.98, 0.78)
+roughness = 0.04
+metallic = 0.15
+emission_enabled = true
+emission = Color(0.15, 0.45, 0.65, 1)
+emission_energy_multiplier = 0.15
+
+[sub_resource type="BoxMesh" id="BoxMesh_ice"]
+material = SubResource("StandardMaterial3D_ice")
+size = Vector3(12, 0.15, 12)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_ice"]
+size = Vector3(12, 0.8, 12)
+
+[node name="IceZone" type="Area3D"]
+collision_layer = 0
+collision_mask = 2
+script = ExtResource("1_ice")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.05, 0)
+mesh = SubResource("BoxMesh_ice")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.4, 0)
+shape = SubResource("BoxShape3D_ice")

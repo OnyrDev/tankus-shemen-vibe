@@ -1,0 +1,324 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://ui/debug_overlay.gd" id="1_debug"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_panel"]
+bg_color = Color(0.04, 0.06, 0.09, 0.88)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.18, 0.6, 0.95, 0.7)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_right = 6
+corner_radius_bottom_left = 6
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_card_panel"]
+bg_color = Color(0.04, 0.06, 0.09, 0.92)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.18, 0.6, 0.95, 0.8)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_search_box"]
+bg_color = Color(0.08, 0.11, 0.16, 0.95)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.25, 0.7, 1, 0.6)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+content_margin_left = 8.0
+content_margin_top = 6.0
+content_margin_right = 8.0
+content_margin_bottom = 6.0
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_btn"]
+bg_color = Color(0.1, 0.15, 0.22, 0.9)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.2, 0.5, 0.8, 0.6)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+content_margin_left = 8.0
+content_margin_top = 4.0
+content_margin_right = 8.0
+content_margin_bottom = 4.0
+
+[node name="DebugOverlay" type="CanvasLayer"]
+layer = 125
+script = ExtResource("1_debug")
+
+[node name="PanelContainer" type="PanelContainer" parent="."]
+offset_left = 16.0
+offset_top = 16.0
+offset_right = 280.0
+offset_bottom = 320.0
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
+
+[node name="MarginContainer" type="MarginContainer" parent="PanelContainer"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/margin_left = 12
+theme_override_constants/margin_top = 10
+theme_override_constants/margin_right = 12
+theme_override_constants/margin_bottom = 10
+
+[node name="VBoxContainer" type="VBoxContainer" parent="PanelContainer/MarginContainer"]
+layout_mode = 2
+mouse_filter = 2
+
+[node name="StatsLabel" type="Label" parent="PanelContainer/MarginContainer/VBoxContainer"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.9, 0.95, 1, 1)
+theme_override_font_sizes/font_size = 12
+text = "Debug Info"
+
+[node name="TankStatsPanel" type="PanelContainer" parent="."]
+anchors_preset = 2
+anchor_top = 1.0
+anchor_bottom = 1.0
+offset_left = 16.0
+offset_top = -245.0
+offset_right = 416.0
+offset_bottom = -16.0
+grow_vertical = 0
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
+
+[node name="Margin" type="MarginContainer" parent="TankStatsPanel"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/margin_left = 12
+theme_override_constants/margin_top = 10
+theme_override_constants/margin_right = 12
+theme_override_constants/margin_bottom = 10
+
+[node name="VBox" type="VBoxContainer" parent="TankStatsPanel/Margin"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 4
+
+[node name="HeaderLabel" type="Label" parent="TankStatsPanel/Margin/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.25, 0.85, 1, 1)
+theme_override_font_sizes/font_size = 13
+text = "[ TANK STATS - NUMERIC ]"
+
+[node name="TankStatusLabel" type="Label" parent="TankStatsPanel/Margin/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.7, 0.8, 0.9, 1)
+theme_override_font_sizes/font_size = 11
+text = "Tank: Initializing..."
+
+[node name="Sep" type="HSeparator" parent="TankStatsPanel/Margin/VBox"]
+layout_mode = 2
+
+[node name="StatsColumns" type="HBoxContainer" parent="TankStatsPanel/Margin/VBox"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 16
+
+[node name="StatsLeft" type="Label" parent="TankStatsPanel/Margin/VBox/StatsColumns"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.9, 0.95, 1, 1)
+theme_override_constants/line_spacing = 3
+theme_override_font_sizes/font_size = 11
+text = "HP: 100.0 / 100.0
+Move Speed: 8.00 m/s
+Jump Vel: 8.00 m/s
+Air Control: 0.30
+Damage: 28.0
+Magazine: 6 (Cur: 6)
+Tank Scale: 1.00x
+Knockback: 1.00x"
+
+[node name="StatsRight" type="Label" parent="TankStatsPanel/Margin/VBox/StatsColumns"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.9, 0.95, 1, 1)
+theme_override_constants/line_spacing = 3
+theme_override_font_sizes/font_size = 11
+text = "Proj Speed: 24.0 m/s
+Bounces: 0
+Proj Size: 1.00x
+Fire Rate: 0.55s (1.8/s)
+Reload Time: 1.80s
+Block Dur: 0.35s
+Block CD: 3.00s
+Linear Vel: 0.00 m/s"
+
+[node name="CardSearchPanel" type="PanelContainer" parent="."]
+anchors_preset = 11
+anchor_left = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -450.0
+offset_top = 16.0
+offset_right = -16.0
+offset_bottom = -16.0
+grow_horizontal = 0
+grow_vertical = 2
+mouse_filter = 0
+theme_override_styles/panel = SubResource("StyleBoxFlat_card_panel")
+
+[node name="Margin" type="MarginContainer" parent="CardSearchPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 12
+theme_override_constants/margin_top = 10
+theme_override_constants/margin_right = 12
+theme_override_constants/margin_bottom = 10
+
+[node name="VBox" type="VBoxContainer" parent="CardSearchPanel/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="HeaderHBox" type="HBoxContainer" parent="CardSearchPanel/Margin/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="Title" type="Label" parent="CardSearchPanel/Margin/VBox/HeaderHBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.25, 0.85, 1, 1)
+theme_override_font_sizes/font_size = 13
+text = "[ CARD DEBUG & SEARCH ]"
+
+[node name="BtnToggleCursor" type="Button" parent="CardSearchPanel/Margin/VBox/HeaderHBox"]
+layout_mode = 2
+focus_mode = 0
+theme_override_font_sizes/font_size = 10
+theme_override_styles/normal = SubResource("StyleBoxFlat_btn")
+text = "Lock Mouse [Tab]"
+
+[node name="BtnClose" type="Button" parent="CardSearchPanel/Margin/VBox/HeaderHBox"]
+layout_mode = 2
+focus_mode = 0
+theme_override_font_sizes/font_size = 10
+theme_override_styles/normal = SubResource("StyleBoxFlat_btn")
+text = " X "
+
+[node name="QuickActionsHBox" type="HBoxContainer" parent="CardSearchPanel/Margin/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="BtnClearBuild" type="Button" parent="CardSearchPanel/Margin/VBox/QuickActionsHBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_font_sizes/font_size = 11
+theme_override_styles/normal = SubResource("StyleBoxFlat_btn")
+text = "Clear Build"
+
+[node name="BtnRandomCard" type="Button" parent="CardSearchPanel/Margin/VBox/QuickActionsHBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_font_sizes/font_size = 11
+theme_override_styles/normal = SubResource("StyleBoxFlat_btn")
+text = "+ Random"
+
+[node name="BtnHeal" type="Button" parent="CardSearchPanel/Margin/VBox/QuickActionsHBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_font_sizes/font_size = 11
+theme_override_styles/normal = SubResource("StyleBoxFlat_btn")
+text = "Heal 100%"
+
+[node name="SearchBox" type="LineEdit" parent="CardSearchPanel/Margin/VBox"]
+layout_mode = 2
+theme_override_colors/font_placeholder_color = Color(0.5, 0.6, 0.7, 0.8)
+theme_override_font_sizes/font_size = 12
+theme_override_styles/normal = SubResource("StyleBoxFlat_search_box")
+placeholder_text = "Search card by name or effect..."
+clear_button_enabled = true
+
+[node name="CategoryHBox" type="HBoxContainer" parent="CardSearchPanel/Margin/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="BtnCatAll" type="Button" parent="CardSearchPanel/Margin/VBox/CategoryHBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_font_sizes/font_size = 10
+theme_override_styles/normal = SubResource("StyleBoxFlat_btn")
+toggle_mode = true
+button_pressed = true
+text = "All (45)"
+
+[node name="BtnCatShot" type="Button" parent="CardSearchPanel/Margin/VBox/CategoryHBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_font_sizes/font_size = 10
+theme_override_styles/normal = SubResource("StyleBoxFlat_btn")
+toggle_mode = true
+text = "Shot"
+
+[node name="BtnCatBlock" type="Button" parent="CardSearchPanel/Margin/VBox/CategoryHBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_font_sizes/font_size = 10
+theme_override_styles/normal = SubResource("StyleBoxFlat_btn")
+toggle_mode = true
+text = "Block"
+
+[node name="BtnCatJump" type="Button" parent="CardSearchPanel/Margin/VBox/CategoryHBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_font_sizes/font_size = 10
+theme_override_styles/normal = SubResource("StyleBoxFlat_btn")
+toggle_mode = true
+text = "Jump"
+
+[node name="BtnCatGeneral" type="Button" parent="CardSearchPanel/Margin/VBox/CategoryHBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_font_sizes/font_size = 10
+theme_override_styles/normal = SubResource("StyleBoxFlat_btn")
+toggle_mode = true
+text = "General"
+
+[node name="CardListSep" type="HSeparator" parent="CardSearchPanel/Margin/VBox"]
+layout_mode = 2
+
+[node name="ScrollContainer" type="ScrollContainer" parent="CardSearchPanel/Margin/VBox"]
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="CardsListVBox" type="VBoxContainer" parent="CardSearchPanel/Margin/VBox/ScrollContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 6
+
+[node name="FooterHBox" type="HBoxContainer" parent="CardSearchPanel/Margin/VBox"]
+layout_mode = 2
+
+[node name="CardsCountLabel" type="Label" parent="CardSearchPanel/Margin/VBox/FooterHBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.6, 0.7, 0.8, 1)
+theme_override_font_sizes/font_size = 10
+text = "Showing 45 cards | Local build: 0"

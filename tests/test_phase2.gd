@@ -1,13 +1,8 @@
-extends SceneTree
+extends Node
 
-var _tested := false
-
-func _process(_delta: float) -> bool:
-	if _tested:
-		return true
-	_tested = true
+func _ready() -> void:
 	_run_tests()
-	return true
+	get_tree().quit(0)
 
 func _run_tests() -> void:
 	print("\n=== [TEST] Starting Phase 2 (Combat Foundation) Verification ===")
@@ -16,7 +11,7 @@ func _run_tests() -> void:
 	var sandbox_scene := load("res://maps/test_sandbox.tscn") as PackedScene
 	assert(sandbox_scene != null, "ERROR: Failed to load test_sandbox.tscn")
 	var sandbox := sandbox_scene.instantiate() as TestSandbox
-	root.add_child(sandbox)
+	add_child(sandbox)
 	print("[PASS] Sandbox scene instantiated successfully")
 
 	# 2. Проверка ключевых узлов и компонентов игрока и манекена
@@ -35,8 +30,8 @@ func _run_tests() -> void:
 	print("[PASS] All Phase 2 combat components verified on Tank")
 
 	# 3. Проверка параметров магазина и стрельбы
-	assert(tank.weapon.magazine_size == 4, "ERROR: Magazine size should be 4")
-	assert(tank.weapon.current_ammo == 4, "ERROR: Initial ammo should be 4")
+	assert(tank.weapon.magazine_size == 6, "ERROR: Magazine size should be 6")
+	assert(tank.weapon.current_ammo == 6, "ERROR: Initial ammo should be 6")
 	assert(tank.weapon.can_fire() == true, "ERROR: Tank should be able to fire initially")
 
 	var shot_capture := {"received": false, "proj": null}
@@ -47,7 +42,7 @@ func _run_tests() -> void:
 
 	var fired := tank.weapon.try_fire()
 	assert(fired == true, "ERROR: try_fire() returned false")
-	assert(tank.weapon.current_ammo == 3, "ERROR: Ammo should decrease to 3 after firing")
+	assert(tank.weapon.current_ammo == 5, "ERROR: Ammo should decrease to 5 after firing")
 	assert(shot_capture["received"] == true, "ERROR: shot_fired signal was not emitted")
 	var spawned_proj: Projectile = shot_capture["proj"]
 	assert(spawned_proj != null, "ERROR: Spawned projectile is null")
@@ -65,6 +60,10 @@ func _run_tests() -> void:
 	print("[PASS] Fire rate cooldown (0.55s) verified")
 
 	# 5. Проверка автоматической и ручной перезарядки
+	tank.weapon.try_fire() # ammo -> 4
+	tank.weapon._physics_process(0.56)
+	tank.weapon.try_fire() # ammo -> 3
+	tank.weapon._physics_process(0.56)
 	tank.weapon.try_fire() # ammo -> 2
 	tank.weapon._physics_process(0.56)
 	tank.weapon.try_fire() # ammo -> 1
@@ -82,7 +81,7 @@ func _run_tests() -> void:
 	# Симулируем завершение перезарядки (1.8s)
 	tank.weapon._physics_process(0.85)
 	assert(tank.weapon.is_reloading() == false, "ERROR: Reload should finish after total 1.85s")
-	assert(tank.weapon.current_ammo == 4, "ERROR: Ammo should be restored to 4")
+	assert(tank.weapon.current_ammo == 6, "ERROR: Ammo should be restored to 6")
 	print("[PASS] Empty magazine auto-reload (1.8s) verified")
 
 	# 6. Проверка защитного блока (щита)
@@ -119,7 +118,7 @@ func _run_tests() -> void:
 	# Создаем тестовый снаряд
 	var test_proj_scene := load("res://projectile/projectile.tscn") as PackedScene
 	var test_proj := test_proj_scene.instantiate() as Projectile
-	root.add_child(test_proj)
+	add_child(test_proj)
 	test_proj.setup(tank, dummy.global_position + Vector3(0, 0, 1), Vector3(0, 0, -1))
 
 	# Передаем снаряд на поглощение
@@ -152,7 +151,7 @@ func _run_tests() -> void:
 	dummy.respawn()
 	assert(dummy.is_active == true, "ERROR: Dummy should be active after respawn")
 	assert(dummy.health.current_health == 100.0, "ERROR: Dummy HP should be restored to 100")
-	assert(dummy.weapon.current_ammo == 4, "ERROR: Dummy ammo should be restored to 4")
+	assert(dummy.weapon.current_ammo == 6, "ERROR: Dummy ammo should be restored to 6")
 	assert(dummy.block.can_block() == true, "ERROR: Dummy block should be ready after respawn")
 	print("[PASS] Respawn and component reset verified")
 

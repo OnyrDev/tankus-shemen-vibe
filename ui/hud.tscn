@@ -239,7 +239,7 @@ layout_mode = 2
 [node name="AmmoLabel" type="Label" parent="BottomRight/CombatContainer/AmmoBox/VBox/AmmoHeader"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 16
-text = "4 / 4"
+text = "6 / 6"
 
 [node name="AmmoPills" type="HBoxContainer" parent="BottomRight/CombatContainer/AmmoBox/VBox"]
 layout_mode = 2

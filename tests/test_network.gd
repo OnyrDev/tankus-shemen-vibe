@@ -91,13 +91,13 @@ func _ready() -> void:
 	# Проверяем обработку респавна на клиенте
 	sync.synced_position = Vector3(10, 0.5, 10)
 	sync.synced_health = 100.0
-	sync.synced_ammo = 4
+	sync.synced_ammo = 6
 	sync.synced_is_active = true
 	sync._handle_client_tank_respawn()
 	assert(client_tank.is_active == true, "Танк должен стать активным после респавна")
 	assert(client_tank.visuals.visible == true, "Визуал танка должен стать видимым после респавна")
 	assert(client_tank.health.current_health == 100.0, "current_health должен восстановиться до 100.0")
-	assert(client_tank.weapon.current_ammo == 4, "Патроны должны восстановиться до 4")
+	assert(client_tank.weapon.current_ammo == 6, "Патроны должны восстановиться до 6")
 	assert(client_tank.global_position.distance_to(Vector3(10, 0.5, 10)) < 0.01, "Позиция танка должна обновиться на точку спавна")
 
 	client_tank.queue_free()
@@ -213,6 +213,35 @@ func _ready() -> void:
 	scale_tank.queue_free()
 	client_scale_tank.queue_free()
 	print("[PASS] 11. Сетевая синхронизация масштаба танков и хитбоксов (Big Tank/Tiny Tank) успешно проверена")
+
+	# 12. Сетевая синхронизация физических ящиков (PhysicsCrate)
+	var crate_scene: PackedScene = preload("res://maps/components/physics_crate.tscn")
+	assert(crate_scene != null, "Сцена physics_crate.tscn должна быть доступна")
+	var crate_script = preload("res://maps/components/physics_crate.gd")
+	var crate: Node = crate_scene.instantiate()
+	add_child(crate)
+	assert(crate != null, "Инстанс PhysicsCrate создан")
+	assert(crate._synchronizer != null, "MultiplayerSynchronizer CrateNetSync должен быть создан на ящике")
+	assert(crate._synchronizer.get_multiplayer_authority() == 1, "Авторитет репликации ящика должен быть 1 (сервер)")
+
+	# Проверка серверного обновления координат
+	crate.global_position = Vector3(5, 1, 8)
+	crate._server_process(0.016)
+	assert(crate.synced_position == Vector3(5, 1, 8), "Серверный процесс должен записывать synced_position")
+
+	# Проверка клиентского режима (кинематическое тело с интерполяцией)
+	crate.freeze = true
+	crate.freeze_mode = RigidBody3D.FREEZE_MODE_KINEMATIC
+	crate.synced_position = Vector3(6, 1, 8)
+	crate._client_process(0.5)
+	assert(crate.global_position.distance_to(Vector3(6, 1, 8)) < 1.0, "Клиент должен интерполировать положение ящика к synced_position")
+
+	# Проверка сброса раунда
+	crate.reset_to_start()
+	assert(crate._needs_teleport_reset == true, "reset_to_start должен взводить флаг _needs_teleport_reset")
+
+	crate.queue_free()
+	print("[PASS] 12. Сетевая синхронизация интерактивных физических ящиков (PhysicsCrate) успешно проверена")
 
 	print("\n>>> ВСЕ ПРОВЕРКИ СЕТЕВОГО СЛОЯ ФАЗЫ 4 УСПЕШНО ПРОЙДЕНЫ! <<<\n")
 	get_tree().quit(0)

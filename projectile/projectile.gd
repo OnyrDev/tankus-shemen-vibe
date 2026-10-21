@@ -13,6 +13,9 @@ signal bounced(normal: Vector3, bounce_num: int)
 @export var lifetime: float = 3.0
 @export var bounces_left: int = 0
 
+const HIT_SPARK_SCENE: PackedScene = preload("res://vfx/hit_spark_vfx.tscn")
+const EXPLOSION_SCENE: PackedScene = preload("res://vfx/explosion_vfx.tscn")
+
 var shooter: Node = null
 var team_id: int = -1
 var direction: Vector3 = Vector3.FORWARD
@@ -210,6 +213,8 @@ func _handle_collision(collision: KinematicCollision3D) -> void:
 			direction = velocity.normalized()
 			global_position = col_point + bounce_norm * (0.22 * size_mult)
 			bounced.emit(bounce_norm, bounces_done)
+			if SoundManager:
+				SoundManager.play_sfx_3d("ricochet", col_point)
 		return
 
 	var shooter_tank := get_shooter_tank()
@@ -221,6 +226,8 @@ func _handle_collision(collision: KinematicCollision3D) -> void:
 
 	# 1. Попадание в танк
 	if target_tank != null and target_tank != shooter_tank:
+		if SoundManager:
+			SoundManager.play_sfx_3d("hit", col_point)
 		# Проверка блокирования
 		if target_tank.block and target_tank.block.is_blocking():
 			# Проверка Reflect
@@ -267,6 +274,12 @@ func _handle_collision(collision: KinematicCollision3D) -> void:
 		_destroy()
 		return
 
+	# Если попали в физическое тело RigidBody3D (маятник или ящик) — передаем импульс
+	if collider is RigidBody3D:
+		var rbody := collider as RigidBody3D
+		var hit_impulse := direction * (damage * 0.4 + knockout_force * 2.0)
+		rbody.apply_impulse(hit_impulse, col_point - rbody.global_position)
+
 	# 2. Попадание в стену или статическое препятствие -> РИКОШЕТ
 	if bounces_left > 0:
 		bounces_left -= 1
@@ -292,6 +305,8 @@ func _handle_collision(collision: KinematicCollision3D) -> void:
 
 		bounced.emit(bounce_normal, bounces_done)
 		_spawn_impact_vfx(col_point, bounce_normal)
+		if SoundManager:
+			SoundManager.play_sfx_3d("ricochet", col_point)
 		return
 
 	# Отскоки закончились: финальный взрыв и удаление
@@ -307,7 +322,7 @@ func _reflect_projectile(reflecting_tank: Tank, normal: Vector3) -> void:
 	add_collision_exception_with(reflecting_tank)
 
 	# Разворачиваем снаряд в сторону стрелка
-	velocity = -velocity.bounce(normal)
+	velocity = velocity.bounce(normal)
 	direction = velocity.normalized()
 	speed *= 1.25
 	damage *= 1.25
@@ -316,6 +331,8 @@ func _reflect_projectile(reflecting_tank: Tank, normal: Vector3) -> void:
 
 	_apply_color(reflecting_tank.team_color)
 	_spawn_impact_vfx(global_position, normal)
+	if SoundManager:
+		SoundManager.play_sfx_3d("block", global_position)
 
 func _trigger_aoe_explosion(origin: Vector3, splash_damage: float, radius: float) -> void:
 	var tree := get_tree()
@@ -331,29 +348,18 @@ func _trigger_aoe_explosion(origin: Vector3, splash_damage: float, radius: float
 				if node.health:
 					node.health.take_damage(aoe_dmg, get_valid_shooter())
 
-	# Визуальная вспышка AoE взрыва
-	var boom := Node3D.new()
-	var mesh := MeshInstance3D.new()
-	var sphere := SphereMesh.new()
-	sphere.radius = radius * 0.6
-	sphere.height = radius * 1.2
-	mesh.mesh = sphere
+	if SoundManager:
+		SoundManager.play_sfx_3d("explosion", origin)
+	if Game:
+		Game.shake_camera(0.45)
 
-	var mat := StandardMaterial3D.new()
-	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	mat.albedo_color = Color(1.0, 0.45, 0.1, 0.8)
-	mesh.material_override = mat
-
-	boom.add_child(mesh)
 	var spawn_parent := get_parent()
-	if spawn_parent:
-		spawn_parent.add_child(boom)
-		boom.global_position = origin
-
-	var tween := boom.create_tween()
-	tween.tween_property(mesh, "scale", Vector3.ONE * 1.5, 0.18).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-	tween.parallel().tween_property(mat, "albedo_color:a", 0.0, 0.18)
-	tween.tween_callback(boom.queue_free)
+	if spawn_parent and EXPLOSION_SCENE:
+		var boom := EXPLOSION_SCENE.instantiate() as ExplosionVFX
+		if boom:
+			spawn_parent.add_child(boom)
+			boom.global_position = origin
+			boom.setup(radius * 0.45)
 
 func _apply_poison_to_target(target: Tank, stacks: int) -> void:
 	var poison_node := target.get_node_or_null("PoisonEffect")
@@ -379,30 +385,17 @@ func _apply_poison_to_target(target: Tank, stacks: int) -> void:
 				poison_node.queue_free()
 		)
 
-func _spawn_impact_vfx(pos: Vector3, _normal: Vector3) -> void:
+func _spawn_impact_vfx(pos: Vector3, normal: Vector3) -> void:
 	var spawn_parent := get_parent()
 	if not spawn_parent:
 		return
 
-	var impact := Node3D.new()
-	var flash_mesh := MeshInstance3D.new()
-	var sphere := SphereMesh.new()
-	sphere.radius = 0.2
-	sphere.height = 0.4
-	flash_mesh.mesh = sphere
-
-	var mat := StandardMaterial3D.new()
-	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	mat.albedo_color = Color(1.0, 0.9, 0.3)
-	flash_mesh.material_override = mat
-
-	impact.add_child(flash_mesh)
-	spawn_parent.add_child(impact)
-	impact.global_position = pos
-
-	var tween := impact.create_tween()
-	tween.tween_property(flash_mesh, "scale", Vector3.ZERO, 0.15).from(Vector3(1.5, 1.5, 1.5))
-	tween.tween_callback(impact.queue_free)
+	if HIT_SPARK_SCENE:
+		var spark := HIT_SPARK_SCENE.instantiate() as HitSparkVFX
+		if spark:
+			spawn_parent.add_child(spark)
+			spark.global_position = pos
+			spark.setup(normal)
 
 func _destroy() -> void:
 	if _is_destroyed:
