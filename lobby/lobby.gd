@@ -46,7 +46,8 @@ const MAP_NAMES: Array[String] = [
 	"sky_courtyard",
 	"iceworks",
 	"pendulum_yard",
-	"shift"
+	"shift",
+	"atrium"
 ]
 
 var _is_local_ready: bool = false

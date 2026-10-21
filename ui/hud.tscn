@@ -1,20 +1,6 @@
-[gd_scene format=3]
+[gd_scene format=3 uid="uid://ctkbcib0e2u4l"]
 
-[ext_resource type="Script" path="res://ui/hud.gd" id="1_hud"]
-
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_bg"]
-bg_color = Color(0.08, 0.09, 0.11, 0.75)
-corner_radius_top_left = 6
-corner_radius_top_right = 6
-corner_radius_bottom_right = 6
-corner_radius_bottom_left = 6
-
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_health_fill"]
-bg_color = Color(0.2, 0.85, 0.35, 1)
-corner_radius_top_left = 6
-corner_radius_top_right = 6
-corner_radius_bottom_right = 6
-corner_radius_bottom_left = 6
+[ext_resource type="Script" uid="uid://4kqjuuu7u2cx" path="res://ui/hud.gd" id="1_hud"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_panel"]
 content_margin_left = 12.0
@@ -32,12 +18,19 @@ corner_radius_top_right = 8
 corner_radius_bottom_right = 8
 corner_radius_bottom_left = 8
 
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_reload_fill"]
-bg_color = Color(1, 0.7, 0.1, 1)
-corner_radius_top_left = 4
-corner_radius_top_right = 4
-corner_radius_bottom_right = 4
-corner_radius_bottom_left = 4
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_bg"]
+bg_color = Color(0.08, 0.09, 0.11, 0.75)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_right = 6
+corner_radius_bottom_left = 6
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_health_fill"]
+bg_color = Color(0.2, 0.85, 0.35, 1)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_right = 6
+corner_radius_bottom_left = 6
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_shield_fill"]
 bg_color = Color(0.2, 0.8, 1, 1)
@@ -46,10 +39,17 @@ corner_radius_top_right = 4
 corner_radius_bottom_right = 4
 corner_radius_bottom_left = 4
 
-[node name="HUD" type="CanvasLayer"]
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_reload_fill"]
+bg_color = Color(1, 0.7, 0.1, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
+[node name="HUD" type="CanvasLayer" unique_id=347756258]
 script = ExtResource("1_hud")
 
-[node name="Crosshair" type="Control" parent="."]
+[node name="Crosshair" type="Control" parent="." unique_id=872075477]
 layout_mode = 3
 anchors_preset = 8
 anchor_left = 0.5
@@ -60,7 +60,7 @@ grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
 
-[node name="Dot" type="ColorRect" parent="Crosshair"]
+[node name="Dot" type="ColorRect" parent="Crosshair" unique_id=612050755]
 layout_mode = 1
 anchors_preset = 8
 anchor_left = 0.5
@@ -76,7 +76,7 @@ grow_vertical = 2
 mouse_filter = 2
 color = Color(1, 1, 1, 0.85)
 
-[node name="LineLeft" type="ColorRect" parent="Crosshair"]
+[node name="LineLeft" type="ColorRect" parent="Crosshair" unique_id=1580872933]
 layout_mode = 1
 anchors_preset = 8
 anchor_left = 0.5
@@ -92,7 +92,7 @@ grow_vertical = 2
 mouse_filter = 2
 color = Color(1, 1, 1, 0.6)
 
-[node name="LineRight" type="ColorRect" parent="Crosshair"]
+[node name="LineRight" type="ColorRect" parent="Crosshair" unique_id=2130554355]
 layout_mode = 1
 anchors_preset = 8
 anchor_left = 0.5
@@ -108,7 +108,7 @@ grow_vertical = 2
 mouse_filter = 2
 color = Color(1, 1, 1, 0.6)
 
-[node name="LineTop" type="ColorRect" parent="Crosshair"]
+[node name="LineTop" type="ColorRect" parent="Crosshair" unique_id=627590822]
 layout_mode = 1
 anchors_preset = 8
 anchor_left = 0.5
@@ -124,7 +124,7 @@ grow_vertical = 2
 mouse_filter = 2
 color = Color(1, 1, 1, 0.6)
 
-[node name="LineBottom" type="ColorRect" parent="Crosshair"]
+[node name="LineBottom" type="ColorRect" parent="Crosshair" unique_id=1855296287]
 layout_mode = 1
 anchors_preset = 8
 anchor_left = 0.5
@@ -140,20 +140,7 @@ grow_vertical = 2
 mouse_filter = 2
 color = Color(1, 1, 1, 0.6)
 
-[node name="TopLeft" type="MarginContainer" parent="."]
-offset_left = 28.0
-offset_top = 28.0
-offset_right = 550.0
-offset_bottom = 80.0
-mouse_filter = 2
-
-[node name="BuildChipsContainer" type="HFlowContainer" parent="TopLeft"]
-layout_mode = 2
-theme_override_constants/h_separation = 6
-theme_override_constants/v_separation = 6
-mouse_filter = 2
-
-[node name="BottomLeft" type="MarginContainer" parent="."]
+[node name="BottomLeft" type="MarginContainer" parent="." unique_id=2114914326]
 anchors_preset = 2
 anchor_top = 1.0
 anchor_bottom = 1.0
@@ -163,20 +150,20 @@ grow_vertical = 0
 theme_override_constants/margin_left = 28
 theme_override_constants/margin_bottom = 28
 
-[node name="HealthPanel" type="PanelContainer" parent="BottomLeft"]
+[node name="HealthPanel" type="PanelContainer" parent="BottomLeft" unique_id=659659252]
 layout_mode = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
 
-[node name="HealthContainer" type="VBoxContainer" parent="BottomLeft/HealthPanel"]
+[node name="HealthContainer" type="VBoxContainer" parent="BottomLeft/HealthPanel" unique_id=377442157]
 layout_mode = 2
 theme_override_constants/separation = 6
 
-[node name="HealthLabel" type="Label" parent="BottomLeft/HealthPanel/HealthContainer"]
+[node name="HealthLabel" type="Label" parent="BottomLeft/HealthPanel/HealthContainer" unique_id=309671918]
 layout_mode = 2
 theme_override_font_sizes/font_size = 18
 text = "100 / 100 HP"
 
-[node name="HealthBar" type="ProgressBar" parent="BottomLeft/HealthPanel/HealthContainer"]
+[node name="HealthBar" type="ProgressBar" parent="BottomLeft/HealthPanel/HealthContainer" unique_id=952510651]
 custom_minimum_size = Vector2(220, 16)
 layout_mode = 2
 theme_override_styles/background = SubResource("StyleBoxFlat_bg")
@@ -184,7 +171,7 @@ theme_override_styles/fill = SubResource("StyleBoxFlat_health_fill")
 value = 100.0
 show_percentage = false
 
-[node name="BottomRight" type="MarginContainer" parent="."]
+[node name="BottomRight" type="MarginContainer" parent="." unique_id=1304445742]
 anchors_preset = 3
 anchor_left = 1.0
 anchor_top = 1.0
@@ -197,26 +184,26 @@ grow_vertical = 0
 theme_override_constants/margin_right = 28
 theme_override_constants/margin_bottom = 28
 
-[node name="CombatContainer" type="HBoxContainer" parent="BottomRight"]
+[node name="CombatContainer" type="HBoxContainer" parent="BottomRight" unique_id=496040130]
 layout_mode = 2
 theme_override_constants/separation = 14
 
-[node name="ShieldBox" type="PanelContainer" parent="BottomRight/CombatContainer"]
+[node name="ShieldBox" type="PanelContainer" parent="BottomRight/CombatContainer" unique_id=1429685339]
 layout_mode = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
 
-[node name="VBox" type="VBoxContainer" parent="BottomRight/CombatContainer/ShieldBox"]
+[node name="VBox" type="VBoxContainer" parent="BottomRight/CombatContainer/ShieldBox" unique_id=519717175]
 layout_mode = 2
 theme_override_constants/separation = 6
 
-[node name="ShieldStatusLabel" type="Label" parent="BottomRight/CombatContainer/ShieldBox/VBox"]
+[node name="ShieldStatusLabel" type="Label" parent="BottomRight/CombatContainer/ShieldBox/VBox" unique_id=1485398902]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.2, 0.8, 1, 1)
 theme_override_font_sizes/font_size = 16
 text = "[E] READY"
 horizontal_alignment = 1
 
-[node name="ShieldCooldownBar" type="ProgressBar" parent="BottomRight/CombatContainer/ShieldBox/VBox"]
+[node name="ShieldCooldownBar" type="ProgressBar" parent="BottomRight/CombatContainer/ShieldBox/VBox" unique_id=1163282870]
 custom_minimum_size = Vector2(100, 8)
 layout_mode = 2
 theme_override_styles/background = SubResource("StyleBoxFlat_bg")
@@ -225,27 +212,27 @@ max_value = 1.0
 value = 1.0
 show_percentage = false
 
-[node name="AmmoBox" type="PanelContainer" parent="BottomRight/CombatContainer"]
+[node name="AmmoBox" type="PanelContainer" parent="BottomRight/CombatContainer" unique_id=957170985]
 layout_mode = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
 
-[node name="VBox" type="VBoxContainer" parent="BottomRight/CombatContainer/AmmoBox"]
+[node name="VBox" type="VBoxContainer" parent="BottomRight/CombatContainer/AmmoBox" unique_id=878502367]
 layout_mode = 2
 theme_override_constants/separation = 6
 
-[node name="AmmoHeader" type="HBoxContainer" parent="BottomRight/CombatContainer/AmmoBox/VBox"]
+[node name="AmmoHeader" type="HBoxContainer" parent="BottomRight/CombatContainer/AmmoBox/VBox" unique_id=2131262495]
 layout_mode = 2
 
-[node name="AmmoLabel" type="Label" parent="BottomRight/CombatContainer/AmmoBox/VBox/AmmoHeader"]
+[node name="AmmoLabel" type="Label" parent="BottomRight/CombatContainer/AmmoBox/VBox/AmmoHeader" unique_id=589259897]
 layout_mode = 2
 theme_override_font_sizes/font_size = 16
 text = "6 / 6"
 
-[node name="AmmoPills" type="HBoxContainer" parent="BottomRight/CombatContainer/AmmoBox/VBox"]
+[node name="AmmoPills" type="HBoxContainer" parent="BottomRight/CombatContainer/AmmoBox/VBox" unique_id=1025280476]
 layout_mode = 2
 theme_override_constants/separation = 4
 
-[node name="ReloadBar" type="ProgressBar" parent="BottomRight/CombatContainer/AmmoBox/VBox"]
+[node name="ReloadBar" type="ProgressBar" parent="BottomRight/CombatContainer/AmmoBox/VBox" unique_id=2132799189]
 custom_minimum_size = Vector2(110, 6)
 layout_mode = 2
 theme_override_styles/background = SubResource("StyleBoxFlat_bg")

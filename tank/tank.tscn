@@ -112,6 +112,29 @@ mesh = SubResource("SphereMesh_shield")
 [node name="OverheadMount" type="Marker3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.45, 0)
 
+[node name="GroundProbeFL" type="RayCast3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.68, 0.45, -0.75)
+target_position = Vector3(0, -1.8, 0)
+collision_mask = 1
+hit_from_inside = true
+
+[node name="GroundProbeFR" type="RayCast3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.68, 0.45, -0.75)
+target_position = Vector3(0, -1.8, 0)
+collision_mask = 1
+hit_from_inside = true
+
+[node name="GroundProbeRL" type="RayCast3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.68, 0.45, 0.75)
+target_position = Vector3(0, -1.8, 0)
+collision_mask = 1
+hit_from_inside = true
+
+[node name="GroundProbeRR" type="RayCast3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.68, 0.45, 0.75)
+target_position = Vector3(0, -1.8, 0)
+collision_mask = 1
+hit_from_inside = true
 
 [node name="TankInput" type="Node" parent="."]
 script = ExtResource("3_input")

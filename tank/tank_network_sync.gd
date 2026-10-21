@@ -170,6 +170,8 @@ func _physics_process(delta: float) -> void:
 			else:
 				_tank.global_position = _tank.global_position.lerp(synced_position, clampf(25.0 * delta, 0.0, 1.0))
 				_tank.rotation.y = lerp_angle(_tank.rotation.y, synced_rotation_y, clampf(20.0 * delta, 0.0, 1.0))
+			if _tank.controller:
+				_tank.controller.update_tilt_only(delta)
 
 func _server_process_tank_physics(delta: float) -> void:
 	if not _tank.is_active:
@@ -183,6 +185,9 @@ func _server_process_tank_physics(delta: float) -> void:
 			_tank.move_and_slide()
 		else:
 			_tank.velocity.y = 0.0
+
+		if _tank.controller:
+			_tank.controller.update_tilt_only(delta)
 
 		if _is_local_owner:
 			if _tank.turret and _tank.input and _tank.input.is_aim_valid:
@@ -408,6 +413,9 @@ func _interpolate_remote_tank(delta: float) -> void:
 		_tank.global_position = _tank.global_position.lerp(synced_position, clampf(18.0 * delta, 0.0, 1.0))
 		_tank.rotation.y = lerp_angle(_tank.rotation.y, synced_rotation_y, clampf(15.0 * delta, 0.0, 1.0))
 
+	if _tank.controller:
+		_tank.controller.update_tilt_only(delta)
+
 	if _tank.turret:
 		_tank.turret.rotation.y = lerp_angle(_tank.turret.rotation.y, synced_turret_yaw, clampf(22.0 * delta, 0.0, 1.0))
 		_tank.turret.rotation.x = 0.0
@@ -477,6 +485,8 @@ func _handle_client_tank_respawn() -> void:
 	_tank.global_position = synced_position
 	_tank.rotation.y = synced_rotation_y
 	_tank.velocity = Vector3.ZERO
+	if _tank.controller:
+		_tank.controller.reset_tilt()
 
 	if _tank.visuals:
 		_tank.visuals.visible = true

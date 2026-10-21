@@ -30,37 +30,6 @@ transform = Transform3D(-1, 0, -8.74228e-08, 0, 1, 0, 8.74228e-08, 0, -1, 0, 4.5
 
 [node name="CardDraft" parent="." instance=ExtResource("5_draft")]
 
-[node name="HelpLayer" type="CanvasLayer" parent="."]
-
-[node name="HelpPanel" type="PanelContainer" parent="HelpLayer"]
-offset_left = 16.0
-offset_top = 16.0
-offset_right = 430.0
-offset_bottom = 175.0
-
-[node name="Margin" type="MarginContainer" parent="HelpLayer/HelpPanel"]
-layout_mode = 2
-theme_override_constants/margin_left = 12
-theme_override_constants/margin_top = 10
-theme_override_constants/margin_right = 12
-theme_override_constants/margin_bottom = 10
-
-[node name="VBox" type="VBoxContainer" parent="HelpLayer/HelpPanel/Margin"]
-layout_mode = 2
-
-[node name="Title" type="Label" parent="HelpLayer/HelpPanel/Margin/VBox"]
-layout_mode = 2
-text = "TANKUS // Phase 6 Arenas & Sandbox"
-
-[node name="Controls" type="Label" parent="HelpLayer/HelpPanel/Margin/VBox"]
-layout_mode = 2
-text = "WASD: Движение | Space: Прыжок
-LMB: Огонь | R: Перезарядка
-E: Защитный блок
-Tab: Драфт способностей (1 из 5)
-Esc: Меню паузы (Продолжить / Респавн / Главное меню)
-F1 / Backspace: Быстрый респавн всех танков"
-
 [node name="SpawnedTanks" type="Node3D" parent="."]
 
 [node name="Projectiles" type="Node3D" parent="."]

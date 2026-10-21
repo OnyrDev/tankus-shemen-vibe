@@ -21,7 +21,8 @@ const MAP_NAMES: Array[String] = [
 	"sky_courtyard",
 	"iceworks",
 	"pendulum_yard",
-	"shift"
+	"shift",
+	"atrium"
 ]
 
 # --- 3D Showroom ---

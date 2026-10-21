@@ -25,6 +25,7 @@ func _ready() -> void:
 	await _test_physics_crate_stability()
 	await _test_sky_courtyard_spawns()
 	await _test_void_fall_health_penalty()
+	await _test_slope_tilting()
 
 	print("\n========================================================")
 	print("   TEST RESULTS: %d PASSED | %d FAILED" % [_passed_count, _failed_count])
@@ -581,6 +582,83 @@ func _test_void_fall_health_penalty() -> void:
 
 	tank.queue_free()
 	tank_phoenix.queue_free()
+
+func _test_slope_tilting() -> void:
+	print("\n--- 13. Tank Slope Tilting on Inclined Surfaces Test ---")
+	var atrium_scene: PackedScene = load("res://maps/atrium.tscn")
+	_assert_test(atrium_scene != null, "atrium.tscn loaded for slope test")
+	var atrium := atrium_scene.instantiate()
+	add_child(atrium)
+
+	var tank_scene: PackedScene = load("res://tank/tank.tscn")
+	var tank := tank_scene.instantiate() as Tank
+	add_child(tank)
+	await get_tree().physics_frame
+
+	var ctrl := tank.controller
+	_assert_test(ctrl != null, "Tank has controller")
+	_assert_test(ctrl._probe_fl != null and ctrl._probe_fr != null and ctrl._probe_rl != null and ctrl._probe_rr != null, "All 4 suspension ground probes initialized")
+
+	# 1. Горизонтальный ровный пол: крен и дифферент равны 0
+	tank.global_position = Vector3(0, 0.5, 0)
+	tank.global_rotation = Vector3.ZERO
+	await get_tree().physics_frame
+	ctrl.update_tilt_only(0.1)
+	_assert_test(is_zero_approx(ctrl._current_slope_pitch) and is_zero_approx(ctrl._current_slope_roll), "Flat floor pitch and roll are strictly zero")
+	_assert_test(is_zero_approx(tank.visuals.rotation.x) and is_zero_approx(tank.visuals.rotation.z), "Visuals pitch and roll are strictly zero on flat floor")
+
+	# 2. Танк на рампе (RampNorth в Atrium) едет/смотрит В ГОРУ (направление +X -> yaw = -PI/2)
+	tank.global_position = Vector3(6.62, 1.6, 0)
+	tank.global_rotation.y = -PI * 0.5
+	for _i in range(25):
+		await get_tree().physics_frame
+		ctrl.update_tilt_only(0.016)
+
+	_assert_test(ctrl._current_slope_pitch > deg_to_rad(15.0), "Tank pitches UP (nose elevated) when facing uphill")
+	_assert_test(is_equal_approx(ctrl._current_slope_pitch, deg_to_rad(29.3)), "Uphill pitch strictly matches ramp incline (~29.3 deg)")
+	_assert_test(is_zero_approx(ctrl._current_slope_roll), "Uphill roll remains zero")
+	_assert_test(is_equal_approx(tank.visuals.rotation.x, ctrl._current_slope_pitch), "Visuals mesh is tilted up along slope")
+
+	# 3. Башня сохраняет ориентацию на погоне при наклоне корпуса на рампе
+	_assert_test(is_zero_approx(tank.turret.rotation.x) and is_zero_approx(tank.turret.rotation.z), "Turret ring remains flush to tilted chassis on slope")
+
+	# 4. Танк на рампе смотрит ПОД ГОРУ (направление -X -> yaw = PI/2)
+	tank.global_rotation.y = PI * 0.5
+	for _i in range(25):
+		await get_tree().physics_frame
+		ctrl.update_tilt_only(0.016)
+
+	_assert_test(ctrl._current_slope_pitch < deg_to_rad(-15.0), "Tank pitches DOWN (nose declined) when facing downhill")
+	_assert_test(is_equal_approx(ctrl._current_slope_pitch, deg_to_rad(-29.3)), "Downhill pitch strictly matches ramp incline (~29.3 deg)")
+	_assert_test(is_zero_approx(ctrl._current_slope_roll), "Downhill roll remains zero")
+
+	# 5. Танк на рампе стоит ПОПЕРЕК склона (боком: yaw = 0)
+	tank.global_rotation.y = 0.0
+	for _i in range(25):
+		await get_tree().physics_frame
+		ctrl.update_tilt_only(0.016)
+
+	_assert_test(is_zero_approx(ctrl._current_slope_pitch), "Transverse pitch is zero")
+	_assert_test(ctrl._current_slope_roll > deg_to_rad(15.0), "Transverse roll tilts sideways matching slope")
+	_assert_test(is_equal_approx(ctrl._current_slope_roll, deg_to_rad(29.3)), "Transverse roll strictly matches ramp incline (~29.3 deg)")
+
+	# 6. Танк в воздухе (прыжок / полет над рампой)
+	tank.global_position = Vector3(6.62, 5.0, 0)
+	for _i in range(30):
+		await get_tree().physics_frame
+		ctrl.update_tilt_only(0.016)
+
+	_assert_test(is_zero_approx(ctrl._current_slope_pitch) and is_zero_approx(ctrl._current_slope_roll), "Airborne tank smoothly levels back to zero tilt")
+
+	# 7. Сброс наклона при respawn()
+	ctrl._current_slope_pitch = -0.5
+	ctrl._current_slope_roll = 0.3
+	ctrl.reset_tilt()
+	_assert_test(is_zero_approx(ctrl._current_slope_pitch) and is_zero_approx(ctrl._current_slope_roll), "reset_tilt restores zero slope angles")
+	_assert_test(is_zero_approx(tank.visuals.rotation.x) and is_zero_approx(tank.visuals.rotation.z), "reset_tilt zeroes visuals rotation")
+
+	tank.queue_free()
+	atrium.queue_free()
 
 
 

@@ -12,6 +12,8 @@ extends Node
 @export var jump_velocity: float = 8.5
 @export var gravity: float = 18.0
 @export var body_turn_speed: float = 12.0
+@export var slope_alignment_speed: float = 14.0
+@export var max_slope_angle_deg: float = 55.0
 
 var speed_multiplier: float = 1.0
 var is_on_ice: bool = false
@@ -26,7 +28,15 @@ var _tank_body: Tank = null
 var _prev_velocity: Vector3 = Vector3.ZERO
 var _current_tilt_pitch: float = 0.0
 var _current_tilt_roll: float = 0.0
+var _current_slope_pitch: float = 0.0
+var _current_slope_roll: float = 0.0
 var _current_visual_scale: Vector3 = Vector3.ONE
+
+# 4 лучевых зонда подвески для прецизионного отслеживания рельефа
+var _probe_fl: RayCast3D = null
+var _probe_fr: RayCast3D = null
+var _probe_rl: RayCast3D = null
+var _probe_rr: RayCast3D = null
 
 func set_on_ice(val: bool) -> void:
 	is_on_ice = val
@@ -41,12 +51,50 @@ const COYOTE_TIME: float = 0.12
 func _ready() -> void:
 	_tank_body = get_parent() as Tank
 	if _tank_body:
-		_tank_body.floor_max_angle = deg_to_rad(55.0)
+		_tank_body.floor_max_angle = deg_to_rad(max_slope_angle_deg)
 		_tank_body.floor_snap_length = 0.4
 		_tank_body.floor_constant_speed = true
 		_tank_body.floor_stop_on_slope = false
 		_tank_body.floor_block_on_wall = false
 		_tank_body.platform_on_leave = CharacterBody3D.PLATFORM_ON_LEAVE_DO_NOTHING
+		_setup_ground_probes()
+
+func _setup_ground_probes() -> void:
+	if not _tank_body:
+		return
+	_probe_fl = _tank_body.get_node_or_null("GroundProbeFL") as RayCast3D
+	_probe_fr = _tank_body.get_node_or_null("GroundProbeFR") as RayCast3D
+	_probe_rl = _tank_body.get_node_or_null("GroundProbeRL") as RayCast3D
+	_probe_rr = _tank_body.get_node_or_null("GroundProbeRR") as RayCast3D
+
+	# Резервное программное создание, если нод нет в дереве сцены
+	if not _probe_fl:
+		_probe_fl = _create_probe_deferred("GroundProbeFL", Vector3(-0.68, 0.45, -0.75))
+	if not _probe_fr:
+		_probe_fr = _create_probe_deferred("GroundProbeFR", Vector3(0.68, 0.45, -0.75))
+	if not _probe_rl:
+		_probe_rl = _create_probe_deferred("GroundProbeRL", Vector3(-0.68, 0.45, 0.75))
+	if not _probe_rr:
+		_probe_rr = _create_probe_deferred("GroundProbeRR", Vector3(0.68, 0.45, 0.75))
+
+	if _probe_fl: _probe_fl.add_exception(_tank_body)
+	if _probe_fr: _probe_fr.add_exception(_tank_body)
+	if _probe_rl: _probe_rl.add_exception(_tank_body)
+	if _probe_rr: _probe_rr.add_exception(_tank_body)
+
+func _create_probe_deferred(probe_name: String, local_pos: Vector3) -> RayCast3D:
+	var existing := _tank_body.get_node_or_null(probe_name) as RayCast3D
+	if existing:
+		return existing
+	var probe := RayCast3D.new()
+	probe.name = probe_name
+	probe.position = local_pos
+	probe.target_position = Vector3(0.0, -1.8, 0.0)
+	probe.collision_mask = 1 # Слой 1: World
+	probe.hit_from_inside = true
+	probe.add_exception(_tank_body)
+	_tank_body.add_child.call_deferred(probe)
+	return probe
 
 func process_physics(input: TankInput, delta: float) -> void:
 	if not _tank_body:
@@ -216,6 +264,10 @@ func _update_chassis_tilt(delta: float) -> void:
 	if not _tank_body or not _tank_body.visuals:
 		return
 
+	# 1. Наклон корпуса по рельефу (склоны, рампы, горы)
+	_update_slope_tilt(delta)
+
+	# 2. Динамический наклон подвески от ускорения/торможения
 	var current_vel := _tank_body.velocity
 	var accel_world := (current_vel - _prev_velocity) / maxf(delta, 0.001)
 	_prev_velocity = current_vel
@@ -226,15 +278,15 @@ func _update_chassis_tilt(delta: float) -> void:
 	# Наклон корпуса:
 	# Торможение (local_accel.z > 0) -> клевок носом (pitch вниз > 0)
 	# Разгон вперед (local_accel.z < 0) -> подъем носа (pitch вверх < 0)
-	var target_pitch := clampf(local_accel.z * 0.0035, -0.12, 0.12)
+	var target_pitch := clampf(-local_accel.z * 0.0035, -0.12, 0.12)
 	# Боковой крен при заносе/повороте
-	var target_roll := clampf(-local_accel.x * 0.0025, -0.08, 0.08)
+	var target_roll := clampf(local_accel.x * 0.0025, -0.08, 0.08)
 
 	_current_tilt_pitch = lerpf(_current_tilt_pitch, target_pitch, 14.0 * delta)
 	_current_tilt_roll = lerpf(_current_tilt_roll, target_roll, 14.0 * delta)
 
-	_tank_body.visuals.rotation.x = _current_tilt_pitch
-	_tank_body.visuals.rotation.z = _current_tilt_roll
+	_tank_body.visuals.rotation.x = _current_slope_pitch + _current_tilt_pitch
+	_tank_body.visuals.rotation.z = _current_slope_roll + _current_tilt_roll
 
 	# Базовый визуальный масштаб всего танка (от карт/статов) строго изотропен
 	var base_tank_scale := _tank_body.stats.tank_scale if (_tank_body and _tank_body.stats) else 1.0
@@ -258,3 +310,94 @@ func _update_chassis_tilt(delta: float) -> void:
 		_tank_body.turret.position.y = 0.72 + 0.45 * (_current_visual_scale.y - 1.0)
 		if _tank_body.turret.barrel_mount:
 			_tank_body.turret.barrel_mount.scale = Vector3.ONE
+
+func _compute_ground_normal() -> Vector3:
+	if not _tank_body:
+		return Vector3.UP
+
+	var on_floor := _tank_body.is_on_floor()
+
+	# Когда танк в воздухе (прыжок / падение), ориентация возвращается в горизонталь
+	if not on_floor:
+		return Vector3.UP
+
+	var min_cos := cos(deg_to_rad(max_slope_angle_deg))
+
+	# 1. Считываем показания 4 лучевых зондов по углам гусениц
+	if _probe_fl and _probe_fr and _probe_rl and _probe_rr:
+		_probe_fl.force_raycast_update()
+		_probe_fr.force_raycast_update()
+		_probe_rl.force_raycast_update()
+		_probe_rr.force_raycast_update()
+
+		if _probe_fl.is_colliding() and _probe_fr.is_colliding() and _probe_rl.is_colliding() and _probe_rr.is_colliding():
+			var fl := _tank_body.to_local(_probe_fl.get_collision_point())
+			var fr := _tank_body.to_local(_probe_fr.get_collision_point())
+			var rl := _tank_body.to_local(_probe_rl.get_collision_point())
+			var rr := _tank_body.to_local(_probe_rr.get_collision_point())
+
+			var v_long := ((fl - rl) + (fr - rr)) * 0.5
+			var v_lat := ((fr - fl) + (rr - rl)) * 0.5
+			var local_norm := v_lat.cross(v_long).normalized()
+
+			if local_norm.y >= min_cos:
+				return local_norm
+
+	# 2. Резервный расчет через физическую нормаль пола CharacterBody3D
+	var floor_norm := _tank_body.get_floor_normal()
+	if floor_norm.length_squared() > 0.01:
+		var local_norm := _tank_body.global_transform.basis.inverse() * floor_norm
+		if local_norm.y >= min_cos:
+			return local_norm.normalized()
+
+	return Vector3.UP
+
+func _update_slope_tilt(delta: float) -> void:
+	var ground_norm := _compute_ground_normal()
+	var target_slope_pitch := atan2(ground_norm.z, ground_norm.y)
+	var target_slope_roll := -atan2(ground_norm.x, ground_norm.y)
+
+	var align_factor := clampf(slope_alignment_speed * delta, 0.0, 1.0)
+	_current_slope_pitch = lerp_angle(_current_slope_pitch, target_slope_pitch, align_factor)
+	_current_slope_roll = lerp_angle(_current_slope_roll, target_slope_roll, align_factor)
+
+func update_tilt_only(delta: float) -> void:
+	if not _tank_body or not _tank_body.visuals:
+		return
+
+	_update_slope_tilt(delta)
+
+	# Затухание динамических колебаний подвески
+	_current_tilt_pitch = lerpf(_current_tilt_pitch, 0.0, 14.0 * delta)
+	_current_tilt_roll = lerpf(_current_tilt_roll, 0.0, 14.0 * delta)
+
+	_tank_body.visuals.rotation.x = _current_slope_pitch + _current_tilt_pitch
+	_tank_body.visuals.rotation.z = _current_slope_roll + _current_tilt_roll
+
+	var base_tank_scale := _tank_body.stats.tank_scale if (_tank_body and _tank_body.stats) else 1.0
+	_tank_body.visuals.scale = Vector3.ONE * base_tank_scale
+
+	_current_visual_scale = _current_visual_scale.lerp(Vector3.ONE, 10.0 * delta)
+
+	if _tank_body.chassis_mesh:
+		_tank_body.chassis_mesh.scale = _current_visual_scale
+	if _tank_body.left_track:
+		_tank_body.left_track.scale = _current_visual_scale
+	if _tank_body.right_track:
+		_tank_body.right_track.scale = _current_visual_scale
+
+	if _tank_body.turret:
+		_tank_body.turret.scale = Vector3.ONE
+		_tank_body.turret.position.y = 0.72 + 0.45 * (_current_visual_scale.y - 1.0)
+		if _tank_body.turret.barrel_mount:
+			_tank_body.turret.barrel_mount.scale = Vector3.ONE
+
+func reset_tilt() -> void:
+	_current_slope_pitch = 0.0
+	_current_slope_roll = 0.0
+	_current_tilt_pitch = 0.0
+	_current_tilt_roll = 0.0
+	_prev_velocity = Vector3.ZERO
+	if _tank_body and _tank_body.visuals:
+		_tank_body.visuals.rotation.x = 0.0
+		_tank_body.visuals.rotation.z = 0.0

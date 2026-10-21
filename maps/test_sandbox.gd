@@ -20,7 +20,8 @@ const MAP_SCENES: Dictionary = {
 	"sky_courtyard": "res://maps/sky_courtyard.tscn",
 	"iceworks": "res://maps/iceworks.tscn",
 	"pendulum_yard": "res://maps/pendulum_yard.tscn",
-	"shift": "res://maps/shift.tscn"
+	"shift": "res://maps/shift.tscn",
+	"atrium": "res://maps/atrium.tscn"
 }
 
 @onready var map_container: Node3D = get_node_or_null("MapContainer")
@@ -128,6 +129,12 @@ func load_map(map_name: String) -> void:
 	if match_controller:
 		match_controller.spawn_points_container = spawn_points_container
 
+	if not Network.is_multiplayer_active() and not Network.is_host:
+		if tank:
+			tank.spawn_point = _get_spawn_transform_for_peer(1)
+		if dummy_tank:
+			dummy_tank.spawn_point = _get_spawn_transform_for_peer(2)
+
 @rpc("authority", "reliable", "call_local")
 func s2c_load_map(map_name: String) -> void:
 	load_map(map_name)
@@ -174,17 +181,27 @@ func _setup_solo_mode() -> void:
 	var tf1 := _get_spawn_transform_for_peer(1)
 	if tank and camera:
 		_bind_local_tank(tank)
+		tank.peer_id = 1
+		tank.team_id = 0
 		tank.spawn_point = tf1
 		tank.global_transform = tf1
+		if not tank.died.is_connected(_on_solo_tank_died):
+			tank.died.connect(_on_solo_tank_died)
 
 	var tf2 := _get_spawn_transform_for_peer(2)
 	if dummy_tank:
+		dummy_tank.peer_id = 2
 		dummy_tank.team_id = 1
 		dummy_tank.set_team_color(Color(0.95, 0.25, 0.25))
 		if dummy_tank.input:
 			dummy_tank.input.enabled = false
 		dummy_tank.spawn_point = tf2
 		dummy_tank.global_transform = tf2
+		if not dummy_tank.died.is_connected(_on_dummy_tank_died):
+			dummy_tank.died.connect(_on_dummy_tank_died)
+
+	if tank_overhead_manager and dummy_tank:
+		tank_overhead_manager._create_overhead_for_tank(dummy_tank)
 
 func _bind_local_tank(target_tank: Tank) -> void:
 	_active_local_tank = target_tank
@@ -257,6 +274,14 @@ func _on_session_ended() -> void:
 	if tank:
 		_bind_local_tank(tank)
 		_respawn_tank()
+	if dummy_tank:
+		var tf2 := dummy_tank.spawn_point if dummy_tank.spawn_point != Transform3D.IDENTITY else _get_spawn_transform_for_peer(2)
+		dummy_tank.respawn(tf2)
+		dummy_tank.peer_id = 2
+		dummy_tank.team_id = 1
+		dummy_tank.set_team_color(Color(0.95, 0.25, 0.25))
+		if dummy_tank.input:
+			dummy_tank.input.enabled = false
 
 func _set_solo_tanks_active(is_active_solo: bool) -> void:
 	if tank:
@@ -328,6 +353,26 @@ func _on_tank_died(dead_tank: Tank, _killer: Node) -> void:
 				var spawn_tf := _get_spawn_transform_for_peer(dead_tank.peer_id)
 				dead_tank.respawn(spawn_tf)
 		)
+
+func _on_dummy_tank_died(_killer: Node) -> void:
+	var timer := get_tree().create_timer(1.5)
+	timer.timeout.connect(func():
+		if is_instance_valid(dummy_tank) and dummy_tank.is_inside_tree() and (Game.is_solo_practice or not Network.is_multiplayer_active()):
+			var tf2 := dummy_tank.spawn_point if dummy_tank.spawn_point != Transform3D.IDENTITY else _get_spawn_transform_for_peer(2)
+			dummy_tank.respawn(tf2)
+			dummy_tank.peer_id = 2
+			dummy_tank.team_id = 1
+			dummy_tank.set_team_color(Color(0.95, 0.25, 0.25))
+			if dummy_tank.input:
+				dummy_tank.input.enabled = false
+	)
+
+func _on_solo_tank_died(_killer: Node) -> void:
+	var timer := get_tree().create_timer(2.0)
+	timer.timeout.connect(func():
+		if is_instance_valid(tank) and tank.is_inside_tree() and (Game.is_solo_practice or not Network.is_multiplayer_active()):
+			_respawn_tank()
+	)
 
 func _on_session_joined() -> void:
 	if lobby:
