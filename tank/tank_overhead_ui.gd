@@ -23,10 +23,17 @@ var _ammo_pills: Array[ColorRect] = []
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_ignore_mouse_recursive(self)
 	visible = false
 	_setup_ammo_pills(6)
 	if shield_indicator:
 		shield_indicator.visible = false
+
+func _ignore_mouse_recursive(node: Node) -> void:
+	if node is Control:
+		node.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	for child in node.get_children():
+		_ignore_mouse_recursive(child)
 
 func bind_tank(tank: Tank) -> void:
 	target_tank = tank
@@ -66,6 +73,7 @@ func _setup_ammo_pills(count: int) -> void:
 
 	for i in range(count):
 		var pill := ColorRect.new()
+		pill.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		pill.custom_minimum_size = Vector2(8, 12)
 		pill.color = COLOR_AMMO_FULL
 		ammo_hbox.add_child(pill)

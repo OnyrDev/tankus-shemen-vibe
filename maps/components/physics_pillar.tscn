@@ -1,0 +1,36 @@
+[gd_scene format=3 uid="uid://pill3phys001"]
+
+[ext_resource type="Script" path="res://maps/components/physics_pillar.gd" id="1_pillar"]
+
+[sub_resource type="StandardMaterial3D" id="Mat_pillar"]
+albedo_color = Color(0.3, 0.34, 0.39, 1)
+roughness = 0.7
+metallic = 0.1
+
+[sub_resource type="PhysicsMaterial" id="PhysicsMaterial_pillar"]
+friction = 0.8
+rough = true
+
+[sub_resource type="BoxMesh" id="BoxMesh_pillar"]
+material = SubResource("Mat_pillar")
+size = Vector3(2.4, 6.5, 2.4)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_pillar"]
+size = Vector3(2.4, 6.5, 2.4)
+
+[node name="PhysicsPillar" type="RigidBody3D"]
+collision_layer = 8
+collision_mask = 15
+mass = 450.0
+physics_material_override = SubResource("PhysicsMaterial_pillar")
+linear_damp = 3.5
+angular_damp = 5.0
+axis_lock_angular_x = true
+axis_lock_angular_z = true
+script = ExtResource("1_pillar")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="."]
+mesh = SubResource("BoxMesh_pillar")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+shape = SubResource("BoxShape3D_pillar")

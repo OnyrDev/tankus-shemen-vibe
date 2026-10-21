@@ -92,6 +92,8 @@ func _physics_process(delta: float) -> void:
 			move_and_slide()
 		else:
 			velocity.y = 0.0
+		if controller:
+			controller.update_tilt_only(delta)
 		if turret and input and input.is_aim_valid:
 			turret.aim_at(input.aim_point, delta)
 		return
@@ -124,6 +126,17 @@ func respawn(new_transform: Transform3D = spawn_point, reset_health: bool = true
 	global_transform = new_transform
 	velocity = Vector3.ZERO
 	rotation = Vector3.ZERO
+
+	if controller:
+		controller.reset_tilt()
+
+	var col := get_node_or_null("CollisionShape3D") as CollisionShape3D
+	if col:
+		col.set_deferred("disabled", false)
+
+	var poison_node := get_node_or_null("PoisonEffect")
+	if poison_node:
+		poison_node.queue_free()
 
 	if visuals:
 		visuals.visible = true

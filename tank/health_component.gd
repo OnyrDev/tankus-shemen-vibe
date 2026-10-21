@@ -109,6 +109,9 @@ func _die(killer: Node) -> void:
 	if _tank:
 		_tank.is_active = false
 		_tank.velocity = Vector3.ZERO
+		var col := _tank.get_node_or_null("CollisionShape3D") as CollisionShape3D
+		if col:
+			col.set_deferred("disabled", true)
 
 	_spawn_death_explosion()
 
@@ -146,6 +149,10 @@ func _spawn_death_explosion() -> void:
 
 func reset() -> void:
 	current_health = max_health
-	if _tank and _tank.visuals:
-		_tank.visuals.visible = true
+	if _tank:
+		if _tank.visuals:
+			_tank.visuals.visible = true
+		var col := _tank.get_node_or_null("CollisionShape3D") as CollisionShape3D
+		if col:
+			col.set_deferred("disabled", false)
 	health_changed.emit(current_health, max_health)

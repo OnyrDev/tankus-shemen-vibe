@@ -64,7 +64,7 @@ func setup_target(new_target: Node3D) -> void:
 func add_trauma(amount: float) -> void:
 	trauma = clampf(trauma + amount, 0.0, 1.0)
 
-func _unhandled_input(event: InputEvent) -> void:
+func _input(event: InputEvent) -> void:
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		yaw -= event.relative.x * mouse_sensitivity
 		pitch = clampf(
@@ -76,6 +76,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		if spring_arm:
 			spring_arm.rotation.x = -pitch
 
+func _unhandled_input(event: InputEvent) -> void:
 	# Переключение курсора по Esc / ui_cancel
 	if event.is_action_pressed("pause") or event.is_action_pressed("ui_cancel"):
 		if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
