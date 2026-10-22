@@ -31,6 +31,8 @@ var _current_tilt_roll: float = 0.0
 var _current_slope_pitch: float = 0.0
 var _current_slope_roll: float = 0.0
 var _current_visual_scale: Vector3 = Vector3.ONE
+var _chassis_rest_scales: Dictionary = {}
+var _turret_rest_height: float = 0.72
 
 # 4 лучевых зонда подвески для прецизионного отслеживания рельефа
 var _probe_fl: RayCast3D = null
@@ -51,6 +53,13 @@ const COYOTE_TIME: float = 0.12
 func _ready() -> void:
 	_tank_body = get_parent() as Tank
 	if _tank_body:
+		for part_name in ["Visuals/ChassisMesh", "Visuals/LeftTrack", "Visuals/RightTrack"]:
+			var part := _tank_body.get_node_or_null(part_name) as Node3D
+			if part:
+				_chassis_rest_scales[part] = part.scale
+		var turret_node := _tank_body.get_node_or_null("Visuals/TurretMount") as Node3D
+		if turret_node:
+			_turret_rest_height = turret_node.position.y
 		_tank_body.floor_max_angle = deg_to_rad(max_slope_angle_deg)
 		_tank_body.floor_snap_length = 0.4
 		_tank_body.floor_constant_speed = true
@@ -297,17 +306,13 @@ func _update_chassis_tilt(delta: float) -> void:
 
 	# Применяем squash / stretch ТОЛЬКО к элементам шасси (корпус и гусеницы),
 	# чтобы ствол и башня оставались жесткими и никогда не деформировались при прыжках/ударах
-	if _tank_body.chassis_mesh:
-		_tank_body.chassis_mesh.scale = _current_visual_scale
-	if _tank_body.left_track:
-		_tank_body.left_track.scale = _current_visual_scale
-	if _tank_body.right_track:
-		_tank_body.right_track.scale = _current_visual_scale
+	for part in _chassis_rest_scales:
+		part.scale = _chassis_rest_scales[part] * _current_visual_scale
 
 	# Башня следует по вертикали за сжатием подвески, сохраняя строгий единичный масштаб
 	if _tank_body.turret:
 		_tank_body.turret.scale = Vector3.ONE
-		_tank_body.turret.position.y = 0.72 + 0.45 * (_current_visual_scale.y - 1.0)
+		_tank_body.turret.position.y = _turret_rest_height + 0.45 * (_current_visual_scale.y - 1.0)
 		if _tank_body.turret.barrel_mount:
 			_tank_body.turret.barrel_mount.scale = Vector3.ONE
 
@@ -379,16 +384,12 @@ func update_tilt_only(delta: float) -> void:
 
 	_current_visual_scale = _current_visual_scale.lerp(Vector3.ONE, 10.0 * delta)
 
-	if _tank_body.chassis_mesh:
-		_tank_body.chassis_mesh.scale = _current_visual_scale
-	if _tank_body.left_track:
-		_tank_body.left_track.scale = _current_visual_scale
-	if _tank_body.right_track:
-		_tank_body.right_track.scale = _current_visual_scale
+	for part in _chassis_rest_scales:
+		part.scale = _chassis_rest_scales[part] * _current_visual_scale
 
 	if _tank_body.turret:
 		_tank_body.turret.scale = Vector3.ONE
-		_tank_body.turret.position.y = 0.72 + 0.45 * (_current_visual_scale.y - 1.0)
+		_tank_body.turret.position.y = _turret_rest_height + 0.45 * (_current_visual_scale.y - 1.0)
 		if _tank_body.turret.barrel_mount:
 			_tank_body.turret.barrel_mount.scale = Vector3.ONE
 

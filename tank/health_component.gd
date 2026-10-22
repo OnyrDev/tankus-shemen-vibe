@@ -89,14 +89,10 @@ func _play_hit_flash() -> void:
 	flash_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	flash_mat.albedo_color = Color(1.0, 1.0, 1.0, 1.0)
 
-	var meshes: Array[MeshInstance3D] = []
-	if _tank.chassis_mesh:
-		meshes.append(_tank.chassis_mesh)
-	if _tank.turret_mesh:
-		meshes.append(_tank.turret_mesh)
-
-	for mesh in meshes:
-		mesh.material_override = flash_mat
+	for node in _tank.visuals.find_children("*", "MeshInstance3D", true, false):
+		var mesh := node as MeshInstance3D
+		if mesh != _tank.shield_mesh:
+			mesh.material_override = flash_mat
 
 	_hit_flash_tween = create_tween()
 	_hit_flash_tween.tween_interval(0.08)

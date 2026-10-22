@@ -213,7 +213,7 @@ func _test_standalone_lobby_screen() -> void:
 	# Проверка динамической перекраски танка под команду игрока
 	Network.local_team_id = 2
 	lobby_scr._update_tank_team_color()
-	var mat: StandardMaterial3D = lobby_scr.chassis_mesh.material_override
+	var mat: StandardMaterial3D = lobby_scr.chassis_mesh.get_surface_override_material(1)
 	_assert_test(mat != null and mat.albedo_color == LobbyScreenScript.TEAM_COLORS[1], "Танк в шоуруме перекрашивается в цвет команды игрока (Команда 2 - Красный)")
 
 	Network.local_team_id = 1

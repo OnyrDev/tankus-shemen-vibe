@@ -54,3 +54,23 @@ res://
 1. Откройте проект в **Godot Engine 4.7.2 Standard (64-bit)**.
 2. Для запуска одиночной песочницы запустите главную сцену (`F5`).
 3. Для локального мультиплеера используйте опцию Godot: `Debug -> Run Multiple Instances -> 2 Instances`.
+
+## Модель танка
+
+В бою, главном меню и лобби используется Cobalt Scout из
+`assets/tanks/cobalt_scout/CobaltScout_game.glb`. Общая адаптированная сцена —
+`tank/tank_visuals.tscn`: масштаб 0.44, разворот на -Z, отдельные башня и орудие.
+Командная окраска меняет только эмаль и броню, сохраняя остальные материалы.
+
+После замены исходного GLB импортируйте проект и пересоберите визуальную сцену:
+
+```sh
+godot --headless --path . --editor --import --quit
+godot --headless --path . --script tools/prepare_cobalt_scout.gd
+```
+
+Проверка геометрии, наведения, масштаба, окраски и вспышки попадания:
+
+```sh
+godot --headless --path . res://tests/test_tank_model.tscn
+```
