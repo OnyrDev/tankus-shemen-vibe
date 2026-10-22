@@ -141,6 +141,7 @@ func _test_chassis_tilt_and_squash() -> void:
 	add_child(tank)
 
 	var ctrl := tank.controller
+	var initial_barrel_length := tank.turret.barrel_mount.global_position.distance_to(tank.turret.muzzle.global_position)
 	_assert_test(ctrl != null, "Tank controller exists on tank")
 
 	# Имитируем прыжок -> stretch
@@ -163,7 +164,7 @@ func _test_chassis_tilt_and_squash() -> void:
 	var muzzle := tank.turret.muzzle
 	var barrel_mount := tank.turret.barrel_mount
 	var barrel_len := barrel_mount.global_position.distance_to(muzzle.global_position)
-	_assert_test(is_equal_approx(barrel_len, 1.15), "Barrel length strictly preserved at 1.15m during landing squash (no elongation)")
+	_assert_test(is_equal_approx(barrel_len, initial_barrel_length), "Model barrel length is preserved during landing squash (no elongation)")
 
 	tank.queue_free()
 
@@ -326,6 +327,7 @@ func _test_turret_behavior() -> void:
 	await get_tree().process_frame
 
 	var turret := tank.turret
+	var initial_barrel_length := turret.barrel_mount.global_position.distance_to(turret.muzzle.global_position)
 	_assert_test(turret != null, "Tank has turret component")
 	_assert_test(is_zero_approx(turret.rotation.x) and is_zero_approx(turret.rotation.z), "Initial turret has zero roll/pitch tilt")
 
@@ -375,7 +377,7 @@ func _test_turret_behavior() -> void:
 	var close_obstacle_target := turret.global_position + (-turret.global_transform.basis.z * 0.6)
 	turret.aim_at(close_obstacle_target, 1.0)
 	var barrel_len_close := turret.barrel_mount.global_position.distance_to(turret.muzzle.global_position)
-	_assert_test(is_equal_approx(barrel_len_close, 1.15), "Barrel length strictly preserved at 1.15m when penetrating close obstacle")
+	_assert_test(is_equal_approx(barrel_len_close, initial_barrel_length), "Model barrel length is preserved when penetrating close obstacle")
 	_assert_test(absf(turret.barrel_mount.rotation.x) < deg_to_rad(30.0), "Barrel does not snap to extreme pitch when penetrating obstacle")
 	_assert_test(is_zero_approx(turret.rotation.y), "Turret does not flip backwards when target is close inside barrel")
 

@@ -37,9 +37,15 @@ var distance_traveled: float = 0.0
 var _time_alive: float = 0.0
 var _is_destroyed: bool = false
 
-@onready var mesh_instance: MeshInstance3D = get_node_or_null("MeshInstance3D")
+const ENERGY_COLOR := Color(0.08, 0.7, 1.0)
+
+var _visual_color: Color = ENERGY_COLOR
+
+@onready var visuals: Node3D = get_node_or_null("Visuals")
+@onready var mesh_instance: MeshInstance3D = get_node_or_null("Visuals/Shell")
+@onready var tail: MeshInstance3D = get_node_or_null("Visuals/Tail")
 @onready var light: OmniLight3D = get_node_or_null("OmniLight3D")
-@onready var particles: GPUParticles3D = get_node_or_null("GPUParticles3D")
+@onready var particles: GPUParticles3D = get_node_or_null("Visuals/GPUParticles3D")
 @onready var collision_shape: CollisionShape3D = get_node_or_null("CollisionShape3D")
 
 var _net_sync: MultiplayerSynchronizer = null
@@ -76,8 +82,8 @@ func _ready() -> void:
 	if size_mult != 1.0:
 		scale = Vector3.ONE * size_mult
 
-	if team_id >= 0:
-		_apply_color(DEFAULT_TEAM_COLORS[team_id % DEFAULT_TEAM_COLORS.size()])
+	_apply_color(DEFAULT_TEAM_COLORS[team_id % DEFAULT_TEAM_COLORS.size()] if team_id >= 0 else ENERGY_COLOR)
+	_update_visual_direction()
 
 	_setup_network_sync()
 
@@ -118,7 +124,7 @@ func _setup_network_sync() -> void:
 	_net_sync.set_multiplayer_authority(1)
 	add_child(_net_sync)
 
-func setup(p_shooter: Node, p_origin: Vector3, p_direction: Vector3, p_color: Color = Color(1.0, 0.85, 0.2)) -> void:
+func setup(p_shooter: Node, p_origin: Vector3, p_direction: Vector3, p_color: Color = ENERGY_COLOR) -> void:
 	shooter = p_shooter
 	global_position = p_origin
 	direction = p_direction.normalized()
@@ -131,18 +137,39 @@ func setup(p_shooter: Node, p_origin: Vector3, p_direction: Vector3, p_color: Co
 		if is_instance_valid(shooter) and shooter is CollisionObject3D:
 			add_collision_exception_with(shooter as CollisionObject3D)
 		_apply_color(p_color)
+		_update_visual_direction()
 		if size_mult != 1.0:
 			scale = Vector3.ONE * size_mult
 
 func _apply_color(col: Color) -> void:
-	if mesh_instance:
-		var mat := StandardMaterial3D.new()
-		mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		mat.albedo_color = col
-		mesh_instance.material_override = mat
+	_visual_color = col
+	for part in [mesh_instance, tail]:
+		if not part:
+			continue
+		var mat := part.material_override as StandardMaterial3D
+		if not mat:
+			mat = part.mesh.surface_get_material(0).duplicate() as StandardMaterial3D
+		var alpha := mat.albedo_color.a
+		mat.albedo_color = Color(col.r, col.g, col.b, alpha)
+		mat.emission = col
+		part.material_override = mat
 
+	if particles:
+		var trail_material := particles.process_material.duplicate() as ParticleProcessMaterial
+		trail_material.color = col.lightened(0.25)
+		particles.process_material = trail_material
 	if light:
 		light.light_color = col
+
+func _process(_delta: float) -> void:
+	_update_visual_direction()
+
+func _update_visual_direction() -> void:
+	if not visuals or velocity.length_squared() < 0.001:
+		return
+	var forward := velocity.normalized()
+	var up := Vector3.FORWARD if absf(forward.dot(Vector3.UP)) > 0.95 else Vector3.UP
+	visuals.look_at(visuals.global_position + forward, up)
 
 func _physics_process(delta: float) -> void:
 	if _is_destroyed:
@@ -395,7 +422,7 @@ func _spawn_impact_vfx(pos: Vector3, normal: Vector3) -> void:
 		if spark:
 			spawn_parent.add_child(spark)
 			spark.global_position = pos
-			spark.setup(normal)
+			spark.setup(normal, _visual_color.lightened(0.35))
 
 func _destroy() -> void:
 	if _is_destroyed:

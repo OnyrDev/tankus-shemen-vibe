@@ -278,15 +278,7 @@ func _update_tank_team_color() -> void:
 	var team_idx := clampi(my_team - 1, 0, TEAM_COLORS.size() - 1)
 	var col := TEAM_COLORS[team_idx]
 
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = col
-	mat.metallic = 0.25
-	mat.roughness = 0.35
-
-	if chassis_mesh:
-		chassis_mesh.material_override = mat
-	if turret_mesh:
-		turret_mesh.material_override = mat
+	TankAppearance.apply_team_color(showroom_tank, col)
 
 func _on_player_list_updated() -> void:
 	_refresh_player_cards()
