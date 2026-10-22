@@ -74,3 +74,20 @@ godot --headless --path . --script tools/prepare_cobalt_scout.gd
 ```sh
 godot --headless --path . res://tests/test_tank_model.tscn
 ```
+
+## Анимация гусениц
+
+Звенья исходной модели движутся по замкнутому контуру, шесть колёс вращаются
+вокруг своих осей. Анимация использует фактическое перемещение и поворот корпуса:
+при заднем ходе направление меняется, на поворотах гусеницы идут с разной скоростью.
+Она работает и для удалённых сетевых танков, не изменяя физику движения или наведение.
+
+`tank/track_animation.gd` управляет фазами левой и правой гусеницы,
+`tank/track_belt.gdshader` перемещает целые звенья, сохраняя их форму.
+Подготовленные меши `assets/tanks/cobalt_scout/track_*_animated.res` содержат
+метки звеньев в UV2. Они пересоздаются существующей командой
+`godot --headless --path . --script tools/prepare_cobalt_scout.gd`.
+
+```sh
+godot --headless --path . res://tests/test_track_animation.tscn
+```

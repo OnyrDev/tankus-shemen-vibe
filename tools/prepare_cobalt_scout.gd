@@ -6,7 +6,11 @@ const MODEL_SCALE := 0.44
 const GROUND_OFFSET := 0.02618 # Lowest track vertex is -0.0595 in the source.
 
 func _initialize() -> void:
+	call_deferred("_prepare")
+
+func _prepare() -> void:
 	var source := (load(SOURCE) as PackedScene).instantiate()
+	load("res://tools/prepare_track_animation.gd").new().generate(source)
 	var model := Node3D.new()
 	model.name = "Visuals"
 	model.set_script(load("res://tank/tank_appearance.gd"))

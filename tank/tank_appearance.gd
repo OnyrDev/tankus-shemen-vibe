@@ -3,6 +3,12 @@ extends Node3D
 
 ## Shared armor recoloring for the playable tank and lobby showroom.
 ## Preserve rubber, steel, optics and warning accents from the GLB.
+func _ready() -> void:
+	var tracks := Node3D.new()
+	tracks.set_script(preload("res://tank/track_animation.gd"))
+	tracks.name = "TrackAnimation"
+	add_child(tracks)
+
 static func apply_team_color(model: Node3D, color: Color) -> void:
 	if not model:
 		return
