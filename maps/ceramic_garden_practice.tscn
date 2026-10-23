@@ -1,0 +1,7 @@
+[gd_scene format=3]
+
+[ext_resource type="PackedScene" path="res://maps/test_sandbox.tscn" id="1"]
+[ext_resource type="Script" path="res://maps/ceramic_garden_practice.gd" id="2"]
+
+[node name="CeramicGardenPractice" instance=ExtResource("1")]
+script = ExtResource("2")

@@ -21,7 +21,9 @@ const MAP_SCENES: Dictionary = {
 	"iceworks": "res://maps/iceworks.tscn",
 	"pendulum_yard": "res://maps/pendulum_yard.tscn",
 	"shift": "res://maps/shift.tscn",
-	"atrium": "res://maps/atrium.tscn"
+	"atrium": "res://maps/atrium.tscn",
+	"ceramic_garden": "res://maps/ceramic_garden.tscn",
+	"radio_station": "res://maps/radio_station.tscn"
 }
 
 @onready var map_container: Node3D = get_node_or_null("MapContainer")
