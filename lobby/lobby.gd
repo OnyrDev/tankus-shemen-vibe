@@ -49,7 +49,8 @@ const MAP_NAMES: Array[String] = [
 	"shift",
 	"atrium",
 	"ceramic_garden",
-	"radio_station"
+	"radio_station",
+	"factory_smelter"
 ]
 
 var _is_local_ready: bool = false
@@ -143,6 +144,7 @@ func _setup_ui_options() -> void:
 		opt_map.add_item("Atrium", 4)
 		opt_map.add_item("Керамический сад — Терракота", 5)
 		opt_map.add_item("Радиостанция — Малиновая частота", 6)
+		opt_map.add_item("Завод — Плавильня", 7)
 
 func _update_lobby_ui() -> void:
 	var is_host: bool = Network.is_host or not Network.is_multiplayer_active()
