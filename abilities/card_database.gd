@@ -106,6 +106,8 @@ class BlinkEffect extends CardEffect:
 			target_pos = tank.global_position + aim_dir * dist
 
 		tank.global_position = target_pos
+		if tank.net_sync:
+			tank.net_sync.reset_movement_prediction()
 
 class ShockwaveEffect extends CardEffect:
 	func on_block_started(_duration: float, stacks: int) -> void:

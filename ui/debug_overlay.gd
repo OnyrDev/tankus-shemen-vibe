@@ -611,6 +611,12 @@ func _update_debug_text() -> void:
 			pos.x, pos.y, pos.z, vel, hp, max_hp, ammo, max_ammo, cards_str
 		]
 
+		if local_tank.net_sync:
+			var sync := local_tank.net_sync
+			tank_info += "\nPrediction: %s | Simulated movement RTT: %d ms\nPending inputs: %d | Last correction: %.3f m" % [
+				"ON" if sync.prediction_enabled else "OFF", sync.simulated_latency_ms * 2,
+				sync.get_pending_input_count(), sync.last_correction_distance]
+
 	var text := """[ PERFORMANCE ]
 FPS: %d (%.2f ms)
 Draw Calls: %d | Mem: %.1f MB

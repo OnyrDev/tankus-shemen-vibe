@@ -79,14 +79,13 @@ func _check_integration() -> void:
 	await get_tree().physics_frame
 	_check(practice.current_arena != null and Game.rules.selected_map == "radio_station", "F6 practice entry loads Radio Station")
 	_check(practice.match_controller.spawn_points_container == practice.current_arena.spawn_points_container, "Match controller uses the new arena spawns")
-	var map_index := Lobby.MAP_NAMES.find("radio_station")
-	_check(map_index >= 0 and practice.lobby.opt_map.item_count > map_index, "In-game lobby offers the new map")
+	_check(MatchRules.MAP_SCENES.has("radio_station"), "Map participates in random network rotation")
+	_check(practice.lobby.find_child("OptMap", true, false) == null, "In-game lobby uses automatic map selection")
 	practice.queue_free()
 	await get_tree().process_frame
 	var screen := (load("res://lobby/lobby_screen.tscn") as PackedScene).instantiate() as LobbyScreen
 	add_child(screen)
-	map_index = LobbyScreen.MAP_NAMES.find("radio_station")
-	_check(map_index >= 0 and screen.opt_map.item_count > map_index, "Standalone LAN lobby offers the new map")
+	_check(screen.find_child("OptMap", true, false) == null, "Standalone LAN lobby uses automatic map selection")
 	screen.queue_free()
 	await get_tree().process_frame
 
