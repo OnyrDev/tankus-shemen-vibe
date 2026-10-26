@@ -1116,17 +1116,18 @@ shape = SubResource("BoxShape3D_x8pjv")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -10, 0, -7)
 
 [node name="Crate_Base_01" type="StaticBody3D" parent="DynamicProps/TransformerCoverWest" unique_id=2012776182]
-transform = Transform3D(0.99939084, 0, -0.034899496, 0, 1, 0, 0.034899496, 0, 0.99939084, -0.72, 0.7, 0)
+transform = Transform3D(0.99939084, 0, -0.034899496, 0, 1, 0, 0.034899496, 0, 0.99939084, 0.59334564, 2.1409905, -1.0621834)
 collision_mask = 0
 
 [node name="Mesh" type="MeshInstance3D" parent="DynamicProps/TransformerCoverWest/Crate_Base_01" unique_id=1437062878]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.13403702, 0, -0.0046806335)
 mesh = ExtResource("8_u4trw")
 
 [node name="Collision" type="CollisionShape3D" parent="DynamicProps/TransformerCoverWest/Crate_Base_01" unique_id=1607240202]
 shape = SubResource("BoxShape3D_vgbqk")
 
 [node name="Crate_Base_02" type="StaticBody3D" parent="DynamicProps/TransformerCoverWest" unique_id=1086879167]
-transform = Transform3D(0.9986295, 0, 0.05233596, 0, 1, 0, -0.05233596, 0, 0.9986295, 0.72, 0.7, 0)
+transform = Transform3D(1.1400168, 0, 0.1065731, 0, 1, 0, -0.06562884, 0, 1.8512459, 0.72000027, 0.7, -1.6555014)
 collision_mask = 0
 
 [node name="Mesh" type="MeshInstance3D" parent="DynamicProps/TransformerCoverWest/Crate_Base_02" unique_id=1511252122]
@@ -1136,7 +1137,7 @@ mesh = ExtResource("8_u4trw")
 shape = SubResource("BoxShape3D_afvyj")
 
 [node name="Crate_Top_01" type="StaticBody3D" parent="DynamicProps/TransformerCoverWest" unique_id=1000787759]
-transform = Transform3D(1.7801942, 0, 0.41131946, 0, 1.94, 0, -0.18710594, 0, 3.9134436, 0, 2.1, 0)
+transform = Transform3D(1.7801942, 0, 0.41131946, 0, 1.94, 0, -0.18710594, 0, 3.9134436, 0, 1.4072335, 2.5038114)
 collision_mask = 0
 
 [node name="Mesh" type="MeshInstance3D" parent="DynamicProps/TransformerCoverWest/Crate_Top_01" unique_id=950601232]
@@ -1149,7 +1150,7 @@ shape = SubResource("BoxShape3D_yt8kn")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 16, 0, 7)
 
 [node name="Crate_Base_01" type="StaticBody3D" parent="DynamicProps/TransformerCoverEast" unique_id=1953131217]
-transform = Transform3D(0.99939084, 0, -0.034899496, 0, 1, 0, 0.034899496, 0, 0.99939084, -0.72, 0.7, 0)
+transform = Transform3D(1.7889096, 0, -0.13715503, 0, 1.94, 0, 0.062470097, 0, 3.927606, -0.72000027, 1.3746803, -4.146006)
 collision_mask = 0
 
 [node name="Mesh" type="MeshInstance3D" parent="DynamicProps/TransformerCoverEast/Crate_Base_01" unique_id=279867448]
@@ -1159,7 +1160,7 @@ mesh = ExtResource("8_u4trw")
 shape = SubResource("BoxShape3D_efp1r")
 
 [node name="Crate_Base_02" type="StaticBody3D" parent="DynamicProps/TransformerCoverEast" unique_id=433035644]
-transform = Transform3D(0.9986295, 0, 0.05233596, 0, 1, 0, -0.05233596, 0, 0.9986295, 0.72, 0.7, 0)
+transform = Transform3D(1.1398282, 0, -0.032112114, 0, 1, 0, 0.019787997, 0, 1.8497213, -1.2309914, 0.7, 0.041985035)
 collision_mask = 0
 
 [node name="Mesh" type="MeshInstance3D" parent="DynamicProps/TransformerCoverEast/Crate_Base_02" unique_id=826365749]
@@ -1169,7 +1170,7 @@ mesh = ExtResource("8_u4trw")
 shape = SubResource("BoxShape3D_qpp6o")
 
 [node name="Crate_Top_01" type="StaticBody3D" parent="DynamicProps/TransformerCoverEast" unique_id=1204897462]
-transform = Transform3D(0.9945219, 0, 0.104528464, 0, 1, 0, -0.104528464, 0, 0.9945219, 0, 2.1, 0)
+transform = Transform3D(0.99436533, 0, -0.10600798, 0, 1, 0, 0.10600798, 0, 0.99436533, -1.3277979, 2.1, -0.49266577)
 collision_mask = 0
 
 [node name="Mesh" type="MeshInstance3D" parent="DynamicProps/TransformerCoverEast/Crate_Top_01" unique_id=679446697]
