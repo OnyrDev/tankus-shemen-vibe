@@ -1,65 +1,169 @@
-[gd_scene format=3]
+[gd_scene format=3 uid="uid://cy6bej1ikjmio"]
 
-[ext_resource type="Script" path="res://projectile/projectile.gd" id="1_proj"]
+[ext_resource type="Script" uid="uid://ci54pwcrxc873" path="res://projectile/projectile.gd" id="1_proj"]
 
-[sub_resource type="SphereShape3D" id="SphereShape3D_proj"]
+[sub_resource type="SphereShape3D" id="Collision"]
 radius = 0.18
 
-[sub_resource type="StandardMaterial3D" id="Material_proj"]
+[sub_resource type="StandardMaterial3D" id="Energy"]
+transparency = 1
 shading_mode = 0
-albedo_color = Color(1, 0.85, 0.2, 1)
+albedo_color = Color(0.08, 0.7, 1, 0.38)
 
-[sub_resource type="SphereMesh" id="SphereMesh_proj"]
-material = SubResource("Material_proj")
-radius = 0.18
-height = 0.36
+[sub_resource type="CapsuleMesh" id="Shell"]
+material = SubResource("Energy")
+radius = 0.145
+height = 0.42
+radial_segments = 12
+rings = 4
 
-[sub_resource type="Curve" id="Curve_trail"]
+[sub_resource type="StandardMaterial3D" id="CoreMaterial"]
+shading_mode = 0
+albedo_color = Color(0.85, 0.98, 1, 1)
+
+[sub_resource type="CapsuleMesh" id="Core"]
+material = SubResource("CoreMaterial")
+radius = 0.075
+height = 0.32
+radial_segments = 12
+rings = 4
+
+[sub_resource type="StandardMaterial3D" id="Metal"]
+albedo_color = Color(0.32, 0.4, 0.49, 1)
+metallic = 0.75
+roughness = 0.3
+
+[sub_resource type="SphereMesh" id="Nose"]
+material = SubResource("Metal")
+radius = 0.14
+height = 0.28
+radial_segments = 24
+rings = 12
+is_hemisphere = true
+
+[sub_resource type="TorusMesh" id="Collar"]
+material = SubResource("Metal")
+inner_radius = 0.12
+outer_radius = 0.165
+rings = 12
+ring_segments = 6
+
+[sub_resource type="BoxMesh" id="Rib"]
+material = SubResource("Metal")
+size = Vector3(0.035, 0.035, 0.26)
+
+[sub_resource type="StandardMaterial3D" id="TailMaterial"]
+transparency = 1
+shading_mode = 0
+albedo_color = Color(0.08, 0.7, 1, 0.22)
+
+[sub_resource type="CylinderMesh" id="Tail"]
+material = SubResource("TailMaterial")
+top_radius = 0.08
+bottom_radius = 0.0
+height = 0.5
+radial_segments = 8
+
+[sub_resource type="Curve" id="TrailCurve"]
 _data = [Vector2(0, 1), 0.0, 0.0, 0, 0, Vector2(1, 0), -1.5, 0.0, 0, 0]
 point_count = 2
 
-[sub_resource type="CurveTexture" id="CurveTexture_trail"]
-curve = SubResource("Curve_trail")
+[sub_resource type="CurveTexture" id="TrailTexture"]
+curve = SubResource("TrailCurve")
 
-[sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_trail"]
+[sub_resource type="ParticleProcessMaterial" id="TrailProcess"]
 direction = Vector3(0, 0, 1)
-spread = 15.0
-initial_velocity_min = 1.0
-initial_velocity_max = 2.0
+spread = 8.0
+initial_velocity_min = 0.1
+initial_velocity_max = 0.4
 gravity = Vector3(0, 0, 0)
-scale_min = 0.1
-scale_max = 0.2
-scale_curve = SubResource("CurveTexture_trail")
-color = Color(1, 0.7, 0.15, 0.8)
+scale_min = 0.5
+scale_curve = SubResource("TrailTexture")
+color = Color(0.08, 0.7, 1, 1)
 
-[sub_resource type="StandardMaterial3D" id="Material_particle"]
+[sub_resource type="StandardMaterial3D" id="ParticleMaterial"]
 shading_mode = 0
 vertex_color_use_as_albedo = true
-albedo_color = Color(1, 0.75, 0.2, 1)
 
-[sub_resource type="SphereMesh" id="SphereMesh_particle"]
-material = SubResource("Material_particle")
-radius = 0.1
-height = 0.2
+[sub_resource type="SphereMesh" id="Particle"]
+material = SubResource("ParticleMaterial")
+radius = 0.035
+height = 0.07
+radial_segments = 6
+rings = 3
 
-[node name="Projectile" type="CharacterBody3D"]
+[node name="Projectile" type="CharacterBody3D" unique_id=615768391]
 collision_layer = 4
 collision_mask = 11
 script = ExtResource("1_proj")
 
-[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
-shape = SubResource("SphereShape3D_proj")
+[node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=990187517]
+shape = SubResource("Collision")
 
-[node name="MeshInstance3D" type="MeshInstance3D" parent="."]
-mesh = SubResource("SphereMesh_proj")
+[node name="Visuals" type="Node3D" parent="." unique_id=67165777]
+transform = Transform3D(0.8, 0, 0, 0, 0.8, 0, 0, 0, 0.8, 0, 0, 0)
 
-[node name="OmniLight3D" type="OmniLight3D" parent="."]
-light_color = Color(1, 0.85, 0.2, 1)
-light_energy = 0.8
-omni_range = 3.5
+[node name="Shell" type="MeshInstance3D" parent="Visuals" unique_id=1404435678]
+transform = Transform3D(1, 0, 0, 0, 7.54979e-08, -1, 0, 1, 7.54979e-08, 0, 0, 0)
+cast_shadow = 0
+mesh = SubResource("Shell")
 
-[node name="GPUParticles3D" type="GPUParticles3D" parent="."]
-amount = 24
-lifetime = 0.3
-process_material = SubResource("ParticleProcessMaterial_trail")
-draw_pass_1 = SubResource("SphereMesh_particle")
+[node name="Core" type="MeshInstance3D" parent="Visuals" unique_id=1556557075]
+transform = Transform3D(1, 0, 0, 0, 7.54979e-08, -1, 0, 1, 7.54979e-08, 0, 0, 0)
+cast_shadow = 0
+mesh = SubResource("Core")
+
+[node name="Nose" type="MeshInstance3D" parent="Visuals" unique_id=1843903750]
+position = Vector3(0, 0, -0.14)
+rotation = Vector3(-1.5707963, 0, 0)
+scale = Vector3(1, 0.45, 1)
+cast_shadow = 0
+mesh = SubResource("Nose")
+
+[node name="FrontCollar" type="MeshInstance3D" parent="Visuals" unique_id=1692728516]
+transform = Transform3D(1, 0, 0, 0, 7.54979e-08, -1, 0, 1, 7.54979e-08, 0, 0, -0.14)
+cast_shadow = 0
+mesh = SubResource("Collar")
+
+[node name="RearCollar" type="MeshInstance3D" parent="Visuals" unique_id=1919664012]
+transform = Transform3D(1, 0, 0, 0, 7.54979e-08, -1, 0, 1, 7.54979e-08, 0, 0, 0.14)
+cast_shadow = 0
+mesh = SubResource("Collar")
+
+[node name="TopRib" type="MeshInstance3D" parent="Visuals" unique_id=302402996]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.14, 0)
+cast_shadow = 0
+mesh = SubResource("Rib")
+
+[node name="BottomRib" type="MeshInstance3D" parent="Visuals" unique_id=137931484]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.14, 0)
+cast_shadow = 0
+mesh = SubResource("Rib")
+
+[node name="LeftRib" type="MeshInstance3D" parent="Visuals" unique_id=1686425332]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.14, 0, 0)
+cast_shadow = 0
+mesh = SubResource("Rib")
+
+[node name="RightRib" type="MeshInstance3D" parent="Visuals" unique_id=23213748]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.14, 0, 0)
+cast_shadow = 0
+mesh = SubResource("Rib")
+
+[node name="Tail" type="MeshInstance3D" parent="Visuals" unique_id=1701092786]
+transform = Transform3D(1, 0, 0, 0, 7.54979e-08, 1, 0, -1, 7.54979e-08, 0, 0, 0.44)
+cast_shadow = 0
+mesh = SubResource("Tail")
+
+[node name="GPUParticles3D" type="GPUParticles3D" parent="Visuals" unique_id=1544841423]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.19)
+amount = 12
+lifetime = 0.055
+visibility_aabb = AABB(-2, -2, -2, 4, 4, 4)
+process_material = SubResource("TrailProcess")
+draw_pass_1 = SubResource("Particle")
+
+[node name="OmniLight3D" type="OmniLight3D" parent="." unique_id=1440320094]
+light_color = Color(0.08, 0.7, 1, 1)
+light_energy = 0.45
+omni_range = 1.4

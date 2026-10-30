@@ -193,15 +193,7 @@ func set_team_color(p_color: Color) -> void:
 	team_color = p_color
 
 func _apply_team_color() -> void:
-	var team_mat := StandardMaterial3D.new()
-	team_mat.albedo_color = team_color
-	team_mat.roughness = 0.35
-	team_mat.metallic = 0.1
-
-	if chassis_mesh:
-		chassis_mesh.material_override = team_mat
-	if turret_mesh:
-		turret_mesh.material_override = team_mat
+	TankAppearance.apply_team_color(visuals, team_color)
 
 func set_on_ice(val: bool) -> void:
 	if controller:

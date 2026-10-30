@@ -1,6 +1,7 @@
-[gd_scene format=3 uid="uid://mainmenu_tankus_01"]
+[gd_scene format=3 uid="uid://bre3o1eme0meb"]
 
-[ext_resource type="Script" path="res://ui/main_menu.gd" id="1_main_menu"]
+[ext_resource type="Script" uid="uid://cmx8qnxuvh31c" path="res://ui/main_menu.gd" id="1_main_menu"]
+[ext_resource type="PackedScene" path="res://tank/tank_visuals.tscn" id="2_visuals"]
 
 [sub_resource type="Environment" id="Environment_menu"]
 background_mode = 1
@@ -33,44 +34,6 @@ top_radius = 2.22
 bottom_radius = 2.22
 height = 0.04
 
-[sub_resource type="StandardMaterial3D" id="Material_chassis_blue"]
-albedo_color = Color(0.18, 0.55, 0.95, 1)
-metallic = 0.25
-roughness = 0.35
-
-[sub_resource type="BoxMesh" id="BoxMesh_chassis"]
-material = SubResource("Material_chassis_blue")
-size = Vector3(1.15, 0.45, 1.7)
-
-[sub_resource type="StandardMaterial3D" id="Material_track"]
-albedo_color = Color(0.15, 0.16, 0.18, 1)
-roughness = 0.85
-
-[sub_resource type="BoxMesh" id="BoxMesh_track"]
-material = SubResource("Material_track")
-size = Vector3(0.26, 0.38, 1.8)
-
-[sub_resource type="BoxMesh" id="BoxMesh_turret"]
-material = SubResource("Material_chassis_blue")
-size = Vector3(0.85, 0.38, 0.95)
-
-[sub_resource type="StandardMaterial3D" id="Material_dark_metal"]
-albedo_color = Color(0.22, 0.24, 0.28, 1)
-metallic = 0.5
-roughness = 0.4
-
-[sub_resource type="CylinderMesh" id="CylinderMesh_hatch"]
-material = SubResource("Material_dark_metal")
-top_radius = 0.2
-bottom_radius = 0.2
-height = 0.08
-
-[sub_resource type="CylinderMesh" id="CylinderMesh_barrel"]
-material = SubResource("Material_dark_metal")
-top_radius = 0.08
-bottom_radius = 0.09
-height = 1.1
-
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_panel"]
 bg_color = Color(0.08, 0.1, 0.14, 0.92)
 border_width_left = 1
@@ -83,7 +46,7 @@ corner_radius_top_right = 6
 corner_radius_bottom_right = 6
 corner_radius_bottom_left = 6
 
-[node name="MainMenu" type="Control"]
+[node name="MainMenu" type="Control" unique_id=1534790757]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
@@ -92,87 +55,57 @@ grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_main_menu")
 
-[node name="Showroom3D" type="Node3D" parent="."]
+[node name="Showroom3D" type="Node3D" parent="." unique_id=1804785756]
 
-[node name="WorldEnvironment" type="WorldEnvironment" parent="Showroom3D"]
+[node name="WorldEnvironment" type="WorldEnvironment" parent="Showroom3D" unique_id=1399432083]
 environment = SubResource("Environment_menu")
 
-[node name="DirectionalLight3D" type="DirectionalLight3D" parent="Showroom3D"]
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="Showroom3D" unique_id=19628405]
 transform = Transform3D(0.707107, -0.5, 0.5, 0, 0.707107, 0.707107, -0.707107, -0.5, 0.5, 0, 6, 0)
 light_color = Color(0.85, 0.92, 1, 1)
 light_energy = 0.9
 shadow_enabled = true
 
-[node name="SpotLight3D" type="SpotLight3D" parent="Showroom3D"]
+[node name="SpotLight3D" type="SpotLight3D" parent="Showroom3D" unique_id=2082623445]
 transform = Transform3D(1, 0, 0, 0, -4.37114e-08, 1, 0, -1, -4.37114e-08, 0, 4.5, 0)
 light_color = Color(0, 0.85, 1, 1)
 light_energy = 2.2
 spot_range = 8.0
 spot_angle = 42.0
 
-[node name="OmniLightAccent" type="OmniLight3D" parent="Showroom3D"]
+[node name="OmniLightAccent" type="OmniLight3D" parent="Showroom3D" unique_id=804473554]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.5, 1, -2)
 light_color = Color(1, 0.45, 0.15, 1)
 light_energy = 1.5
 omni_range = 6.0
 
-[node name="Platform" type="Node3D" parent="Showroom3D"]
+[node name="Platform" type="Node3D" parent="Showroom3D" unique_id=644829476]
 
-[node name="PedestalMesh" type="MeshInstance3D" parent="Showroom3D/Platform"]
+[node name="PedestalMesh" type="MeshInstance3D" parent="Showroom3D/Platform" unique_id=1506552098]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.125, 0)
 mesh = SubResource("CylinderMesh_pedestal")
 
-[node name="NeonRim" type="MeshInstance3D" parent="Showroom3D/Platform"]
+[node name="NeonRim" type="MeshInstance3D" parent="Showroom3D/Platform" unique_id=26598851]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.01, 0)
 mesh = SubResource("CylinderMesh_neon_rim")
 
-[node name="ShowroomTank" type="Node3D" parent="Showroom3D"]
+[node name="ShowroomTank" parent="Showroom3D" unique_id=470170793 instance=ExtResource("2_visuals")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.02, 0)
 
-[node name="ChassisMesh" type="MeshInstance3D" parent="Showroom3D/ShowroomTank"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.45, 0)
-mesh = SubResource("BoxMesh_chassis")
-
-[node name="LeftTrack" type="MeshInstance3D" parent="Showroom3D/ShowroomTank"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.68, 0.36, 0)
-mesh = SubResource("BoxMesh_track")
-
-[node name="RightTrack" type="MeshInstance3D" parent="Showroom3D/ShowroomTank"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.68, 0.36, 0)
-mesh = SubResource("BoxMesh_track")
-
-[node name="TurretMount" type="Node3D" parent="Showroom3D/ShowroomTank"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.72, 0.05)
-
-[node name="TurretMesh" type="MeshInstance3D" parent="Showroom3D/ShowroomTank/TurretMount"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.19, -0.05)
-mesh = SubResource("BoxMesh_turret")
-
-[node name="HatchMesh" type="MeshInstance3D" parent="Showroom3D/ShowroomTank/TurretMount"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.42, 0.15)
-mesh = SubResource("CylinderMesh_hatch")
-
-[node name="BarrelMount" type="Node3D" parent="Showroom3D/ShowroomTank/TurretMount"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.19, -0.5)
-
-[node name="BarrelMesh" type="MeshInstance3D" parent="Showroom3D/ShowroomTank/TurretMount/BarrelMount"]
-transform = Transform3D(1, 0, 0, 0, -4.37114e-08, -1, 0, 1, -4.37114e-08, 0, 0, -0.55)
-mesh = SubResource("CylinderMesh_barrel")
-
-[node name="Camera3D" type="Camera3D" parent="Showroom3D"]
+[node name="Camera3D" type="Camera3D" parent="Showroom3D" unique_id=528149241]
 transform = Transform3D(0.788011, 0.177435, 0.589632, 0, 0.957643, -0.287957, -0.615661, 0.226913, 0.75463, 2.7, 1.65, 3.2)
 fov = 48.0
 
-[node name="UILayer" type="CanvasLayer" parent="."]
+[node name="UILayer" type="CanvasLayer" parent="." unique_id=1064491095]
 
-[node name="LeftBackground" type="ColorRect" parent="UILayer"]
+[node name="LeftBackground" type="ColorRect" parent="UILayer" unique_id=140906421]
 anchors_preset = 9
 anchor_bottom = 1.0
 offset_right = 490.0
 grow_vertical = 2
 color = Color(0.04, 0.05, 0.08, 0.78)
 
-[node name="LeftMargin" type="MarginContainer" parent="UILayer"]
+[node name="LeftMargin" type="MarginContainer" parent="UILayer" unique_id=2027216054]
 anchors_preset = 9
 anchor_bottom = 1.0
 offset_right = 480.0
@@ -182,35 +115,35 @@ theme_override_constants/margin_top = 40
 theme_override_constants/margin_right = 30
 theme_override_constants/margin_bottom = 30
 
-[node name="VBox" type="VBoxContainer" parent="UILayer/LeftMargin"]
+[node name="VBox" type="VBoxContainer" parent="UILayer/LeftMargin" unique_id=307341804]
 layout_mode = 2
 theme_override_constants/separation = 16
 
-[node name="Header" type="VBoxContainer" parent="UILayer/LeftMargin/VBox"]
+[node name="Header" type="VBoxContainer" parent="UILayer/LeftMargin/VBox" unique_id=432199702]
 layout_mode = 2
 theme_override_constants/separation = 2
 
-[node name="Title" type="Label" parent="UILayer/LeftMargin/VBox/Header"]
+[node name="Title" type="Label" parent="UILayer/LeftMargin/VBox/Header" unique_id=2078795437]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.2, 0.85, 1, 1)
 theme_override_font_sizes/font_size = 46
 text = "TANKUS"
 
-[node name="Subtitle" type="Label" parent="UILayer/LeftMargin/VBox/Header"]
+[node name="Subtitle" type="Label" parent="UILayer/LeftMargin/VBox/Header" unique_id=353263818]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.65, 0.75, 0.9, 1)
 theme_override_font_sizes/font_size = 13
 text = "FAST-PACED ARENA COMBAT // PHASE 7"
 
-[node name="HSeparator" type="HSeparator" parent="UILayer/LeftMargin/VBox"]
+[node name="HSeparator" type="HSeparator" parent="UILayer/LeftMargin/VBox" unique_id=1329955581]
 layout_mode = 2
 
-[node name="MainButtons" type="VBoxContainer" parent="UILayer/LeftMargin/VBox"]
+[node name="MainButtons" type="VBoxContainer" parent="UILayer/LeftMargin/VBox" unique_id=413832260]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_constants/separation = 12
 
-[node name="BtnSolo" type="Button" parent="UILayer/LeftMargin/VBox/MainButtons"]
+[node name="BtnSolo" type="Button" parent="UILayer/LeftMargin/VBox/MainButtons" unique_id=671646534]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 48)
 layout_mode = 2
@@ -218,7 +151,7 @@ theme_override_font_sizes/font_size = 16
 text = "▶  ОДИНОЧНЫЙ БОЙ (ТРЕНИРОВКА)"
 alignment = 0
 
-[node name="BtnLAN" type="Button" parent="UILayer/LeftMargin/VBox/MainButtons"]
+[node name="BtnLAN" type="Button" parent="UILayer/LeftMargin/VBox/MainButtons" unique_id=1648089723]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 48)
 layout_mode = 2
@@ -226,7 +159,7 @@ theme_override_font_sizes/font_size = 16
 text = "🌐  СЕТЕВАЯ ИГРА (LAN)"
 alignment = 0
 
-[node name="BtnMap" type="Button" parent="UILayer/LeftMargin/VBox/MainButtons"]
+[node name="BtnMap" type="Button" parent="UILayer/LeftMargin/VBox/MainButtons" unique_id=557174845]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 48)
 layout_mode = 2
@@ -234,7 +167,7 @@ theme_override_font_sizes/font_size = 16
 text = "🗺️  ВЫБОР КАРТЫ АРЕНЫ"
 alignment = 0
 
-[node name="BtnSettings" type="Button" parent="UILayer/LeftMargin/VBox/MainButtons"]
+[node name="BtnSettings" type="Button" parent="UILayer/LeftMargin/VBox/MainButtons" unique_id=1465889115]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 48)
 layout_mode = 2
@@ -242,7 +175,7 @@ theme_override_font_sizes/font_size = 16
 text = "⚙️  НАСТРОЙКИ"
 alignment = 0
 
-[node name="BtnQuit" type="Button" parent="UILayer/LeftMargin/VBox/MainButtons"]
+[node name="BtnQuit" type="Button" parent="UILayer/LeftMargin/VBox/MainButtons" unique_id=306670799]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 48)
 layout_mode = 2
@@ -250,29 +183,29 @@ theme_override_font_sizes/font_size = 16
 text = "🚪  ВЫХОД ИЗ ИГРЫ"
 alignment = 0
 
-[node name="Spacer" type="Control" parent="UILayer/LeftMargin/VBox"]
+[node name="Spacer" type="Control" parent="UILayer/LeftMargin/VBox" unique_id=1490034341]
 layout_mode = 2
 size_flags_vertical = 3
 
-[node name="Footer" type="VBoxContainer" parent="UILayer/LeftMargin/VBox"]
+[node name="Footer" type="VBoxContainer" parent="UILayer/LeftMargin/VBox" unique_id=251673538]
 layout_mode = 2
 theme_override_constants/separation = 4
 
-[node name="LblStatusMap" type="Label" parent="UILayer/LeftMargin/VBox/Footer"]
+[node name="LblStatusMap" type="Label" parent="UILayer/LeftMargin/VBox/Footer" unique_id=1460755359]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0, 0.85, 1, 1)
 theme_override_font_sizes/font_size = 13
 text = "АРЕНА: SKY COURTYARD"
 
-[node name="LblControls" type="Label" parent="UILayer/LeftMargin/VBox/Footer"]
+[node name="LblControls" type="Label" parent="UILayer/LeftMargin/VBox/Footer" unique_id=1428469107]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.55, 0.65, 0.75, 1)
 theme_override_font_sizes/font_size = 11
 text = "WASD: Движение | Space: Прыжок | LMB: Огонь
 R: Перезарядка | E: Блок | Tab: Драфт карт"
 
-[node name="ModalsContainer" type="Control" parent="UILayer"]
+[node name="ModalsContainer" type="Control" parent="UILayer" unique_id=2016711008]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
@@ -285,7 +218,7 @@ grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
 
-[node name="MapSelectPanel" type="PanelContainer" parent="UILayer/ModalsContainer"]
+[node name="MapSelectPanel" type="PanelContainer" parent="UILayer/ModalsContainer" unique_id=1020255497]
 unique_name_in_owner = true
 visible = false
 layout_mode = 1
@@ -296,38 +229,45 @@ grow_horizontal = 2
 grow_vertical = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
 
-[node name="Margin" type="MarginContainer" parent="UILayer/ModalsContainer/MapSelectPanel"]
+[node name="Margin" type="MarginContainer" parent="UILayer/ModalsContainer/MapSelectPanel" unique_id=1092226084]
 layout_mode = 2
 theme_override_constants/margin_left = 24
 theme_override_constants/margin_top = 20
 theme_override_constants/margin_right = 24
 theme_override_constants/margin_bottom = 20
 
-[node name="VBox" type="VBoxContainer" parent="UILayer/ModalsContainer/MapSelectPanel/Margin"]
+[node name="VBox" type="VBoxContainer" parent="UILayer/ModalsContainer/MapSelectPanel/Margin" unique_id=1314697493]
 layout_mode = 2
 theme_override_constants/separation = 14
 
-[node name="Title" type="Label" parent="UILayer/ModalsContainer/MapSelectPanel/Margin/VBox"]
+[node name="Title" type="Label" parent="UILayer/ModalsContainer/MapSelectPanel/Margin/VBox" unique_id=562810402]
 layout_mode = 2
 theme_override_colors/font_color = Color(0, 0.85, 1, 1)
 theme_override_font_sizes/font_size = 22
 text = "🗺️ ВЫБОР КАРТЫ АРЕНЫ"
 
-[node name="HSeparator" type="HSeparator" parent="UILayer/ModalsContainer/MapSelectPanel/Margin/VBox"]
+[node name="HSeparator" type="HSeparator" parent="UILayer/ModalsContainer/MapSelectPanel/Margin/VBox" unique_id=1469296058]
 layout_mode = 2
 
-[node name="MapListContainer" type="VBoxContainer" parent="UILayer/ModalsContainer/MapSelectPanel/Margin/VBox"]
+[node name="MapListScroll" type="ScrollContainer" parent="UILayer/ModalsContainer/MapSelectPanel/Margin/VBox"]
+custom_minimum_size = Vector2(0, 180)
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="MapListContainer" type="VBoxContainer" parent="UILayer/ModalsContainer/MapSelectPanel/Margin/VBox/MapListScroll" unique_id=2138880352]
 unique_name_in_owner = true
 layout_mode = 2
+size_flags_horizontal = 3
 theme_override_constants/separation = 8
 
-[node name="LblMapDescHeader" type="Label" parent="UILayer/ModalsContainer/MapSelectPanel/Margin/VBox"]
+[node name="LblMapDescHeader" type="Label" parent="UILayer/ModalsContainer/MapSelectPanel/Margin/VBox" unique_id=63910624]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.7, 0.8, 0.9, 1)
 theme_override_font_sizes/font_size = 14
 text = "ОСОБЕННОСТИ КАРТЫ:"
 
-[node name="LblMapDesc" type="Label" parent="UILayer/ModalsContainer/MapSelectPanel/Margin/VBox"]
+[node name="LblMapDesc" type="Label" parent="UILayer/ModalsContainer/MapSelectPanel/Margin/VBox" unique_id=1775686778]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 60)
 layout_mode = 2
@@ -336,18 +276,18 @@ theme_override_font_sizes/font_size = 13
 text = "Парящая цитадель над облаками..."
 autowrap_mode = 2
 
-[node name="Spacer" type="Control" parent="UILayer/ModalsContainer/MapSelectPanel/Margin/VBox"]
+[node name="Spacer" type="Control" parent="UILayer/ModalsContainer/MapSelectPanel/Margin/VBox" unique_id=807889608]
 layout_mode = 2
 size_flags_vertical = 3
 
-[node name="BtnMapBack" type="Button" parent="UILayer/ModalsContainer/MapSelectPanel/Margin/VBox"]
+[node name="BtnMapBack" type="Button" parent="UILayer/ModalsContainer/MapSelectPanel/Margin/VBox" unique_id=163050499]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(160, 40)
 layout_mode = 2
 size_flags_horizontal = 0
 text = "← Назад в меню"
 
-[node name="LANPanel" type="PanelContainer" parent="UILayer/ModalsContainer"]
+[node name="LANPanel" type="PanelContainer" parent="UILayer/ModalsContainer" unique_id=1799157947]
 unique_name_in_owner = true
 visible = false
 layout_mode = 1
@@ -358,128 +298,128 @@ grow_horizontal = 2
 grow_vertical = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
 
-[node name="Margin" type="MarginContainer" parent="UILayer/ModalsContainer/LANPanel"]
+[node name="Margin" type="MarginContainer" parent="UILayer/ModalsContainer/LANPanel" unique_id=1164292918]
 layout_mode = 2
 theme_override_constants/margin_left = 24
 theme_override_constants/margin_top = 20
 theme_override_constants/margin_right = 24
 theme_override_constants/margin_bottom = 20
 
-[node name="VBox" type="VBoxContainer" parent="UILayer/ModalsContainer/LANPanel/Margin"]
+[node name="VBox" type="VBoxContainer" parent="UILayer/ModalsContainer/LANPanel/Margin" unique_id=1677479160]
 layout_mode = 2
 theme_override_constants/separation = 10
 
-[node name="Title" type="Label" parent="UILayer/ModalsContainer/LANPanel/Margin/VBox"]
+[node name="Title" type="Label" parent="UILayer/ModalsContainer/LANPanel/Margin/VBox" unique_id=1254819765]
 layout_mode = 2
 theme_override_colors/font_color = Color(0, 0.85, 1, 1)
 theme_override_font_sizes/font_size = 22
 text = "🌐 СЕТЕВАЯ ИГРА (LAN)"
 
-[node name="HSeparator" type="HSeparator" parent="UILayer/ModalsContainer/LANPanel/Margin/VBox"]
+[node name="HSeparator" type="HSeparator" parent="UILayer/ModalsContainer/LANPanel/Margin/VBox" unique_id=387172569]
 layout_mode = 2
 
-[node name="HBoxNick" type="HBoxContainer" parent="UILayer/ModalsContainer/LANPanel/Margin/VBox"]
+[node name="HBoxNick" type="HBoxContainer" parent="UILayer/ModalsContainer/LANPanel/Margin/VBox" unique_id=2043227187]
 layout_mode = 2
 
-[node name="Lbl" type="Label" parent="UILayer/ModalsContainer/LANPanel/Margin/VBox/HBoxNick"]
+[node name="Lbl" type="Label" parent="UILayer/ModalsContainer/LANPanel/Margin/VBox/HBoxNick" unique_id=544425305]
 custom_minimum_size = Vector2(120, 0)
 layout_mode = 2
 text = "Ваш ник:"
 
-[node name="LinePlayerName" type="LineEdit" parent="UILayer/ModalsContainer/LANPanel/Margin/VBox/HBoxNick"]
+[node name="LinePlayerName" type="LineEdit" parent="UILayer/ModalsContainer/LANPanel/Margin/VBox/HBoxNick" unique_id=970359998]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 text = "Player"
 
-[node name="HBoxHost" type="HBoxContainer" parent="UILayer/ModalsContainer/LANPanel/Margin/VBox"]
+[node name="HBoxHost" type="HBoxContainer" parent="UILayer/ModalsContainer/LANPanel/Margin/VBox" unique_id=937195809]
 layout_mode = 2
 
-[node name="LineServerName" type="LineEdit" parent="UILayer/ModalsContainer/LANPanel/Margin/VBox/HBoxHost"]
+[node name="LineServerName" type="LineEdit" parent="UILayer/ModalsContainer/LANPanel/Margin/VBox/HBoxHost" unique_id=502481074]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 text = "TANKUS Room"
 placeholder_text = "Название комнаты..."
 
-[node name="BtnCreateHost" type="Button" parent="UILayer/ModalsContainer/LANPanel/Margin/VBox/HBoxHost"]
+[node name="BtnCreateHost" type="Button" parent="UILayer/ModalsContainer/LANPanel/Margin/VBox/HBoxHost" unique_id=236517072]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(180, 36)
 layout_mode = 2
 text = "🛡️ Создать сервер"
 
-[node name="HSeparator2" type="HSeparator" parent="UILayer/ModalsContainer/LANPanel/Margin/VBox"]
+[node name="HSeparator2" type="HSeparator" parent="UILayer/ModalsContainer/LANPanel/Margin/VBox" unique_id=1943964214]
 layout_mode = 2
 
-[node name="HBoxLANHeader" type="HBoxContainer" parent="UILayer/ModalsContainer/LANPanel/Margin/VBox"]
+[node name="HBoxLANHeader" type="HBoxContainer" parent="UILayer/ModalsContainer/LANPanel/Margin/VBox" unique_id=345763767]
 layout_mode = 2
 
-[node name="Lbl" type="Label" parent="UILayer/ModalsContainer/LANPanel/Margin/VBox/HBoxLANHeader"]
+[node name="Lbl" type="Label" parent="UILayer/ModalsContainer/LANPanel/Margin/VBox/HBoxLANHeader" unique_id=219936019]
 layout_mode = 2
 size_flags_horizontal = 3
 text = "🔍 Серверы в локальной сети:"
 
-[node name="BtnRefreshLAN" type="Button" parent="UILayer/ModalsContainer/LANPanel/Margin/VBox/HBoxLANHeader"]
+[node name="BtnRefreshLAN" type="Button" parent="UILayer/ModalsContainer/LANPanel/Margin/VBox/HBoxLANHeader" unique_id=1635313257]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(110, 32)
 layout_mode = 2
 text = "🔄 Обновить"
 
-[node name="ScrollServers" type="ScrollContainer" parent="UILayer/ModalsContainer/LANPanel/Margin/VBox"]
+[node name="ScrollServers" type="ScrollContainer" parent="UILayer/ModalsContainer/LANPanel/Margin/VBox" unique_id=24659679]
 custom_minimum_size = Vector2(0, 140)
 layout_mode = 2
 size_flags_vertical = 3
 
-[node name="ServerList" type="VBoxContainer" parent="UILayer/ModalsContainer/LANPanel/Margin/VBox/ScrollServers"]
+[node name="ServerList" type="VBoxContainer" parent="UILayer/ModalsContainer/LANPanel/Margin/VBox/ScrollServers" unique_id=1738571631]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/separation = 6
 
-[node name="LblLANStatus" type="Label" parent="UILayer/ModalsContainer/LANPanel/Margin/VBox"]
+[node name="LblLANStatus" type="Label" parent="UILayer/ModalsContainer/LANPanel/Margin/VBox" unique_id=1041324917]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.7, 0.8, 0.9, 1)
 theme_override_font_sizes/font_size = 12
 text = "Поиск активных LAN серверов..."
 
-[node name="HSeparator3" type="HSeparator" parent="UILayer/ModalsContainer/LANPanel/Margin/VBox"]
+[node name="HSeparator3" type="HSeparator" parent="UILayer/ModalsContainer/LANPanel/Margin/VBox" unique_id=911123986]
 layout_mode = 2
 
-[node name="HBoxDirect" type="HBoxContainer" parent="UILayer/ModalsContainer/LANPanel/Margin/VBox"]
+[node name="HBoxDirect" type="HBoxContainer" parent="UILayer/ModalsContainer/LANPanel/Margin/VBox" unique_id=425394685]
 layout_mode = 2
 
-[node name="Lbl" type="Label" parent="UILayer/ModalsContainer/LANPanel/Margin/VBox/HBoxDirect"]
+[node name="Lbl" type="Label" parent="UILayer/ModalsContainer/LANPanel/Margin/VBox/HBoxDirect" unique_id=439843881]
 custom_minimum_size = Vector2(100, 0)
 layout_mode = 2
 text = "Прямой IP:"
 
-[node name="LineDirectIP" type="LineEdit" parent="UILayer/ModalsContainer/LANPanel/Margin/VBox/HBoxDirect"]
+[node name="LineDirectIP" type="LineEdit" parent="UILayer/ModalsContainer/LANPanel/Margin/VBox/HBoxDirect" unique_id=1847723390]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 text = "127.0.0.1"
 
-[node name="LineDirectPort" type="LineEdit" parent="UILayer/ModalsContainer/LANPanel/Margin/VBox/HBoxDirect"]
+[node name="LineDirectPort" type="LineEdit" parent="UILayer/ModalsContainer/LANPanel/Margin/VBox/HBoxDirect" unique_id=328648900]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(70, 0)
 layout_mode = 2
 text = "7000"
 
-[node name="BtnDirectConnect" type="Button" parent="UILayer/ModalsContainer/LANPanel/Margin/VBox/HBoxDirect"]
+[node name="BtnDirectConnect" type="Button" parent="UILayer/ModalsContainer/LANPanel/Margin/VBox/HBoxDirect" unique_id=273606578]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(130, 36)
 layout_mode = 2
 text = "Подключиться"
 
-[node name="BtnLANBack" type="Button" parent="UILayer/ModalsContainer/LANPanel/Margin/VBox"]
+[node name="BtnLANBack" type="Button" parent="UILayer/ModalsContainer/LANPanel/Margin/VBox" unique_id=1880118005]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(160, 40)
 layout_mode = 2
 size_flags_horizontal = 0
 text = "← Назад в меню"
 
-[node name="SettingsPanel" type="PanelContainer" parent="UILayer/ModalsContainer"]
+[node name="SettingsPanel" type="PanelContainer" parent="UILayer/ModalsContainer" unique_id=150015880]
 unique_name_in_owner = true
 visible = false
 layout_mode = 1
@@ -490,107 +430,107 @@ grow_horizontal = 2
 grow_vertical = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
 
-[node name="Margin" type="MarginContainer" parent="UILayer/ModalsContainer/SettingsPanel"]
+[node name="Margin" type="MarginContainer" parent="UILayer/ModalsContainer/SettingsPanel" unique_id=684363851]
 layout_mode = 2
 theme_override_constants/margin_left = 24
 theme_override_constants/margin_top = 20
 theme_override_constants/margin_right = 24
 theme_override_constants/margin_bottom = 20
 
-[node name="VBox" type="VBoxContainer" parent="UILayer/ModalsContainer/SettingsPanel/Margin"]
+[node name="VBox" type="VBoxContainer" parent="UILayer/ModalsContainer/SettingsPanel/Margin" unique_id=1072080270]
 layout_mode = 2
 theme_override_constants/separation = 16
 
-[node name="Title" type="Label" parent="UILayer/ModalsContainer/SettingsPanel/Margin/VBox"]
+[node name="Title" type="Label" parent="UILayer/ModalsContainer/SettingsPanel/Margin/VBox" unique_id=668738263]
 layout_mode = 2
 theme_override_colors/font_color = Color(0, 0.85, 1, 1)
 theme_override_font_sizes/font_size = 22
 text = "⚙️ НАСТРОЙКИ"
 
-[node name="HSeparator" type="HSeparator" parent="UILayer/ModalsContainer/SettingsPanel/Margin/VBox"]
+[node name="HSeparator" type="HSeparator" parent="UILayer/ModalsContainer/SettingsPanel/Margin/VBox" unique_id=2142288968]
 layout_mode = 2
 
-[node name="HBoxSFX" type="HBoxContainer" parent="UILayer/ModalsContainer/SettingsPanel/Margin/VBox"]
+[node name="HBoxSFX" type="HBoxContainer" parent="UILayer/ModalsContainer/SettingsPanel/Margin/VBox" unique_id=1853082258]
 layout_mode = 2
 
-[node name="Lbl" type="Label" parent="UILayer/ModalsContainer/SettingsPanel/Margin/VBox/HBoxSFX"]
+[node name="Lbl" type="Label" parent="UILayer/ModalsContainer/SettingsPanel/Margin/VBox/HBoxSFX" unique_id=1876643146]
 custom_minimum_size = Vector2(160, 0)
 layout_mode = 2
 text = "Звуки в игре:"
 
-[node name="SliderSFX" type="HSlider" parent="UILayer/ModalsContainer/SettingsPanel/Margin/VBox/HBoxSFX"]
+[node name="SliderSFX" type="HSlider" parent="UILayer/ModalsContainer/SettingsPanel/Margin/VBox/HBoxSFX" unique_id=1321937336]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 4
 value = 80.0
 
-[node name="LblSFXVal" type="Label" parent="UILayer/ModalsContainer/SettingsPanel/Margin/VBox/HBoxSFX"]
+[node name="LblSFXVal" type="Label" parent="UILayer/ModalsContainer/SettingsPanel/Margin/VBox/HBoxSFX" unique_id=1523894753]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(50, 0)
 layout_mode = 2
 text = "80%"
 horizontal_alignment = 2
 
-[node name="HBoxUI" type="HBoxContainer" parent="UILayer/ModalsContainer/SettingsPanel/Margin/VBox"]
+[node name="HBoxUI" type="HBoxContainer" parent="UILayer/ModalsContainer/SettingsPanel/Margin/VBox" unique_id=1897875327]
 layout_mode = 2
 
-[node name="Lbl" type="Label" parent="UILayer/ModalsContainer/SettingsPanel/Margin/VBox/HBoxUI"]
+[node name="Lbl" type="Label" parent="UILayer/ModalsContainer/SettingsPanel/Margin/VBox/HBoxUI" unique_id=1767752625]
 custom_minimum_size = Vector2(160, 0)
 layout_mode = 2
 text = "Звуки меню:"
 
-[node name="SliderUI" type="HSlider" parent="UILayer/ModalsContainer/SettingsPanel/Margin/VBox/HBoxUI"]
+[node name="SliderUI" type="HSlider" parent="UILayer/ModalsContainer/SettingsPanel/Margin/VBox/HBoxUI" unique_id=1874134757]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 4
 value = 80.0
 
-[node name="LblUIVal" type="Label" parent="UILayer/ModalsContainer/SettingsPanel/Margin/VBox/HBoxUI"]
+[node name="LblUIVal" type="Label" parent="UILayer/ModalsContainer/SettingsPanel/Margin/VBox/HBoxUI" unique_id=466455405]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(50, 0)
 layout_mode = 2
 text = "80%"
 horizontal_alignment = 2
 
-[node name="HBoxMusic" type="HBoxContainer" parent="UILayer/ModalsContainer/SettingsPanel/Margin/VBox"]
+[node name="HBoxMusic" type="HBoxContainer" parent="UILayer/ModalsContainer/SettingsPanel/Margin/VBox" unique_id=1872894894]
 layout_mode = 2
 
-[node name="Lbl" type="Label" parent="UILayer/ModalsContainer/SettingsPanel/Margin/VBox/HBoxMusic"]
+[node name="Lbl" type="Label" parent="UILayer/ModalsContainer/SettingsPanel/Margin/VBox/HBoxMusic" unique_id=170577297]
 custom_minimum_size = Vector2(160, 0)
 layout_mode = 2
 text = "Музыка:"
 
-[node name="SliderMusic" type="HSlider" parent="UILayer/ModalsContainer/SettingsPanel/Margin/VBox/HBoxMusic"]
+[node name="SliderMusic" type="HSlider" parent="UILayer/ModalsContainer/SettingsPanel/Margin/VBox/HBoxMusic" unique_id=673699090]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 4
 value = 50.0
 
-[node name="LblMusicVal" type="Label" parent="UILayer/ModalsContainer/SettingsPanel/Margin/VBox/HBoxMusic"]
+[node name="LblMusicVal" type="Label" parent="UILayer/ModalsContainer/SettingsPanel/Margin/VBox/HBoxMusic" unique_id=444701828]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(50, 0)
 layout_mode = 2
 text = "50%"
 horizontal_alignment = 2
 
-[node name="ChkFullscreen" type="CheckBox" parent="UILayer/ModalsContainer/SettingsPanel/Margin/VBox"]
+[node name="ChkFullscreen" type="CheckBox" parent="UILayer/ModalsContainer/SettingsPanel/Margin/VBox" unique_id=1378845876]
 unique_name_in_owner = true
 layout_mode = 2
 text = "Полноэкранный режим (Fullscreen)"
 
-[node name="ChkVSync" type="CheckBox" parent="UILayer/ModalsContainer/SettingsPanel/Margin/VBox"]
+[node name="ChkVSync" type="CheckBox" parent="UILayer/ModalsContainer/SettingsPanel/Margin/VBox" unique_id=260108581]
 unique_name_in_owner = true
 layout_mode = 2
 text = "Вертикальная синхронизация (V-Sync)"
 
-[node name="Spacer" type="Control" parent="UILayer/ModalsContainer/SettingsPanel/Margin/VBox"]
+[node name="Spacer" type="Control" parent="UILayer/ModalsContainer/SettingsPanel/Margin/VBox" unique_id=773131018]
 layout_mode = 2
 size_flags_vertical = 3
 
-[node name="BtnSettingsBack" type="Button" parent="UILayer/ModalsContainer/SettingsPanel/Margin/VBox"]
+[node name="BtnSettingsBack" type="Button" parent="UILayer/ModalsContainer/SettingsPanel/Margin/VBox" unique_id=407867639]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(160, 40)
 layout_mode = 2

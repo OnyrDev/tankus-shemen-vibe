@@ -22,7 +22,10 @@ const MAP_NAMES: Array[String] = [
 	"iceworks",
 	"pendulum_yard",
 	"shift",
-	"atrium"
+	"atrium",
+	"ceramic_garden",
+	"radio_station",
+	"factory_smelter"
 ]
 
 # --- 3D Showroom ---
@@ -134,6 +137,10 @@ func _setup_ui_options() -> void:
 		opt_map.add_item("Iceworks", 1)
 		opt_map.add_item("Pendulum Yard", 2)
 		opt_map.add_item("Shift", 3)
+		opt_map.add_item("Atrium", 4)
+		opt_map.add_item("Керамический сад — Терракота", 5)
+		opt_map.add_item("Радиостанция — Малиновая частота", 6)
+		opt_map.add_item("Завод — Плавильня", 7)
 
 func _update_lobby_ui() -> void:
 	var is_host: bool = Network.is_host or not Network.is_multiplayer_active()
@@ -278,15 +285,7 @@ func _update_tank_team_color() -> void:
 	var team_idx := clampi(my_team - 1, 0, TEAM_COLORS.size() - 1)
 	var col := TEAM_COLORS[team_idx]
 
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = col
-	mat.metallic = 0.25
-	mat.roughness = 0.35
-
-	if chassis_mesh:
-		chassis_mesh.material_override = mat
-	if turret_mesh:
-		turret_mesh.material_override = mat
+	TankAppearance.apply_team_color(showroom_tank, col)
 
 func _on_player_list_updated() -> void:
 	_refresh_player_cards()
