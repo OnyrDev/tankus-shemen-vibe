@@ -280,7 +280,7 @@ func _test_debug_overlay() -> void:
 
 	# Проверка поиска карточек по названию
 	_assert_test(overlay.search_box != null, "Card search input exists")
-	_assert_test(overlay._card_widgets.size() == 45, "All 45 cards initialized in card debugger")
+	_assert_test(overlay._card_widgets.size() == 43, "All 43 cards initialized in card debugger")
 
 	overlay.search_box.text = "Heavy Shell"
 	overlay._on_search_text_changed("Heavy Shell")

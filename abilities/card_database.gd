@@ -1,7 +1,7 @@
 class_name CardDatabase
 extends Object
 
-## Каталог всех 45 способностей TANKUS по спецификации ROUNDS.
+## Каталог всех 43 способностей TANKUS по спецификации ROUNDS.
 ## Предоставляет доступ к базе карт и генератор предложений драфта 1 из 5.
 
 # --- Специализированные эффекты способностей (Inner Classes) ---
@@ -162,17 +162,104 @@ class PerfectGuardEffect extends CardEffect:
 				tank.block.cooldown_finished.emit()
 
 class GroundSlamEffect extends CardEffect:
+	const BASE_RADIUS: float = 4.5
+	const MIN_FALL_DIST: float = 1.2
+
+	static func get_slam_radius(stacks: int) -> float:
+		return BASE_RADIUS * float(maxi(1, stacks))
+
+	static func spawn_shockwave_vfx(parent_node: Node, origin: Vector3, radius: float, color: Color = Color(1.0, 0.65, 0.15)) -> Node3D:
+		if not parent_node:
+			return null
+
+		var wave := Node3D.new()
+		wave.name = "GroundSlamWave"
+		wave.set_meta("slam_radius", radius)
+		parent_node.add_child(wave)
+		wave.global_position = origin + Vector3(0.0, 0.08, 0.0)
+
+		# Расширяющееся кольцо ударной волны по границе радиуса
+		var ring_mesh := MeshInstance3D.new()
+		ring_mesh.name = "ShockwaveRing"
+		var torus := TorusMesh.new()
+		torus.outer_radius = 1.0
+		torus.inner_radius = 0.85
+		torus.rings = 32
+		torus.ring_segments = 16
+		ring_mesh.mesh = torus
+		ring_mesh.scale = Vector3(0.15, 1.0, 0.15)
+
+		var ring_mat := StandardMaterial3D.new()
+		ring_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		ring_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		ring_mat.albedo_color = Color(1.0, 0.72, 0.2, 0.95)
+		ring_mesh.material_override = ring_mat
+		wave.add_child(ring_mesh)
+
+		# Внутренний диск зоны поражения на земле
+		var disc_mesh := MeshInstance3D.new()
+		disc_mesh.name = "GroundDisc"
+		var cylinder := CylinderMesh.new()
+		cylinder.top_radius = 1.0
+		cylinder.bottom_radius = 1.0
+		cylinder.height = 0.03
+		cylinder.radial_segments = 32
+		disc_mesh.mesh = cylinder
+		disc_mesh.scale = Vector3(0.15, 1.0, 0.15)
+
+		var disc_mat := StandardMaterial3D.new()
+		disc_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		disc_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		disc_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+		disc_mat.albedo_color = Color(color.r, color.g, color.b, 0.42)
+		disc_mesh.material_override = disc_mat
+		wave.add_child(disc_mesh)
+
+		# Вспышка света от удара о землю
+		var light := OmniLight3D.new()
+		light.light_color = Color(1.0, 0.65, 0.2)
+		light.omni_range = radius * 1.25
+		light.light_energy = 3.5
+		wave.add_child(light)
+
+		SoundManager.play_sfx_3d("explosion", origin)
+		Game.shake_camera(clampf(0.20 + 0.05 * (radius / BASE_RADIUS), 0.20, 0.45))
+
+		var tween := wave.create_tween()
+		tween.set_parallel(true)
+		tween.tween_property(ring_mesh, "scale", Vector3(radius, 1.0, radius), 0.35).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+		tween.tween_property(ring_mat, "albedo_color:a", 0.0, 0.35).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+		tween.tween_property(disc_mesh, "scale", Vector3(radius, 1.0, radius), 0.32).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+		tween.tween_property(disc_mat, "albedo_color:a", 0.0, 0.35).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+		tween.tween_property(light, "light_energy", 0.0, 0.30)
+
+		var tree := wave.get_tree()
+		if tree:
+			tree.create_timer(0.4).timeout.connect(func() -> void:
+				if is_instance_valid(wave):
+					wave.queue_free()
+			)
+
+		return wave
+
 	func on_land(fall_dist: float, stacks: int) -> void:
-		if not tank or fall_dist < 2.0:
+		if not tank or fall_dist < MIN_FALL_DIST:
 			return
 		if not is_instance_valid(tank):
 			return
 
-		var radius := 4.5 * stacks
-		var slam_damage := 18.0 * stacks
+		var radius: float = get_slam_radius(stacks)
+		var slam_damage: float = 18.0 * float(maxi(1, stacks))
 		var tree := tank.get_tree()
 		if not tree:
 			return
+
+		var spawn_parent: Node = tank.get_parent() if tank.get_parent() else tree.current_scene
+		if spawn_parent:
+			spawn_shockwave_vfx(spawn_parent, tank.global_position, radius, tank.team_color)
+
+		if tank.net_sync and tank.multiplayer and tank.multiplayer.has_multiplayer_peer() and tank.multiplayer.is_server():
+			tank.net_sync.s2c_spawn_ground_slam_vfx.rpc(tank.global_position, radius)
 
 		for node in tree.get_nodes_in_group("tanks"):
 			if node is Tank and is_instance_valid(tank) and node != tank and node.is_active:
@@ -372,15 +459,14 @@ static func _init_cards() -> void:
 	_register("reflect", "Reflect", "Заблокированный снаряд отражается обратно во врага со сменой владельца.", CardDefinition.Category.BLOCK, true, 1, {})
 	_register("perfect_guard", "Perfect Guard", "Блок в первые 25% окна щита сбрасывает кулдаун.", CardDefinition.Category.BLOCK, true, 1, {}, PerfectGuardEffect)
 
-	# --- JUMP CARDS (6) ---
+	# --- JUMP CARDS (5) ---
 	_register("high_jump", "High Jump", "+40% высота прыжка танка.", CardDefinition.Category.JUMP, false, 99, {"jump_velocity_mult": 1.40})
-	_register("air_control", "Air Control", "+100% маневренность и управление движением в воздухе.", CardDefinition.Category.JUMP, false, 99, {"air_control_mult": 2.0})
-	_register("ground_slam", "Ground Slam", "Приземление с высоты вызывает ударную волну урона.", CardDefinition.Category.JUMP, false, 99, {}, GroundSlamEffect)
+	_register("ground_slam", "Ground Slam", "Приземление с высоты вызывает ударную волну на 18 урона в радиусе 4.5м.", CardDefinition.Category.JUMP, false, 99, {}, GroundSlamEffect)
 	_register("jump_mine", "Jump Mine", "При прыжке на земле остается мина с таймером 8 секунд.", CardDefinition.Category.JUMP, false, 99, {}, JumpMineEffect)
 	_register("death_from_above", "Death From Above", "+40% урона снарядам, выпущенным в прыжке.", CardDefinition.Category.JUMP, false, 99, {}, DeathFromAboveEffect)
 	_register("double_jump", "Double Jump", "Разрешает второй прыжок прямо в воздухе.", CardDefinition.Category.JUMP, true, 1, {})
 
-	# --- GENERAL CARDS (12) ---
+	# --- GENERAL CARDS (11) ---
 	_register("tankier", "Tankier", "+40 максимального здоровья танка.", CardDefinition.Category.GENERAL, false, 99, {"hp_flat": 40.0})
 	_register("lightweight", "Lightweight", "+30% к скорости танка, снижена масса.", CardDefinition.Category.GENERAL, false, 99, {"move_speed_mult": 1.30, "knockback_resistance_mult": 0.7})
 	_register("heavyweight", "Heavyweight", "+100% устойчивость к отталкиванию, -12% скорости.", CardDefinition.Category.GENERAL, false, 99, {"knockback_resistance_mult": 2.0, "move_speed_mult": 0.88})
@@ -391,7 +477,6 @@ static func _init_cards() -> void:
 	_register("road_rage", "Road Rage", "Таран вражеского танка на скорости наносит урон.", CardDefinition.Category.GENERAL, false, 99, {}, RoadRageEffect)
 	_register("tiny_tank", "Tiny Tank", "Танк меньше (-30%) и быстрее (+25%), но теряет 25 HP.", CardDefinition.Category.GENERAL, false, 99, {"scale_mult": 0.70, "move_speed_mult": 1.25, "hp_flat": -25.0})
 	_register("big_tank", "Big Tank", "Танк крупнее (+40%) и прочнее (+60 HP), но медленнее (-15%).", CardDefinition.Category.GENERAL, false, 99, {"scale_mult": 1.40, "hp_flat": 60.0, "move_speed_mult": 0.85})
-	_register("comeback", "Comeback", "Баффы скорости и кулдаунов в тяжелой ситуации.", CardDefinition.Category.GENERAL, false, 99, {"move_speed_mult": 1.20, "block_cooldown_mult": 0.80})
 	_register("phoenix", "Phoenix", "Один раз за раунд смертельный урон отменяется, танк оживает с 50% HP.", CardDefinition.Category.GENERAL, true, 1, {}, PhoenixEffect)
 
 static func _register(

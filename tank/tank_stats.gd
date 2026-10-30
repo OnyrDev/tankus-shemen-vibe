@@ -11,7 +11,7 @@ signal stats_changed()
 const BASE_MAX_HP := 100.0
 const BASE_MOVE_SPEED := 8.0
 const BASE_JUMP_VELOCITY := 8.0
-const BASE_AIR_CONTROL := 0.3
+const BASE_AIR_CONTROL := 1.0
 const BASE_DAMAGE := 28.0
 const BASE_PROJECTILE_SPEED := 24.0
 const BASE_PROJECTILE_BOUNCES := 0

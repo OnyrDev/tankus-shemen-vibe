@@ -219,7 +219,7 @@ func _update_tank_stats() -> void:
 	var ammo_max := st.magazine_size if st else (local_tank.weapon.magazine_size if local_tank.weapon else 6)
 	var speed_val := st.move_speed if st else 8.0
 	var jump_val := st.jump_velocity if st else 8.0
-	var air_ctrl := st.air_control if st else 0.3
+	var air_ctrl := st.air_control if st else 1.0
 	var dmg_val := st.damage if st else 28.0
 	var proj_spd := st.projectile_speed if st else 24.0
 	var bounces := st.projectile_bounces if st else 0

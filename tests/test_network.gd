@@ -243,6 +243,34 @@ func _ready() -> void:
 	crate.queue_free()
 	print("[PASS] 12. Сетевая синхронизация интерактивных физических ящиков (PhysicsCrate) успешно проверена")
 
+	# 13. Проверка Double Jump у клиентского танка на сервере и отсутствия залипания прыжка при приземлении
+	var dj_client_tank: Tank = tank_scene.instantiate()
+	add_child(dj_client_tank)
+	dj_client_tank.setup_network(2, 1, Color.RED)
+	dj_client_tank.net_sync.c2s_choose_card("double_jump")
+	assert(dj_client_tank.build.has_card("double_jump"), "Клиентский танк должен получить карту double_jump")
+
+	# Заряжаем double jump и имитируем полет в воздухе (высота Y = 5.0, падение вниз)
+	dj_client_tank.global_position = Vector3(0.0, 5.0, 0.0)
+	dj_client_tank.velocity = Vector3(0.0, -3.0, 0.0)
+	dj_client_tank.controller._can_double_jump = true
+
+	# Имитируем нажатие прыжка клиентом в воздухе
+	dj_client_tank.net_sync._client_wants_jump = true
+	dj_client_tank.net_sync._server_apply_client_movement(0.016)
+	assert(is_equal_approx(dj_client_tank.velocity.y, dj_client_tank.controller.jump_velocity), "Второй прыжок клиента должен сработать сразу в воздухе")
+	assert(dj_client_tank.controller._can_double_jump == false, "Заряд double_jump должен быть израсходован в воздухе")
+	assert(dj_client_tank.net_sync._client_wants_jump == false, "Флаг _client_wants_jump должен быть сброшен")
+
+	# Имитируем еще одно нажатие прыжка в воздухе (когда double_jump уже потрачен) — оно не должно буферизоваться до приземления
+	dj_client_tank.net_sync._client_wants_jump = true
+	dj_client_tank.net_sync._server_apply_client_movement(0.016)
+	assert(dj_client_tank.net_sync._client_wants_jump == false, "Лишнее нажатие прыжка в воздухе не должно залипать до приземления")
+	assert(dj_client_tank.input.jump_requested == false, "jump_requested должен быть потреблен в том же кадре")
+
+	dj_client_tank.queue_free()
+	print("[PASS] 13. Double Jump у клиента срабатывает в воздухе и не залипает до приземления")
+
 	print("\n>>> ВСЕ ПРОВЕРКИ СЕТЕВОГО СЛОЯ ФАЗЫ 4 УСПЕШНО ПРОЙДЕНЫ! <<<\n")
 	get_tree().quit(0)
 

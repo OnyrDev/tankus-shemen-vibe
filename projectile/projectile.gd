@@ -40,6 +40,7 @@ var _is_destroyed: bool = false
 const ENERGY_COLOR := Color(0.08, 0.7, 1.0)
 
 var _visual_color: Color = ENERGY_COLOR
+var _base_visual_scale: Vector3 = Vector3(0.8, 0.8, 0.8)
 
 @onready var visuals: Node3D = get_node_or_null("Visuals")
 @onready var mesh_instance: MeshInstance3D = get_node_or_null("Visuals/Shell")
@@ -74,13 +75,18 @@ const DEFAULT_TEAM_COLORS: Array[Color] = [
 	Color(0.85, 0.85, 0.85)  # Белый
 ]
 
+var _pierced_rids: Array[RID] = []
+
 func _ready() -> void:
 	if is_instance_valid(shooter) and shooter is CollisionObject3D:
 		add_collision_exception_with(shooter as CollisionObject3D)
 
 	velocity = direction.normalized() * speed
-	if size_mult != 1.0:
-		scale = Vector3.ONE * size_mult
+	lifetime = maxf(lifetime, 72.0 / maxf(1.0, speed))
+	if visuals:
+		_base_visual_scale = visuals.scale
+	if light and size_mult != 1.0:
+		light.omni_range = 1.4 * size_mult
 
 	_apply_color(DEFAULT_TEAM_COLORS[team_id % DEFAULT_TEAM_COLORS.size()] if team_id >= 0 else ENERGY_COLOR)
 	_update_visual_direction()
@@ -128,6 +134,7 @@ func setup(p_shooter: Node, p_origin: Vector3, p_direction: Vector3, p_color: Co
 	shooter = p_shooter
 	global_position = p_origin
 	direction = p_direction.normalized()
+	lifetime = maxf(lifetime, 72.0 / maxf(1.0, speed))
 	velocity = direction * speed
 
 	if is_instance_valid(shooter) and shooter is Tank:
@@ -136,10 +143,10 @@ func setup(p_shooter: Node, p_origin: Vector3, p_direction: Vector3, p_color: Co
 	if is_node_ready():
 		if is_instance_valid(shooter) and shooter is CollisionObject3D:
 			add_collision_exception_with(shooter as CollisionObject3D)
+		if light and size_mult != 1.0:
+			light.omni_range = 1.4 * size_mult
 		_apply_color(p_color)
 		_update_visual_direction()
-		if size_mult != 1.0:
-			scale = Vector3.ONE * size_mult
 
 func _apply_color(col: Color) -> void:
 	_visual_color = col
@@ -170,6 +177,7 @@ func _update_visual_direction() -> void:
 	var forward := velocity.normalized()
 	var up := Vector3.FORWARD if absf(forward.dot(Vector3.UP)) > 0.95 else Vector3.UP
 	visuals.look_at(visuals.global_position + forward, up)
+	visuals.scale = _base_visual_scale * size_mult
 
 func _physics_process(delta: float) -> void:
 	if _is_destroyed:
@@ -190,6 +198,8 @@ func _physics_process(delta: float) -> void:
 	var collision := move_and_collide(move_delta)
 	if collision:
 		_handle_collision(collision)
+	elif size_mult > 1.0 and not _is_destroyed:
+		_check_enlarged_tank_hit()
 
 func _process_homing(delta: float) -> void:
 	var tree := get_tree()
@@ -215,11 +225,33 @@ func _process_homing(delta: float) -> void:
 		direction = direction.lerp(to_enemy, steer_rate).normalized()
 		velocity = direction * speed
 
-func _handle_collision(collision: KinematicCollision3D) -> void:
-	var collider := collision.get_collider()
-	var col_point := collision.get_position()
-	var col_normal := collision.get_normal()
+func _check_enlarged_tank_hit() -> void:
+	var world := get_world_3d()
+	if not world:
+		return
+	var sphere := SphereShape3D.new()
+	sphere.radius = 0.18 * size_mult
+	var query := PhysicsShapeQueryParameters3D.new()
+	query.shape = sphere
+	query.transform = global_transform
+	query.collision_mask = 2 # Слой 2: только танки (не задевает пол и стены мира)
+	var exclude_rids: Array[RID] = [get_rid()]
+	if is_instance_valid(shooter) and shooter is CollisionObject3D:
+		exclude_rids.append((shooter as CollisionObject3D).get_rid())
+	for prid in _pierced_rids:
+		exclude_rids.append(prid)
+	query.exclude = exclude_rids
 
+	var rest_info := world.direct_space_state.get_rest_info(query)
+	if not rest_info.is_empty():
+		var col_obj := instance_from_id(rest_info["collider_id"])
+		if col_obj != null:
+			_handle_direct_hit(col_obj, rest_info["point"], rest_info["normal"])
+
+func _handle_collision(collision: KinematicCollision3D) -> void:
+	_handle_direct_hit(collision.get_collider(), collision.get_position(), collision.get_normal())
+
+func _handle_direct_hit(collider: Object, col_point: Vector3, col_normal: Vector3) -> void:
 	hit_object.emit(collider, col_point, col_normal)
 
 	var target_tank: Tank = null
@@ -238,7 +270,7 @@ func _handle_collision(collision: KinematicCollision3D) -> void:
 			var bounce_norm := col_normal.normalized() if col_normal.length_squared() > 0.01 else -direction
 			velocity = velocity.bounce(bounce_norm)
 			direction = velocity.normalized()
-			global_position = col_point + bounce_norm * (0.22 * size_mult)
+			global_position = col_point + bounce_norm * 0.22
 			bounced.emit(bounce_norm, bounces_done)
 			if SoundManager:
 				SoundManager.play_sfx_3d("ricochet", col_point)
@@ -294,6 +326,7 @@ func _handle_collision(collision: KinematicCollision3D) -> void:
 		if piercing_count > 0:
 			piercing_count -= 1
 			add_collision_exception_with(target_tank)
+			_pierced_rids.append(target_tank.get_rid())
 			_spawn_impact_vfx(col_point, col_normal)
 			return # снаряд не уничтожается, летит дальше!
 
@@ -318,7 +351,7 @@ func _handle_collision(collision: KinematicCollision3D) -> void:
 
 		# Выдвигаем снаряд из поверхности по нормали на радиус сферы + запас безопасности,
 		# чтобы исключить залипание в коллизии (sticky collision) на следующем тике физики!
-		var safe_dist := 0.22 * size_mult
+		var safe_dist := 0.22
 		global_position = col_point + bounce_normal * safe_dist
 
 		# Бонус карты Ricochet Power (+25% урона, +15% скорости за каждый отскок)

@@ -213,68 +213,13 @@ func _server_apply_client_movement(delta: float) -> void:
 	if not _tank.controller:
 		return
 
-	var on_floor := _tank.is_on_floor()
+	if _tank.input:
+		_tank.input.move_direction_world = _client_move_dir
+		if _client_wants_jump:
+			_tank.input.jump_requested = true
+			_client_wants_jump = false
 
-	# Прыжок
-	if _client_wants_jump and on_floor:
-		_tank.velocity.y = _tank.controller.jump_velocity
-		_client_wants_jump = false
-		if _tank.events:
-			_tank.events.emit_jump()
-	elif not on_floor:
-		_tank.velocity.y -= _tank.controller.gravity * delta
-
-	# Движение с поддержкой наклонных плоскостей (рамп) и льда
-	var is_on_ice: bool = _tank.controller.is_on_ice if _tank.controller else false
-	var current_accel: float = _tank.controller.acceleration if on_floor else (_tank.controller.acceleration * _tank.controller.air_control)
-	var current_brake: float = _tank.controller.braking if on_floor else (_tank.controller.braking * _tank.controller.air_control)
-	if on_floor and is_on_ice and _tank.controller:
-		current_accel *= _tank.controller.ice_acceleration_multiplier
-		current_brake *= _tank.controller.ice_braking_multiplier
-	var effective_speed := _tank.controller.move_speed * _tank.controller.speed_multiplier
-
-	if _client_move_dir.length_squared() > 0.01:
-		var target_vel := _client_move_dir * effective_speed
-		if on_floor:
-			var floor_norm := _tank.get_floor_normal()
-			if floor_norm.y > 0.1 and floor_norm.y < 0.999:
-				target_vel = target_vel.slide(floor_norm).normalized() * effective_speed
-
-		_tank.velocity.x = move_toward(_tank.velocity.x, target_vel.x, current_accel * delta)
-		_tank.velocity.z = move_toward(_tank.velocity.z, target_vel.z, current_accel * delta)
-		if on_floor:
-			_tank.velocity.y = move_toward(_tank.velocity.y, target_vel.y, current_accel * delta)
-	else:
-		_tank.velocity.x = move_toward(_tank.velocity.x, 0.0, current_brake * delta)
-		_tank.velocity.z = move_toward(_tank.velocity.z, 0.0, current_brake * delta)
-		if on_floor:
-			_tank.velocity.y = move_toward(_tank.velocity.y, 0.0, current_brake * delta)
-
-	# Поворот корпуса по фактической скорости
-	var flat_vel := Vector3(_tank.velocity.x, 0.0, _tank.velocity.z)
-	if flat_vel.length_squared() > 0.35:
-		var vel_dir := flat_vel.normalized()
-		var target_yaw := atan2(-vel_dir.x, -vel_dir.z)
-		var diff := wrapf(target_yaw - _tank.rotation.y, -PI, PI)
-		if absf(diff) > 0.005:
-			_tank.rotation.y += signf(diff) * minf(absf(diff), _tank.controller.body_turn_speed * delta)
-
-	_tank.move_and_slide()
-
-	# Передача импульса в физические тела при таране
-	for i in range(_tank.get_slide_collision_count()):
-		var col := _tank.get_slide_collision(i)
-		var rbody := col.get_collider() as RigidBody3D
-		if rbody:
-			var col_norm := col.get_normal()
-			# Исключаем вертикальные контакты/опоры (когда танк стоит или едет сверху на ящике)
-			if col_norm.y > 0.5:
-				continue
-			var push_dir := -col_norm
-			push_dir.y = 0.0
-			if push_dir.length_squared() > 0.01:
-				var push_impulse := push_dir.normalized() * (effective_speed * 2.5)
-				rbody.apply_central_impulse(push_impulse)
+	_tank.controller.process_physics(_tank.input, delta)
 
 	# Доворот башни на сервере
 	if _tank.turret and _client_is_aim_valid:
@@ -377,6 +322,15 @@ func s2c_card_added(card_id: String) -> void:
 	var card_def := CardDatabase.get_card(card_id)
 	if card_def:
 		_tank.build.add_card(card_def)
+
+
+@rpc("authority", "unreliable")
+func s2c_spawn_ground_slam_vfx(origin: Vector3, radius: float) -> void:
+	if _is_server() or not _tank:
+		return
+	var spawn_parent: Node = _tank.get_parent() if _tank.get_parent() else get_tree().current_scene
+	if spawn_parent:
+		CardDatabase.GroundSlamEffect.spawn_shockwave_vfx(spawn_parent, origin, radius, _tank.team_color)
 
 func _update_synced_properties_from_tank() -> void:
 	synced_position = _tank.global_position
