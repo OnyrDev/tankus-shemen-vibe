@@ -6,6 +6,7 @@ extends Node
 ## PREPARE -> DRAFT (все в раунде 1 / проигравшие в раундах 2+) ->
 ## COUNTDOWN (3..2..1) -> PLAYING (1 жизнь) -> ROUND_END -> MATCH_END.
 
+signal map_change_requested(map_name: String)
 signal match_started()
 signal round_started(round_number: int)
 signal round_ended(winner_peer_or_team: int, is_team: bool)
@@ -25,6 +26,7 @@ enum State {
 
 var current_state: State = State.IDLE
 var current_round: int = 0
+var _has_selected_match_map: bool = false
 var last_round_winner_id: int = -1 # peer_id (FFA) или team_id (Teams), -1 = Draw
 
 @export var spawned_tanks_container: Node3D = null
@@ -260,6 +262,8 @@ func start_new_match() -> void:
 	if not _is_server():
 		return
 
+	Game.is_in_match = true
+	Game.is_solo_practice = false
 	current_round = 0
 	last_round_winner_id = -1
 	_pending_draft_peers.clear()
@@ -283,6 +287,12 @@ func _server_prepare_round() -> void:
 	current_round += 1
 	current_state = State.PREPARE
 	Game.set_match_state("PREPARE")
+
+	# Меняем арену до назначения спавнов. Ничья переигрывается на той же карте.
+	if current_round == 1 or last_round_winner_id != -1:
+		var previous_map := Game.rules.selected_map if _has_selected_match_map else ""
+		map_change_requested.emit(Game.rules.pick_random_map(previous_map))
+		_has_selected_match_map = true
 
 	# Помечаем всех игроков живыми
 	for p in Network.get_all_players():
@@ -322,7 +332,10 @@ func _server_start_draft_phase(all_draft: bool) -> void:
 				should_draft = (p.peer_id != last_round_winner_id)
 
 		if should_draft:
-			_pending_draft_peers.append(p.peer_id)
+			if p.is_bot:
+				_server_draft_bot(p)
+			else:
+				_pending_draft_peers.append(p.peer_id)
 
 	# Если по какой-то причине драфтовать некому (например 1 игрок в соло-тесте), сразу переходим к отсчету
 	if _pending_draft_peers.is_empty():
@@ -336,6 +349,20 @@ func _server_start_draft_phase(all_draft: bool) -> void:
 		if current_state == State.DRAFT:
 			_server_force_finish_draft()
 	)
+
+func _server_draft_bot(player: PlayerInfo) -> void:
+	if not spawned_tanks_container:
+		return
+	var tank := spawned_tanks_container.get_node_or_null("Tank_%d" % player.peer_id) as Tank
+	if tank == null or tank.net_sync == null:
+		return
+	if tank.net_sync.bot_brain == null:
+		tank.net_sync.bot_brain = TankBotController.new(tank, player.bot_difficulty)
+	var card := tank.net_sync.bot_brain.choose_card()
+	if card:
+		tank.build.add_card(card)
+		if Network.is_multiplayer_active():
+			tank.net_sync.s2c_card_added.rpc(card.id)
 
 func _server_force_finish_draft() -> void:
 	if current_state != State.DRAFT:
@@ -575,6 +602,7 @@ func s2c_reset_and_place_tanks(assigned_spawns: Dictionary = {}) -> void:
 
 @rpc("authority", "reliable", "call_local")
 func s2c_match_started(rules_dict: Dictionary) -> void:
+	Game.is_in_match = true
 	Game.rules.load_dict(rules_dict)
 	if lobby:
 		lobby.close_lobby()

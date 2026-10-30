@@ -35,6 +35,9 @@ func take_damage(amount: float, attacker: Node = null) -> bool:
 		return false
 
 	var valid_attacker: Node = attacker if is_instance_valid(attacker) else null
+	if Game.rules.is_team_mode and not Game.rules.friendly_fire and valid_attacker is Tank:
+		if _tank and valid_attacker != _tank and valid_attacker.team_id == _tank.team_id:
+			return false
 
 	var actual_damage := minf(current_health, amount)
 	current_health = maxf(0.0, current_health - amount)

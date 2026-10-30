@@ -104,11 +104,17 @@ func _send_broadcast_beacon() -> void:
 	if net_node and "players" in net_node:
 		current_player_count = maxi(1, net_node.players.size())
 
+	var human_player_count := current_player_count
+	if net_node and net_node.has_method("get_human_player_count"):
+		human_player_count = maxi(1, net_node.get_human_player_count())
+
 	var payload: Dictionary = {
 		"game": "TANKUS",
 		"name": host_server_name,
 		"port": host_game_port,
 		"players": current_player_count,
+		"human_players": human_player_count,
+		"bots": maxi(0, current_player_count - human_player_count),
 		"max_players": host_max_players,
 		"version": "1.0"
 	}
@@ -144,6 +150,8 @@ func _poll_listener() -> void:
 			"port": s_port,
 			"name": str(parsed.get("name", "TANKUS Server")),
 			"players": int(parsed.get("players", 1)),
+			"human_players": int(parsed.get("human_players", parsed.get("players", 1))),
+			"bots": int(parsed.get("bots", 0)),
 			"max_players": int(parsed.get("max_players", 8)),
 			"last_seen": Time.get_ticks_msec() / 1000.0
 		}

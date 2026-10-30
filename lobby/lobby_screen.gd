@@ -17,17 +17,6 @@ const TEAM_COLORS: Array[Color] = [
 	Color(0.85, 0.85, 0.85)  # Серый (8)
 ]
 
-const MAP_NAMES: Array[String] = [
-	"sky_courtyard",
-	"iceworks",
-	"pendulum_yard",
-	"shift",
-	"atrium",
-	"ceramic_garden",
-	"radio_station",
-	"factory_smelter"
-]
-
 # --- 3D Showroom ---
 @onready var showroom_tank: Node3D = $Showroom3D/ShowroomTank
 @onready var showroom_turret: Node3D = $Showroom3D/ShowroomTank/TurretMount
@@ -46,8 +35,9 @@ const MAP_NAMES: Array[String] = [
 @onready var opt_game_mode: OptionButton = %OptGameMode
 @onready var opt_target_wins: OptionButton = %OptTargetWins
 @onready var opt_team_count: OptionButton = %OptTeamCount
+@onready var opt_bot_count: OptionButton = %OptBotCount
+@onready var opt_bot_difficulty: OptionButton = %OptBotDifficulty
 @onready var chk_friendly_fire: CheckBox = %ChkFriendlyFire
-@onready var opt_map: OptionButton = %OptMap
 @onready var lbl_host_only_hint: Label = %LblHostOnlyHint
 
 # --- Нижняя панель действий ---
@@ -106,12 +96,19 @@ func _connect_signals() -> void:
 		opt_target_wins.item_selected.connect(_on_host_setting_changed)
 	if opt_team_count:
 		opt_team_count.item_selected.connect(_on_host_setting_changed)
+	opt_bot_count.item_selected.connect(_on_host_setting_changed)
+	opt_bot_difficulty.item_selected.connect(_on_host_setting_changed)
 	if chk_friendly_fire:
 		chk_friendly_fire.toggled.connect(func(_val): _on_host_setting_changed(0))
-	if opt_map:
-		opt_map.item_selected.connect(_on_host_setting_changed)
 
 func _setup_ui_options() -> void:
+	opt_bot_count.add_item("Без ботов", 0)
+	for count in range(1, 8):
+		opt_bot_count.add_item("Добавить: %d" % count, count)
+	opt_bot_count.add_item("Заполнять до 8", 8)
+	for level in range(PlayerInfo.BOT_DIFFICULTY_NAMES.size()):
+		opt_bot_difficulty.add_item(PlayerInfo.BOT_DIFFICULTY_NAMES[level], level)
+	opt_bot_difficulty.select(1)
 	if opt_game_mode:
 		opt_game_mode.clear()
 		opt_game_mode.add_item("Каждый сам за себя (FFA)", 0)
@@ -130,17 +127,6 @@ func _setup_ui_options() -> void:
 		opt_team_count.add_item("2 команды", 2)
 		opt_team_count.add_item("3 команды", 3)
 		opt_team_count.add_item("4 команды", 4)
-
-	if opt_map:
-		opt_map.clear()
-		opt_map.add_item("Sky Courtyard", 0)
-		opt_map.add_item("Iceworks", 1)
-		opt_map.add_item("Pendulum Yard", 2)
-		opt_map.add_item("Shift", 3)
-		opt_map.add_item("Atrium", 4)
-		opt_map.add_item("Керамический сад — Терракота", 5)
-		opt_map.add_item("Радиостанция — Малиновая частота", 6)
-		opt_map.add_item("Завод — Плавильня", 7)
 
 func _update_lobby_ui() -> void:
 	var is_host: bool = Network.is_host or not Network.is_multiplayer_active()
@@ -161,6 +147,9 @@ func _update_lobby_ui() -> void:
 	if lbl_host_only_hint:
 		lbl_host_only_hint.visible = not is_host
 
+	opt_bot_count.disabled = not is_host
+	opt_bot_difficulty.disabled = not is_host or Game.rules.bot_count == 0
+
 	# Блокируем настройки для клиентов
 	if opt_game_mode:
 		opt_game_mode.disabled = not is_host
@@ -170,8 +159,6 @@ func _update_lobby_ui() -> void:
 		opt_team_count.disabled = not is_host or (opt_game_mode and opt_game_mode.selected == 0)
 	if chk_friendly_fire:
 		chk_friendly_fire.disabled = not is_host
-	if opt_map:
-		opt_map.disabled = not is_host
 
 	_refresh_player_cards()
 
@@ -220,7 +207,7 @@ func _create_player_card(player: PlayerInfo) -> PanelContainer:
 
 	# Имя и бейджи
 	var name_lbl := Label.new()
-	var host_badge := " [ХОСТ]" if player.peer_id == 1 else ""
+	var host_badge := " [БОТ]" if player.is_bot else (" [ХОСТ]" if player.peer_id == 1 else "")
 	var me_badge := " [ВЫ]" if is_me else ""
 	name_lbl.text = "%s%s%s" % [player.player_name, host_badge, me_badge]
 	name_lbl.add_theme_font_size_override("font_size", 15)
@@ -229,14 +216,17 @@ func _create_player_card(player: PlayerInfo) -> PanelContainer:
 
 	# Выбор команды
 	if Game.rules.is_team_mode:
-		if is_me:
+		if is_me or (player.is_bot and Network.is_host):
 			var team_btn := Button.new()
 			team_btn.text = "Команда %d" % player.team_id
 			team_btn.custom_minimum_size = Vector2(100, 30)
 			team_btn.pressed.connect(func():
 				_play_select_sound()
 				var next_team := (player.team_id % Game.rules.team_count) + 1
-				Network.set_local_team(next_team)
+				if player.is_bot:
+					Network.set_bot_team(player.peer_id, next_team)
+				else:
+					Network.set_local_team(next_team)
 				_update_tank_team_color()
 			)
 			team_btn.mouse_entered.connect(_play_hover_sound)
@@ -249,7 +239,10 @@ func _create_player_card(player: PlayerInfo) -> PanelContainer:
 
 	# Пинг
 	var ping_lbl := Label.new()
-	if player.peer_id == 1:
+	if player.is_bot:
+		ping_lbl.text = PlayerInfo.BOT_DIFFICULTY_NAMES[player.bot_difficulty]
+		ping_lbl.modulate = Color(0.6, 0.8, 1.0)
+	elif player.peer_id == 1:
 		ping_lbl.text = "0 ms"
 		ping_lbl.modulate = Color(0.4, 0.9, 0.4)
 	else:
@@ -267,7 +260,10 @@ func _create_player_card(player: PlayerInfo) -> PanelContainer:
 	var ready_badge := Label.new()
 	ready_badge.custom_minimum_size = Vector2(90, 0)
 	ready_badge.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	if player.peer_id == 1:
+	if player.is_bot:
+		ready_badge.text = "БОТ"
+		ready_badge.modulate = Color(0.4, 0.8, 1.0)
+	elif player.peer_id == 1:
 		ready_badge.text = "ХОСТ"
 		ready_badge.modulate = Color(0.4, 0.8, 1.0)
 	elif player.is_ready:
@@ -359,6 +355,9 @@ func _on_host_setting_changed(_idx: int) -> void:
 
 func _apply_host_settings_to_rules() -> void:
 	var r := Game.rules
+	r.bot_count = opt_bot_count.get_selected_id()
+	r.bot_difficulty = opt_bot_difficulty.get_selected_id()
+	opt_bot_difficulty.disabled = r.bot_count == 0
 	if opt_game_mode:
 		r.is_team_mode = (opt_game_mode.selected == 1)
 	if opt_target_wins:
@@ -367,10 +366,6 @@ func _apply_host_settings_to_rules() -> void:
 		r.team_count = opt_team_count.get_selected_id()
 	if chk_friendly_fire:
 		r.friendly_fire = chk_friendly_fire.button_pressed
-	if opt_map:
-		var map_idx := opt_map.selected
-		if map_idx >= 0 and map_idx < MAP_NAMES.size():
-			r.selected_map = MAP_NAMES[map_idx]
 
 	if opt_team_count and opt_game_mode:
 		opt_team_count.disabled = (opt_game_mode.selected == 0)
@@ -380,6 +375,10 @@ func _apply_host_settings_to_rules() -> void:
 
 func _sync_settings_from_game_rules() -> void:
 	var r := Game.rules
+	opt_bot_count.select(r.bot_count)
+	opt_bot_difficulty.select(r.bot_difficulty)
+	opt_bot_count.disabled = not Network.is_host
+	opt_bot_difficulty.disabled = not Network.is_host or r.bot_count == 0
 	if opt_game_mode:
 		opt_game_mode.select(1 if r.is_team_mode else 0)
 	if opt_target_wins:
@@ -396,10 +395,6 @@ func _sync_settings_from_game_rules() -> void:
 			opt_team_count.disabled = not Network.is_host or not r.is_team_mode
 	if chk_friendly_fire:
 		chk_friendly_fire.button_pressed = r.friendly_fire
-	if opt_map:
-		var map_idx := MAP_NAMES.find(r.selected_map)
-		if map_idx != -1:
-			opt_map.select(map_idx)
 
 	_refresh_player_cards()
 

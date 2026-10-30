@@ -75,6 +75,7 @@ const DEFAULT_TEAM_COLORS: Array[Color] = [
 ]
 
 func _ready() -> void:
+	add_to_group("projectiles")
 	if is_instance_valid(shooter) and shooter is CollisionObject3D:
 		add_collision_exception_with(shooter as CollisionObject3D)
 

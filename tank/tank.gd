@@ -171,6 +171,7 @@ func respawn(new_transform: Transform3D = spawn_point, reset_health: bool = true
 		is_active = true
 
 	if net_sync:
+		net_sync.reset_movement_prediction()
 		net_sync.synced_position = new_transform.origin
 		net_sync.synced_rotation_y = 0.0
 		net_sync.synced_is_active = is_active

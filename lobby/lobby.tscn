@@ -141,13 +141,35 @@ text = "Огонь по своим:"
 [node name="ChkFriendlyFire" type="CheckBox" parent="Panel/Margin/VBox/HSplit/RightPanel/HostSettings/GridSettings"]
 layout_mode = 2
 
-[node name="LblMap" type="Label" parent="Panel/Margin/VBox/HSplit/RightPanel/HostSettings/GridSettings"]
+[node name="LblBotCount" type="Label" parent="Panel/Margin/VBox/HSplit/RightPanel/HostSettings/GridSettings"]
 layout_mode = 2
-text = "Арена:"
+text = "Боты:"
 
-[node name="OptMap" type="OptionButton" parent="Panel/Margin/VBox/HSplit/RightPanel/HostSettings/GridSettings"]
+[node name="OptBotCount" type="OptionButton" parent="Panel/Margin/VBox/HSplit/RightPanel/HostSettings/GridSettings"]
 layout_mode = 2
 size_flags_horizontal = 3
+
+[node name="LblBotDifficulty" type="Label" parent="Panel/Margin/VBox/HSplit/RightPanel/HostSettings/GridSettings"]
+layout_mode = 2
+text = "Сложность ботов:"
+
+[node name="OptBotDifficulty" type="OptionButton" parent="Panel/Margin/VBox/HSplit/RightPanel/HostSettings/GridSettings"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="LblMap" type="Label" parent="Panel/Margin/VBox/HSplit/RightPanel/HostSettings/GridSettings"]
+layout_mode = 2
+text = "Арены:"
+
+[node name="LblMapRotation" type="Label" parent="Panel/Margin/VBox/HSplit/RightPanel/HostSettings/GridSettings"]
+layout_mode = 2
+text = "Случайно, без повторов подряд"
+
+[node name="LblBotHint" type="Label" parent="Panel/Margin/VBox/HSplit/RightPanel/HostSettings"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Добавьте ботов, чтобы играть одному.\nЛюди занимают места ботов при автозаполнении."
+autowrap_mode = 3
 
 [node name="LblHostOnlyHint" type="Label" parent="Panel/Margin/VBox/HSplit/RightPanel/HostSettings"]
 layout_mode = 2
