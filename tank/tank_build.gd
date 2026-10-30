@@ -19,6 +19,8 @@ func _ready() -> void:
 	_tank = get_parent() as Tank
 
 func _physics_process(delta: float) -> void:
+	if Network.is_multiplayer_active() and not Network.is_server():
+		return
 	for card_id in active_effects:
 		var effect: CardEffect = active_effects[card_id]
 		var stacks: int = cards.get(card_id, 1)

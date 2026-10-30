@@ -1,6 +1,11 @@
 class_name PlayerInfo
 extends RefCounted
 
+const BOT_DIFFICULTY_NAMES: Array[String] = ["Лёгкий", "Обычный", "Сложный"]
+
+var is_bot: bool = false
+var bot_difficulty: int = 1
+
 var peer_id: int = 1
 var player_name: String = "Player"
 var team_id: int = 0
@@ -17,6 +22,8 @@ func _init(p_peer_id: int = 1, p_name: String = "Player", p_team: int = 0) -> vo
 func to_dict() -> Dictionary:
 	return {
 		"peer_id": peer_id,
+		"is_bot": is_bot,
+		"bot_difficulty": bot_difficulty,
 		"player_name": player_name,
 		"team_id": team_id,
 		"is_ready": is_ready,
@@ -31,6 +38,8 @@ static func from_dict(d: Dictionary) -> PlayerInfo:
 		d.get("player_name", "Player"),
 		d.get("team_id", 0)
 	)
+	info.is_bot = d.get("is_bot", false)
+	info.bot_difficulty = clampi(d.get("bot_difficulty", 1), 0, 2)
 	info.is_ready = d.get("is_ready", false)
 	info.round_wins = d.get("round_wins", 0)
 	info.is_alive = d.get("is_alive", true)

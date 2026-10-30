@@ -16,16 +16,7 @@ const TEAM_COLORS: Array[Color] = [
 	Color(0.85, 0.85, 0.85)  # Белый
 ]
 
-const MAP_SCENES: Dictionary = {
-	"sky_courtyard": "res://maps/sky_courtyard.tscn",
-	"iceworks": "res://maps/iceworks.tscn",
-	"pendulum_yard": "res://maps/pendulum_yard.tscn",
-	"shift": "res://maps/shift.tscn",
-	"atrium": "res://maps/atrium.tscn",
-	"ceramic_garden": "res://maps/ceramic_garden.tscn",
-	"radio_station": "res://maps/radio_station.tscn",
-	"factory_smelter": "res://maps/factory_smelter.tscn"
-}
+const MAP_SCENES: Dictionary = MatchRules.MAP_SCENES
 
 @onready var map_container: Node3D = get_node_or_null("MapContainer")
 var current_arena: BaseArena = null
@@ -113,11 +104,9 @@ func load_map(map_name: String) -> void:
 		move_child(map_container, 0)
 
 	# Очищаем предыдущую арену
-	if current_arena and is_instance_valid(current_arena):
-		current_arena.queue_free()
-		current_arena = null
-
+	current_arena = null
 	for child in map_container.get_children():
+		map_container.remove_child(child)
 		child.queue_free()
 
 	current_arena = packed.instantiate() as BaseArena
@@ -126,6 +115,7 @@ func load_map(map_name: String) -> void:
 	spawn_points_container = current_arena.spawn_points_container if current_arena.spawn_points_container else current_arena.get_node_or_null("SpawnPoints")
 	kill_volume = current_arena.kill_volume if current_arena.kill_volume else current_arena.get_node_or_null("KillVolume")
 
+	_ensure_bot_navigation()
 	if current_arena:
 		current_arena.tank_fell.connect(_on_kill_volume_body_entered)
 
@@ -140,6 +130,7 @@ func load_map(map_name: String) -> void:
 
 @rpc("authority", "reliable", "call_local")
 func s2c_load_map(map_name: String) -> void:
+	Game.rules.selected_map = map_name
 	load_map(map_name)
 
 func _setup_phase5_systems() -> void:
@@ -150,6 +141,7 @@ func _setup_phase5_systems() -> void:
 		match_controller.hud = hud
 		match_controller.card_draft = card_draft
 		match_controller.lobby = lobby
+		match_controller.map_change_requested.connect(_on_map_change_requested)
 		match_controller.returned_to_lobby.connect(_on_returned_to_lobby)
 		match_controller.match_started.connect(func():
 			if lobby:
@@ -174,6 +166,7 @@ func _setup_network_signals() -> void:
 	Network.server_closed.connect(_on_session_ended)
 	Network.connected_to_server.connect(_on_connected_to_server)
 	Network.peer_connected.connect(_on_peer_connected)
+	Network.player_list_updated.connect(_on_roster_updated)
 	Network.peer_disconnected.connect(_on_peer_disconnected)
 	Network.server_disconnected.connect(_on_session_ended)
 
@@ -253,15 +246,41 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func _on_server_created() -> void:
 	_set_solo_tanks_active(false)
-	_server_spawn_tank_for_peer(1)
+	_sync_roster_tanks()
 
 func _on_connected_to_server() -> void:
 	_set_solo_tanks_active(false)
 	_check_and_bind_my_tank()
 
-func _on_peer_connected(peer_id: int) -> void:
+func _on_peer_connected(_peer_id: int) -> void:
 	if Network.is_server():
-		_server_spawn_tank_for_peer(peer_id)
+		_sync_roster_tanks.call_deferred()
+
+func _on_roster_updated() -> void:
+	if Network.is_host:
+		_sync_roster_tanks.call_deferred()
+
+func _ensure_bot_navigation() -> void:
+	if Network.is_server() and Game.rules.bot_count > 0 and current_arena and not current_arena.has_node("BotNavigation"):
+		var navigation := BotNavigation.new()
+		navigation.name = "BotNavigation"
+		current_arena.add_child(navigation)
+
+func _sync_roster_tanks() -> void:
+	if not Network.is_host or not spawned_tanks:
+		return
+	_ensure_bot_navigation()
+	for child in spawned_tanks.get_children():
+		if child is Tank and not Network.players.has(child.peer_id):
+			_server_remove_tank_for_peer(child.peer_id)
+	for info in Network.get_all_players():
+		_server_spawn_tank_for_peer(info.peer_id)
+		var current := spawned_tanks.get_node_or_null("Tank_%d" % info.peer_id) as Tank
+		if current:
+			var slot := _get_or_assign_spawn_slot(info.peer_id)
+			var color_index: int = info.team_id - 1 if Game.rules.is_team_mode else slot
+			var team: int = info.team_id if Game.rules.is_team_mode else slot + 1
+			current.setup_network(info.peer_id, team, TEAM_COLORS[posmod(color_index, TEAM_COLORS.size())])
 
 func _on_peer_disconnected(peer_id: int) -> void:
 	if Network.is_server():
@@ -343,7 +362,11 @@ func _server_spawn_tank_for_peer(peer_id: int) -> void:
 
 	t.global_transform = spawn_tf
 	t.spawn_point = spawn_tf
-	t.setup_network(peer_id, slot, team_col)
+	var info := Network.get_player_info(peer_id)
+	var team := info.team_id if info and Game.rules.is_team_mode else slot + 1
+	if Game.rules.is_team_mode:
+		team_col = TEAM_COLORS[posmod(team - 1, TEAM_COLORS.size())]
+	t.setup_network(peer_id, team, team_col)
 
 func _on_tank_died(dead_tank: Tank, _killer: Node) -> void:
 	if dead_tank.peer_id == Network.get_unique_id() and match_controller:
@@ -385,14 +408,14 @@ func _on_match_start_requested() -> void:
 	if lobby:
 		lobby.close_lobby()
 
-	# Хост синхронизирует выбранную карту перед стартом матча
-	if multiplayer.has_multiplayer_peer():
-		s2c_load_map.rpc(Game.rules.selected_map)
-	else:
-		load_map(Game.rules.selected_map)
-
 	if match_controller and (Network.is_host or not Network.is_multiplayer_active()):
 		match_controller.start_new_match()
+
+func _on_map_change_requested(map_name: String) -> void:
+	if multiplayer.has_multiplayer_peer():
+		s2c_load_map.rpc(map_name)
+	else:
+		s2c_load_map(map_name)
 
 func _on_lobby_left() -> void:
 	Game.return_to_main_menu()
@@ -423,6 +446,7 @@ func _server_remove_tank_for_peer(peer_id: int) -> void:
 			for child in projectiles.get_children():
 				if child is Projectile and child.shooter == t:
 					child.queue_free()
+		spawned_tanks.remove_child(t)
 		t.queue_free()
 
 func _on_spawned_tank_entered(node: Node) -> void:
@@ -485,7 +509,7 @@ func _on_kill_volume_body_entered(body: Node3D) -> void:
 				var tf2 := _get_spawn_transform_for_peer(2)
 				_handle_void_fall(t, tf2)
 			else:
-				var spawn_tf := _get_spawn_transform_for_peer(t.peer_id if t.peer_id > 0 else 1)
+				var spawn_tf := _get_spawn_transform_for_peer(t.peer_id if t.peer_id != 0 else 1)
 				_handle_void_fall(t, spawn_tf)
 
 func _handle_void_fall(t: Tank, spawn_tf: Transform3D) -> void:

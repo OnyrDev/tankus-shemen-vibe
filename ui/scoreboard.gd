@@ -116,7 +116,7 @@ func _create_player_row(player: PlayerInfo, is_me: bool) -> Control:
 
 	# Имя игрока
 	var name_lbl := Label.new()
-	var host_str := " [ХОСТ]" if player.peer_id == 1 else ""
+	var host_str := " [БОТ]" if player.is_bot else (" [ХОСТ]" if player.peer_id == 1 else "")
 	var me_str := " [ВЫ]" if is_me else ""
 	name_lbl.text = "%s%s%s" % [player.player_name, host_str, me_str]
 	name_lbl.custom_minimum_size = Vector2(170, 0)
@@ -143,7 +143,9 @@ func _create_player_row(player: PlayerInfo, is_me: bool) -> Control:
 	var ping_lbl := Label.new()
 	ping_lbl.custom_minimum_size = Vector2(60, 0)
 	ping_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	if player.peer_id == 1:
+	if player.is_bot:
+		ping_lbl.text = PlayerInfo.BOT_DIFFICULTY_NAMES[player.bot_difficulty]
+	elif player.peer_id == 1:
 		ping_lbl.text = "0 ms"
 		ping_lbl.modulate = Color(0.4, 0.9, 0.4)
 	else:

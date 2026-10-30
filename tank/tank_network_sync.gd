@@ -3,9 +3,39 @@ extends Node
 
 ## Компонент сетевой синхронизации танка TANKUS (Server-Authoritative).
 ## На сервере: принимает намерения ввода клиента и реплицирует авторитетное состояние танка.
-## На клиенте: считывает локальный ввод и интерполирует удаленные танки.
+## На клиенте: предсказывает локальное движение, повторяет неподтверждённый
+## ввод после серверной коррекции и интерполирует удалённые танки.
 
 @export var sync_rate_hz: float = 30.0
+@export var prediction_enabled: bool = true
+
+const MAX_INPUT_HISTORY: int = 180
+const INPUT_REDUNDANCY: int = 6
+const INPUT_TIMEOUT_SEC: float = 0.25
+
+var simulated_latency_ms: int = 0 # Задержка в одну сторону, только для отладки движения.
+var last_correction_distance: float = 0.0
+var reconciliation_count: int = 0
+var _input_sequence: int = 0
+var _last_received_input: int = 0
+var _last_processed_input: int = 0
+var _motion_epoch: int = 0
+var _snapshot_id: int = 0
+var _last_snapshot_id: int = -1
+var _snapshot_timer: float = 0.0
+var _input_age: float = 0.0
+var _server_commands: Array[Dictionary] = []
+var _pending_inputs: Array[Dictionary] = []
+var _recent_inputs: Array[Dictionary] = []
+var _delayed_inputs: Array[Dictionary] = []
+var _delayed_snapshots: Array[Dictionary] = []
+var _prediction_ready: bool = false
+var _awaiting_motion_reset: bool = false
+var _last_frozen: bool = false
+var _visual_offset: Vector3 = Vector3.ZERO
+var _visual_rest_position: Vector3 = Vector3.ZERO
+var _owner_server_position: Vector3 = Vector3.ZERO
+var _owner_server_yaw: float = 0.0
 
 var synced_position: Vector3 = Vector3.ZERO
 var synced_rotation_y: float = 0.0
@@ -43,7 +73,12 @@ var synced_is_frozen: bool = false:
 	set(val):
 		synced_is_frozen = val
 		if _tank:
+			if val and not _tank.is_frozen and not _is_server():
+				_clear_prediction_history()
 			_tank.is_frozen = val
+
+var bot_brain: TankBotController = null
+var synced_team_id: int = 0
 
 var _tank: Tank = null
 var _synchronizer: MultiplayerSynchronizer = null
@@ -77,6 +112,9 @@ func _ready() -> void:
 
 	_is_local_owner = (_tank.peer_id == _get_unique_id())
 
+	simulated_latency_ms = Network.debug_movement_latency_ms
+	prediction_enabled = prediction_enabled and Network.movement_prediction_enabled
+	_visual_rest_position = _tank.get_node("Visuals").position
 	_setup_synchronizer()
 	_configure_local_input()
 
@@ -100,6 +138,7 @@ func _setup_synchronizer() -> void:
 	_add_replicated_property(config, NodePath(".:synced_is_reloading"), true)
 	_add_replicated_property(config, NodePath(".:synced_is_blocking"), true)
 	_add_replicated_property(config, NodePath(".:synced_team_color"), true)
+	_add_replicated_property(config, NodePath(".:synced_team_id"), true)
 	_add_replicated_property(config, NodePath(".:synced_is_active"), true)
 	_add_replicated_property(config, NodePath(".:synced_tank_scale"), true)
 	_add_replicated_property(config, NodePath(".:synced_is_frozen"), true)
@@ -155,23 +194,51 @@ func _physics_process(delta: float) -> void:
 		return
 
 	if _is_server():
-		# СЕРВЕРНЫЙ АВТОРИТЕТ
+		if _last_frozen != _tank.is_frozen:
+			reset_movement_prediction()
+		_server_take_input(delta)
 		_server_process_tank_physics(delta)
 		_update_synced_properties_from_tank()
+		_snapshot_timer += delta
+		if _snapshot_timer >= 1.0 / sync_rate_hz:
+			_snapshot_timer = 0.0
+			_server_send_movement_snapshot()
 	else:
-		# КЛИЕНТ
 		_client_sync_gameplay_state()
-		if _is_local_owner:
-			_client_gather_and_send_input()
-			if _tank.global_position.distance_to(synced_position) > 2.5:
-				_tank.global_position = synced_position
-				_tank.rotation.y = synced_rotation_y
-				_tank.velocity = Vector3.ZERO
-			else:
-				_tank.global_position = _tank.global_position.lerp(synced_position, clampf(25.0 * delta, 0.0, 1.0))
-				_tank.rotation.y = lerp_angle(_tank.rotation.y, synced_rotation_y, clampf(20.0 * delta, 0.0, 1.0))
+		if _is_local_owner and Network.is_multiplayer_active():
+			_client_apply_due_snapshots()
+			_client_gather_and_send_input(delta)
+			_client_flush_delayed_inputs()
+			if not prediction_enabled and not _awaiting_motion_reset:
+				_tank.global_position = _tank.global_position.lerp(_owner_server_position, clampf(25.0 * delta, 0.0, 1.0))
+				_tank.rotation.y = lerp_angle(_tank.rotation.y, _owner_server_yaw, clampf(20.0 * delta, 0.0, 1.0))
 			if _tank.controller:
 				_tank.controller.update_tilt_only(delta)
+			_visual_offset *= exp(-18.0 * delta)
+			if _tank.visuals:
+				_tank.visuals.position = _visual_rest_position + _tank.global_basis.inverse() * _visual_offset
+
+func _server_take_input(delta: float) -> void:
+	_input_age += delta
+	_client_wants_jump = false
+	_client_wants_fire = false
+	_client_wants_reload = false
+	_client_wants_block = false
+	if not _server_commands.is_empty():
+		var command: Dictionary = _server_commands.pop_front()
+		_last_processed_input = command.seq
+		_input_age = 0.0
+		_client_move_dir = command.move
+		_client_aim_point = command.aim
+		_client_is_aim_valid = command.aim_valid
+		_client_wants_jump = command.jump
+		_client_wants_fire = command.fire
+		_client_is_fire_held = command.held
+		_client_wants_reload = command.reload
+		_client_wants_block = command.block
+	elif _input_age > INPUT_TIMEOUT_SEC:
+		_client_move_dir = Vector3.ZERO
+		_client_is_fire_held = false
 
 func _server_process_tank_physics(delta: float) -> void:
 	if not _tank.is_active:
@@ -197,6 +264,24 @@ func _server_process_tank_physics(delta: float) -> void:
 				_tank.turret.aim_at(_client_aim_point, delta)
 		return
 
+	var player := Network.get_player_info(_tank.peer_id)
+	if player and player.is_bot:
+		if bot_brain == null:
+			bot_brain = TankBotController.new(_tank, player.bot_difficulty)
+		bot_brain.difficulty = player.bot_difficulty
+		var decision := bot_brain.update(delta)
+		if _tank.controller:
+			_tank.controller.process_movement(decision.move, decision.jump, delta)
+		if _tank.turret and decision.aim_valid:
+			_tank.turret.aim_at(decision.aim, delta)
+		if decision.fire and _tank.weapon:
+			_tank.weapon.try_fire()
+		if decision.reload and _tank.weapon:
+			_tank.weapon.start_reload()
+		if decision.block and _tank.block:
+			_tank.block.activate_block()
+		return
+
 	# Если танк принадлежит хосту, ввод читается напрямую из локального TankInput
 	if _is_local_owner:
 		if _tank.controller:
@@ -210,18 +295,9 @@ func _server_process_tank_physics(delta: float) -> void:
 		_server_apply_client_combat()
 
 func _server_apply_client_movement(delta: float) -> void:
-	if not _tank.controller:
-		return
-
-	if _tank.input:
-		_tank.input.move_direction_world = _client_move_dir
-		if _client_wants_jump:
-			_tank.input.jump_requested = true
-			_client_wants_jump = false
-
-	_tank.controller.process_physics(_tank.input, delta)
-
-	# Доворот башни на сервере
+	if _tank.controller:
+		_tank.controller.process_movement(_client_move_dir, _client_wants_jump, delta)
+	_client_wants_jump = false
 	if _tank.turret and _client_is_aim_valid:
 		_tank.turret.aim_at(_client_aim_point, delta)
 
@@ -241,51 +317,189 @@ func _server_apply_client_combat() -> void:
 		if _tank.weapon:
 			_tank.weapon.try_fire()
 
-func _client_gather_and_send_input() -> void:
+func _client_gather_and_send_input(delta: float) -> void:
 	if not _tank.input or not _tank.input.enabled:
 		return
-
-	if _tank.is_frozen:
-		_tank.input.consume_jump()
-		_tank.input.consume_fire()
-		_tank.input.consume_reload()
-		_tank.input.consume_block()
-		c2s_send_input.rpc_id(1, Vector3.ZERO, _tank.input.aim_point, _tank.input.is_aim_valid, false, false, false, false, false)
-		return
-
-	var move_dir := _tank.input.move_direction_world
-	var aim := _tank.input.aim_point
-	var is_aim_valid := _tank.input.is_aim_valid
+	var can_move := _tank.is_active and not _tank.is_frozen and not _awaiting_motion_reset
 	var jump := _tank.input.consume_jump()
 	var fire := _tank.input.consume_fire()
-	var fire_held := _tank.input.is_fire_held()
 	var reload := _tank.input.consume_reload()
 	var block := _tank.input.consume_block()
-
-	c2s_send_input.rpc_id(1, move_dir, aim, is_aim_valid, jump, fire, fire_held, reload, block)
-
-@rpc("any_peer", "unreliable_ordered")
-func c2s_send_input(move_dir: Vector3, aim: Vector3, is_aim_valid: bool, jump: bool, fire: bool, fire_held: bool, reload: bool, block: bool) -> void:
-	if not _is_server():
+	if not _prediction_ready or _awaiting_motion_reset:
 		return
+	_input_sequence += 1
+	var command := {
+		"seq": _input_sequence, "epoch": _motion_epoch,
+		"move": _tank.input.move_direction_world if can_move else Vector3.ZERO,
+		"aim": _tank.input.aim_point, "aim_valid": _tank.input.is_aim_valid,
+		"jump": jump and can_move, "fire": fire and can_move,
+		"held": _tank.input.is_fire_held() and can_move,
+		"reload": reload and can_move, "block": block and can_move
+	}
+	if prediction_enabled and can_move and _tank.controller:
+		_tank.controller.process_movement(command.move, command.jump, delta, false)
+	_pending_inputs.append({"command": command, "position": _tank.global_position,
+		"velocity": _tank.velocity})
+	if _pending_inputs.size() > MAX_INPUT_HISTORY:
+		_pending_inputs.pop_front()
+	_recent_inputs.append(command)
+	if _recent_inputs.size() > INPUT_REDUNDANCY:
+		_recent_inputs.pop_front()
+	# Компактный пакет: словари с повторяющимися строковыми ключами превышали MTU.
+	var batch: Array = []
+	for recent in _recent_inputs:
+		var flags: int = int(recent.aim_valid) | (int(recent.jump) << 1) | (int(recent.fire) << 2) | (int(recent.held) << 3) | (int(recent.reload) << 4) | (int(recent.block) << 5)
+		batch.append([recent.seq, recent.epoch, recent.move, recent.aim, flags])
+	if simulated_latency_ms > 0:
+		_delayed_inputs.append({"due": Time.get_ticks_msec() + simulated_latency_ms, "batch": batch})
+		if _delayed_inputs.size() > MAX_INPUT_HISTORY:
+			_delayed_inputs.pop_front()
+	else:
+		c2s_send_inputs.rpc_id(1, batch)
 
-	var sender_id := multiplayer.get_remote_sender_id()
-	if sender_id != _tank.peer_id:
-		return # Игнорируем попытку чужого пира управлять этим танком
+func _client_flush_delayed_inputs() -> void:
+	while not _delayed_inputs.is_empty() and _delayed_inputs[0].due <= Time.get_ticks_msec():
+		var packet: Dictionary = _delayed_inputs.pop_front()
+		c2s_send_inputs.rpc_id(1, packet.batch)
 
-	_client_move_dir = move_dir.limit_length(1.0)
-	_client_aim_point = aim
-	_client_is_aim_valid = is_aim_valid
+## Номера команд позволяют подтвердить именно выполненный ввод. Повтор последних
+## команд восстанавливает небольшую потерю пакетов без повторного прыжка/выстрела.
+@rpc("any_peer", "call_remote", "unreliable_ordered", 1)
+func c2s_send_inputs(commands: Array) -> void:
+	if not _is_server() or multiplayer.get_remote_sender_id() != _tank.peer_id:
+		return
+	if commands.size() > INPUT_REDUNDANCY:
+		return
+	for value in commands:
+		var command := _decode_input_command(value)
+		if command.is_empty():
+			continue
+		if command.epoch != _motion_epoch or command.seq <= _last_received_input:
+			continue
+		if _server_commands.size() >= MAX_INPUT_HISTORY:
+			break
+		_last_received_input = command.seq
+		_server_commands.append(command)
 
-	if jump:
-		_client_wants_jump = true
-	if fire:
-		_client_wants_fire = true
-	_client_is_fire_held = fire_held
-	if reload:
-		_client_wants_reload = true
-	if block:
-		_client_wants_block = true
+func _decode_input_command(value: Variant) -> Dictionary:
+	if not value is Array or value.size() != 5:
+		return {}
+	if not value[0] is int or value[0] < 1 or not value[1] is int or value[1] < 0:
+		return {}
+	if not value[2] is Vector3 or not value[3] is Vector3:
+		return {}
+	if not value[2].is_finite() or not value[3].is_finite():
+		return {}
+	if not value[4] is int or value[4] < 0 or value[4] > 63:
+		return {}
+	var flags: int = value[4]
+	var direction: Vector3 = value[2]
+	return {"seq": value[0], "epoch": value[1],
+		"move": Vector3(direction.x, 0.0, direction.z).limit_length(1.0), "aim": value[3],
+		"aim_valid": (flags & 1) != 0, "jump": (flags & 2) != 0,
+		"fire": (flags & 4) != 0, "held": (flags & 8) != 0,
+		"reload": (flags & 16) != 0, "block": (flags & 32) != 0}
+
+func _server_send_movement_snapshot() -> void:
+	if _is_local_owner or not Network.is_multiplayer_active() or not _tank.controller:
+		return
+	if _tank.peer_id not in multiplayer.get_peers():
+		return
+	_snapshot_id += 1
+	s2c_movement_snapshot.rpc_id(_tank.peer_id, {
+		"id": _snapshot_id, "epoch": _motion_epoch, "ack": _last_processed_input,
+		"position": _tank.global_position, "yaw": _tank.rotation.y,
+		"velocity": _tank.velocity, "movement": _tank.controller.capture_movement_state()
+	})
+
+@rpc("authority", "call_remote", "unreliable_ordered", 2)
+func s2c_movement_snapshot(snapshot: Dictionary) -> void:
+	if _is_server() or not _is_local_owner:
+		return
+	_delayed_snapshots.append({"due": Time.get_ticks_msec() + simulated_latency_ms, "snapshot": snapshot})
+	if _delayed_snapshots.size() > MAX_INPUT_HISTORY:
+		_delayed_snapshots.pop_front()
+
+func _client_apply_due_snapshots() -> void:
+	var newest: Dictionary = {}
+	while not _delayed_snapshots.is_empty() and _delayed_snapshots[0].due <= Time.get_ticks_msec():
+		newest = _delayed_snapshots.pop_front().snapshot
+	if not newest.is_empty():
+		_reconcile_movement(newest)
+
+func _reconcile_movement(snapshot: Dictionary) -> void:
+	if snapshot.id <= _last_snapshot_id or snapshot.epoch < _motion_epoch:
+		return
+	if _awaiting_motion_reset and snapshot.epoch <= _motion_epoch:
+		return
+	_last_snapshot_id = snapshot.id
+	var reset: bool = snapshot.epoch != _motion_epoch or not _prediction_ready
+	_motion_epoch = snapshot.epoch
+	_prediction_ready = true
+	_awaiting_motion_reset = false
+	_input_sequence = maxi(_input_sequence, snapshot.ack)
+	var acknowledged: Dictionary = {}
+	while not _pending_inputs.is_empty() and _pending_inputs[0].command.seq <= snapshot.ack:
+		acknowledged = _pending_inputs.pop_front()
+	if reset:
+		_clear_prediction_history()
+	var error: float = snapshot.position.distance_to(acknowledged.get("position", _tank.global_position))
+	last_correction_distance = error
+	_owner_server_position = snapshot.position
+	_owner_server_yaw = snapshot.yaw
+	if not prediction_enabled and not reset:
+		return
+	# Сравниваем с предсказанием в момент подтверждённой команды, а не с
+	# текущей позицией: она закономерно опережает сервер на время RTT.
+	if not reset and prediction_enabled and not acknowledged.is_empty():
+		if error < 0.015 and snapshot.velocity.distance_to(acknowledged.velocity) < 0.1:
+			return
+	var old_visible_position := _tank.global_position + _visual_offset
+	_tank.global_position = snapshot.position
+	_tank.rotation.y = snapshot.yaw
+	_tank.velocity = snapshot.velocity
+	_tank.controller.restore_movement_state(snapshot.movement)
+	if prediction_enabled and _tank.is_active and not _tank.is_frozen:
+		var step := 1.0 / float(Engine.physics_ticks_per_second)
+		for pending in _pending_inputs:
+			_tank.controller.process_movement(pending.command.move, pending.command.jump, step, false, true)
+			pending.position = _tank.global_position
+			pending.velocity = _tank.velocity
+	if reset or old_visible_position.distance_to(_tank.global_position) > 2.5:
+		_visual_offset = Vector3.ZERO
+	else:
+		_visual_offset = old_visible_position - _tank.global_position
+	reconciliation_count += 1
+
+func _clear_prediction_history() -> void:
+	_pending_inputs.clear()
+	_recent_inputs.clear()
+	_delayed_inputs.clear()
+	_visual_offset = Vector3.ZERO
+	if _tank and _tank.visuals:
+		_tank.visuals.position = _visual_rest_position
+
+## Респавн, начало раунда и телепорт создают новую эпоху. Запоздалый ввод
+## прошлой жизни не может сдвинуть танк обратно или повторить действие.
+func reset_movement_prediction() -> void:
+	_clear_prediction_history()
+	if bot_brain:
+		bot_brain.reset()
+	if _tank and _tank.controller:
+		_tank.controller.reset_movement_state()
+	if _is_server():
+		_motion_epoch += 1
+		_server_commands.clear()
+		_last_processed_input = _last_received_input
+		_client_move_dir = Vector3.ZERO
+		_client_is_fire_held = false
+		_last_frozen = _tank.is_frozen
+		_server_send_movement_snapshot()
+	elif _is_local_owner:
+		_awaiting_motion_reset = true
+
+func get_pending_input_count() -> int:
+	return _pending_inputs.size()
 
 @rpc("any_peer", "reliable")
 func c2s_choose_card(card_id: String) -> void:
@@ -335,6 +549,7 @@ func s2c_spawn_ground_slam_vfx(origin: Vector3, radius: float) -> void:
 func _update_synced_properties_from_tank() -> void:
 	synced_position = _tank.global_position
 	synced_rotation_y = _tank.rotation.y
+	synced_team_id = _tank.team_id
 	synced_team_color = _tank.team_color
 	synced_is_active = _tank.is_active
 	synced_is_frozen = _tank.is_frozen
@@ -420,6 +635,7 @@ func _handle_client_tank_death() -> void:
 	if not _tank:
 		return
 
+	_clear_prediction_history()
 	_tank.is_active = false
 	_tank.velocity = Vector3.ZERO
 	if _tank.visuals:
@@ -435,6 +651,7 @@ func _handle_client_tank_respawn() -> void:
 	if not _tank:
 		return
 
+	_clear_prediction_history()
 	_tank.is_active = true
 	_tank.global_position = synced_position
 	_tank.rotation.y = synced_rotation_y
@@ -482,6 +699,7 @@ func _apply_synced_visual_state() -> void:
 	if _tank.shield_mesh:
 		_tank.shield_mesh.visible = synced_is_blocking
 
+	_tank.team_id = synced_team_id
 	if _tank.team_color != synced_team_color:
 		_tank.set_team_color(synced_team_color)
 

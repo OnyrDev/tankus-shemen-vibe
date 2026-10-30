@@ -284,13 +284,15 @@ func _on_lan_server_list_updated(servers: Array) -> void:
 		row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 
 		var lbl := Label.new()
-		lbl.text = "%s (%s:%d) [%d/%d]" % [
+		lbl.text = "%s (%s:%d) — игроки %d/%d" % [
 			s.get("name", "Host"),
 			s.get("ip", "127.0.0.1"),
 			s.get("port", 7000),
-			s.get("players", 1),
+			s.get("human_players", s.get("players", 1)),
 			s.get("max_players", 8)
 		]
+		if int(s.get("bots", 0)) > 0:
+			lbl.text += ", боты %d" % int(s.bots)
 		lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		row.add_child(lbl)
 

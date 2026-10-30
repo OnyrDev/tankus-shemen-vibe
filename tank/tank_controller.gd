@@ -47,6 +47,7 @@ var _coyote_timer: float = 0.0
 var _can_double_jump: bool = false
 var _was_in_air: bool = false
 var _peak_y: float = 0.0
+var _restored_floor: Dictionary = {}
 
 const COYOTE_TIME: float = 0.12
 
@@ -106,6 +107,13 @@ func _create_probe_deferred(probe_name: String, local_pos: Vector3) -> RayCast3D
 	return probe
 
 func process_physics(input: TankInput, delta: float) -> void:
+	process_movement(input.move_direction_world if input else Vector3.ZERO,
+		input.consume_jump() if input else false, delta)
+
+## Общий шаг для сервера, предсказания и повторного проигрывания ввода.
+## Повтор не запускает эффекты, урон или импульсы физических объектов.
+func process_movement(move_dir: Vector3, wants_jump: bool, delta: float,
+		authoritative: bool = true, replay: bool = false) -> void:
 	if not _tank_body:
 		return
 
@@ -119,18 +127,21 @@ func process_physics(input: TankInput, delta: float) -> void:
 			_tank_body.velocity.y = 0.0
 		return
 
-	var on_floor := _tank_body.is_on_floor()
+	var on_floor: bool = _restored_floor.get("on_floor", _tank_body.is_on_floor())
+	var floor_normal: Vector3 = _restored_floor.get("floor_normal", _tank_body.get_floor_normal())
+	_restored_floor.clear()
 
 	if on_floor:
 		if _was_in_air:
 			var fall_dist := maxf(0.0, _peak_y - _tank_body.global_position.y)
-			if _tank_body.events:
+			if authoritative and _tank_body.events:
 				_tank_body.events.emit_land(fall_dist)
-			if SoundManager and fall_dist > 0.4:
+			if not replay and SoundManager and fall_dist > 0.4:
 				SoundManager.play_sfx_3d("land", _tank_body.global_position)
-			_spawn_land_dust(fall_dist)
-			_apply_land_squash(fall_dist)
-			if fall_dist > 1.8 and Game:
+			if not replay:
+				_spawn_land_dust(fall_dist)
+				_apply_land_squash(fall_dist)
+			if not replay and fall_dist > 1.8 and Game:
 				Game.shake_camera(0.22)
 			_was_in_air = false
 
@@ -147,7 +158,6 @@ func process_physics(input: TankInput, delta: float) -> void:
 			_peak_y = _tank_body.global_position.y
 
 	# Прыжок
-	var wants_jump := input != null and input.consume_jump()
 	var can_normal_jump := (on_floor or _coyote_timer > 0.0) and not _is_jumping
 
 	if wants_jump and can_normal_jump:
@@ -156,22 +166,24 @@ func process_physics(input: TankInput, delta: float) -> void:
 		_coyote_timer = 0.0
 		_peak_y = _tank_body.global_position.y
 		_can_double_jump = _tank_body.build != null and _tank_body.build.has_card("double_jump")
-		if _tank_body.events:
+		if authoritative and _tank_body.events:
 			_tank_body.events.emit_jump()
-		_apply_jump_stretch()
+		if not replay:
+			_apply_jump_stretch()
 	elif wants_jump and not on_floor and _can_double_jump and _tank_body.build != null and _tank_body.build.has_card("double_jump"):
 		# Выполнение Double Jump в воздухе
 		_can_double_jump = false
 		_tank_body.velocity.y = jump_velocity
 		_peak_y = _tank_body.global_position.y
-		if _tank_body.events:
+		if authoritative and _tank_body.events:
 			_tank_body.events.emit_jump()
-		_apply_jump_stretch()
+		if not replay:
+			_apply_jump_stretch()
 	elif not on_floor:
 		_tank_body.velocity.y -= gravity * delta
 
 	# Перемещение с поддержкой наклонных плоскостей (рамп) и скольжения на льду
-	var move_dir: Vector3 = input.move_direction_world if input else Vector3.ZERO
+	move_dir = Vector3(move_dir.x, 0.0, move_dir.z).limit_length(1.0)
 	var current_accel: float = acceleration if on_floor else (acceleration * air_control)
 	var current_brake: float = braking if on_floor else (braking * air_control)
 	if on_floor and is_on_ice:
@@ -184,7 +196,7 @@ func process_physics(input: TankInput, delta: float) -> void:
 
 		# Если на наклонном полу — проецируем вектор движения на нормаль пола
 		if on_floor:
-			var floor_norm := _tank_body.get_floor_normal()
+			var floor_norm := floor_normal
 			if floor_norm.y > 0.1 and floor_norm.y < 0.999:
 				target_vel = target_vel.slide(floor_norm).normalized() * effective_speed
 
@@ -216,7 +228,10 @@ func process_physics(input: TankInput, delta: float) -> void:
 
 	_tank_body.move_and_slide()
 
-	_update_chassis_tilt(delta)
+	if not replay:
+		_update_chassis_tilt(delta)
+	if not authoritative or replay:
+		return
 
 	# Передача импульса в физические тела (маятники, ящики) при таране и толкании
 	for i in range(_tank_body.get_slide_collision_count()):
@@ -251,6 +266,37 @@ func process_physics(input: TankInput, delta: float) -> void:
 					var excess := current_body_speed - max_push_speed
 					var damp_impulse := minf(excess * rbody.mass * (delta * 6.0), effective_speed * 2.0)
 					rbody.apply_central_impulse(-push_norm * damp_impulse)
+
+## Вместе с координатами сохраняем состояние прыжка и поверхности.
+func capture_movement_state() -> Dictionary:
+	return {
+		"jumping": _is_jumping, "coyote": _coyote_timer,
+		"double_jump": _can_double_jump, "in_air": _was_in_air, "peak_y": _peak_y,
+		"on_floor": _tank_body.is_on_floor(), "floor_normal": _tank_body.get_floor_normal(),
+		"ice": is_on_ice, "speed_multiplier": speed_multiplier,
+		"move_speed": move_speed, "jump_velocity": jump_velocity, "air_control": air_control
+	}
+
+func restore_movement_state(state: Dictionary) -> void:
+	_is_jumping = state.get("jumping", false)
+	_coyote_timer = state.get("coyote", 0.0)
+	_can_double_jump = state.get("double_jump", false)
+	_was_in_air = state.get("in_air", false)
+	_peak_y = state.get("peak_y", _tank_body.global_position.y)
+	is_on_ice = state.get("ice", false)
+	speed_multiplier = state.get("speed_multiplier", 1.0)
+	move_speed = state.get("move_speed", move_speed)
+	jump_velocity = state.get("jump_velocity", jump_velocity)
+	air_control = state.get("air_control", air_control)
+	_restored_floor = {"on_floor": state.get("on_floor", false), "floor_normal": state.get("floor_normal", Vector3.UP)}
+
+func reset_movement_state() -> void:
+	_is_jumping = false
+	_coyote_timer = 0.0
+	_can_double_jump = false
+	_was_in_air = false
+	_peak_y = _tank_body.global_position.y if _tank_body else 0.0
+	_restored_floor.clear()
 
 func _apply_jump_stretch() -> void:
 	_current_visual_scale = Vector3(0.92, 1.16, 0.92)
