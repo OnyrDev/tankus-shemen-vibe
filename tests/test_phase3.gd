@@ -30,9 +30,9 @@ func _run_tests() -> void:
 	assert(tank.events != null, "ERROR: TankEvents missing")
 	print("[PASS] Phase 3 architecture components verified (TankStats, TankBuild, TankEvents, CardDraft)")
 
-	# 3. Проверка базы данных 45 карт
+	# 3. Проверка базы данных 43 карт
 	var all_cards := CardDatabase.get_all_cards()
-	assert(all_cards.size() == 42, "ERROR: Card pool size should be 42, found %d" % all_cards.size())
+	assert(all_cards.size() == 43, "ERROR: Card pool size should be 43, found %d" % all_cards.size())
 	assert(CardDatabase.get_card("perfect_guard") == null, "ERROR: Perfect Guard card must be removed")
 
 	var shot_count := 0
@@ -51,11 +51,11 @@ func _run_tests() -> void:
 			CardDefinition.Category.GENERAL:
 				general_count += 1
 
-	assert(shot_count == 18, "ERROR: Expected 18 SHOT cards, got %d" % shot_count)
+	assert(shot_count == 19, "ERROR: Expected 19 SHOT cards, got %d" % shot_count)
 	assert(block_count == 8, "ERROR: Expected 8 BLOCK cards, got %d" % block_count)
 	assert(jump_count == 5, "ERROR: Expected 5 JUMP cards, got %d" % jump_count)
 	assert(general_count == 11, "ERROR: Expected 11 GENERAL cards, got %d" % general_count)
-	print("[PASS] All 42 cards registered with exact category balance (18 SHOT, 8 BLOCK, 5 JUMP, 11 GENERAL)")
+	print("[PASS] All 43 cards registered with exact category balance (19 SHOT, 8 BLOCK, 5 JUMP, 11 GENERAL)")
 
 	# 4. Проверка генератора драфта (Draft Offer)
 	tank.build.clear_build()
@@ -347,5 +347,40 @@ func _run_tests() -> void:
 	rr_effect.on_physics_process(0.5, 1) # истекает кулдаун 0.45с
 	assert(rr_effect.try_ram_target(dummy, Vector3.FORWARD, 1), "ERROR: Road Rage should trigger again after cooldown expires")
 	print("[PASS] Road Rage pre-slide velocity, directional check, knockback, and cooldown verified")
+
+	# 17. Проверка карты "Разброс" (+70% урона, отклонение от прицела, стакание разброса и урона)
+	tank.build.clear_build()
+	tank.stats.recalculate(tank.build.cards, CardDatabase)
+	var base_dmg: float = tank.stats.damage
+	var spread_card := CardDatabase.get_card("spread")
+	assert(spread_card != null, "ERROR: Spread card must be registered")
+	tank.build.add_card(spread_card)
+	assert(is_equal_approx(tank.stats.damage, base_dmg * 1.70), "ERROR: 1-stack Spread must give +70% damage")
+	var aim_dir := Vector3(0.0, 0.0, -1.0)
+	var max_dev_1: float = CardDatabase.SpreadEffect.get_max_spread_deg(1)
+	var deviated := false
+	for _i in range(40):
+		var sp_proj := tank.weapon.spawn_custom_projectile(Vector3.ZERO, aim_dir)
+		var dev_deg: float = rad_to_deg(aim_dir.angle_to(sp_proj.direction))
+		assert(dev_deg <= max_dev_1 + 0.01, "ERROR: 1-stack Spread deviation %.2f exceeds limit %.2f" % [dev_deg, max_dev_1])
+		assert(sp_proj.velocity.normalized().is_equal_approx(sp_proj.direction), "ERROR: Spread must keep projectile velocity aligned with direction")
+		assert(is_equal_approx(sp_proj.direction.y, 0.0), "ERROR: Spread must deviate horizontally only")
+		if dev_deg > 0.1:
+			deviated = true
+		sp_proj.free()
+	assert(deviated, "ERROR: Spread must actually deflect projectiles from the aim line")
+	tank.build.add_card(spread_card)
+	assert(is_equal_approx(tank.stats.damage, base_dmg * 1.70 * 1.70), "ERROR: 2-stack Spread damage must stack multiplicatively")
+	assert(CardDatabase.SpreadEffect.get_max_spread_deg(2) > max_dev_1, "ERROR: Spread angle must grow with stacks")
+	var max_dev_2: float = CardDatabase.SpreadEffect.get_max_spread_deg(2)
+	var widest := 0.0
+	for _i in range(200):
+		var sp_proj2 := tank.weapon.spawn_custom_projectile(Vector3.ZERO, aim_dir)
+		var dev2: float = rad_to_deg(aim_dir.angle_to(sp_proj2.direction))
+		assert(dev2 <= max_dev_2 + 0.01, "ERROR: 2-stack Spread deviation exceeds limit")
+		widest = maxf(widest, dev2)
+		sp_proj2.free()
+	assert(widest > max_dev_1, "ERROR: 2-stack Spread should reach angles beyond the 1-stack limit")
+	print("[PASS] Spread card damage stacking, horizontal deviation cone, and stack-scaled angle verified")
 
 	print("=== [TEST] ALL PHASE 3 TESTS PASSED SUCCESSFULLY! ===\n")

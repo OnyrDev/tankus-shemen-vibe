@@ -83,6 +83,21 @@ class ShotgunEffect extends CardEffect:
 			var rot_dir := base_dir.rotated(Vector3.UP, angle).normalized()
 			tank.weapon.spawn_custom_projectile(base_pos, rot_dir, shot_dmg)
 
+class SpreadEffect extends CardEffect:
+	## Бонус урона (+70% за стак) задаётся через stat_modifiers карты, здесь — только разброс.
+	const SPREAD_DEG_PER_STACK: float = 8.0
+	const MAX_SPREAD_DEG: float = 60.0
+
+	## Максимальное отклонение снаряда от линии прицела (в градусах) для заданного числа стаков.
+	static func get_max_spread_deg(stacks: int) -> float:
+		return minf(SPREAD_DEG_PER_STACK * float(maxi(1, stacks)), MAX_SPREAD_DEG)
+
+	func on_projectile_spawned(proj: Projectile, stacks: int) -> void:
+		var max_angle: float = deg_to_rad(get_max_spread_deg(stacks))
+		var angle: float = randf_range(-max_angle, max_angle)
+		proj.direction = proj.direction.rotated(Vector3.UP, angle).normalized()
+		proj.velocity = proj.direction * proj.speed
+
 class BlinkEffect extends CardEffect:
 	func on_block_started(_duration: float, stacks: int) -> void:
 		if not tank or not tank.turret:
@@ -758,7 +773,7 @@ static func generate_draft_offer(player_build: TankBuild, count: int = 5) -> Arr
 static func _init_cards() -> void:
 	_cards_cache.clear()
 
-	# --- SHOT CARDS (18) ---
+	# --- SHOT CARDS (19) ---
 	_register("heavy_shell", "Heavy Shell", "+45% урона снарядов, -20% скорости полета.", CardDefinition.Category.SHOT, false, 99, {"damage_mult": 1.45, "proj_speed_mult": 0.8})
 	_register("rapid_fire", "Rapid Fire", "-40% интервал между выстрелами, -15% урона.", CardDefinition.Category.SHOT, false, 99, {"fire_interval_mult": 0.60, "damage_mult": 0.85})
 	_register("fastball", "Fastball", "+50% скорости полета снарядов.", CardDefinition.Category.SHOT, false, 99, {"proj_speed_mult": 1.50})
@@ -777,6 +792,8 @@ static func _init_cards() -> void:
 	_register("recoil", "Recoil", "Выстрел толкает танк назад (Rocket Jump / мобильность), +15% урона.", CardDefinition.Category.SHOT, false, 99, {"damage_mult": 1.15}, RecoilEffect)
 	_register("sniper_shell", "Sniper Shell", "+10% урона за каждые 5 метров дистанции полета снаряда.", CardDefinition.Category.SHOT, false, 99, {}, SniperShellEffect)
 	_register("shotgun", "Shotgun", "Выстрел веером из 4 дробин с разбросом.", CardDefinition.Category.SHOT, true, 1, {}, ShotgunEffect)
+
+	_register("spread", "Разброс", "Снаряды летят с разбросом (±8° за стак), но урон +70%. Стаки увеличивают и разброс, и урон.", CardDefinition.Category.SHOT, false, 99, {"damage_mult": 1.70}, SpreadEffect)
 
 	# --- BLOCK CARDS (8) ---
 	_register("quick_guard", "Quick Guard", "-25% кулдаун защитного блока.", CardDefinition.Category.BLOCK, false, 99, {"block_cooldown_mult": 0.75})
