@@ -70,6 +70,7 @@ const MAP_INFO: Dictionary = {
 @onready var line_player_name: LineEdit = %LinePlayerName
 @onready var line_server_name: LineEdit = %LineServerName
 @onready var btn_create_host: Button = %BtnCreateHost
+@onready var chk_allow_admin: CheckBox = get_node_or_null("%ChkAllowAdmin")
 @onready var btn_refresh_lan: Button = %BtnRefreshLAN
 @onready var server_list_vbox: VBoxContainer = %ServerList
 @onready var lbl_lan_status: Label = %LblLANStatus
@@ -174,6 +175,8 @@ func _switch_panel(panel_name: String) -> void:
 	panel_settings.visible = (panel_name == "settings")
 
 	if panel_name == "lan":
+		if chk_allow_admin:
+			chk_allow_admin.button_pressed = Game.rules.allow_admin_panel
 		_start_lan_search()
 
 func _on_btn_solo_pressed() -> void:
@@ -321,6 +324,9 @@ func _on_create_host_pressed() -> void:
 		var p_int := int(line_direct_port.text.strip_edges())
 		if p_int > 0:
 			port = p_int
+
+	if chk_allow_admin:
+		Game.rules.allow_admin_panel = chk_allow_admin.button_pressed
 
 	var err := Network.create_host(port)
 	if err == OK:

@@ -89,7 +89,10 @@ func _ready() -> void:
 	if light and size_mult != 1.0:
 		light.omni_range = 1.4 * size_mult
 
-	_apply_color(DEFAULT_TEAM_COLORS[team_id % DEFAULT_TEAM_COLORS.size()] if team_id >= 0 else ENERGY_COLOR)
+	if is_poison:
+		_apply_color(Color(0.28, 0.98, 0.32))
+	else:
+		_apply_color(DEFAULT_TEAM_COLORS[team_id % DEFAULT_TEAM_COLORS.size()] if team_id >= 0 else ENERGY_COLOR)
 	_update_visual_direction()
 
 	_setup_network_sync()
@@ -126,6 +129,10 @@ func _setup_network_sync() -> void:
 	config.add_property(NodePath(".:size_mult"))
 	config.property_set_spawn(NodePath(".:size_mult"), true)
 	config.property_set_replication_mode(NodePath(".:size_mult"), SceneReplicationConfig.REPLICATION_MODE_NEVER)
+
+	config.add_property(NodePath(".:is_poison"))
+	config.property_set_spawn(NodePath(".:is_poison"), true)
+	config.property_set_replication_mode(NodePath(".:is_poison"), SceneReplicationConfig.REPLICATION_MODE_NEVER)
 
 	_net_sync.replication_config = config
 	_net_sync.set_multiplayer_authority(1)
@@ -408,6 +415,8 @@ func _trigger_aoe_explosion(origin: Vector3, splash_damage: float, radius: float
 				var aoe_dmg := splash_damage * clampf(falloff, 0.25, 1.0)
 				if node.health:
 					node.health.take_damage(aoe_dmg, get_valid_shooter())
+				if is_poison and poison_stacks > 0 and node != get_shooter_tank():
+					_apply_poison_to_target(node, poison_stacks)
 
 	if SoundManager:
 		SoundManager.play_sfx_3d("explosion", origin)
@@ -422,29 +431,75 @@ func _trigger_aoe_explosion(origin: Vector3, splash_damage: float, radius: float
 			boom.global_position = origin
 			boom.setup(radius * 0.45)
 
+class PoisonDoTNode extends Node3D:
+	const TICK_INTERVAL: float = 0.5
+	const TOTAL_TICKS: int = 6
+	const DAMAGE_PER_STACK: float = 4.0
+
+	var stacks: int = 1
+	var ticks_left: int = TOTAL_TICKS
+	var attacker: Node = null
+	var _tick_timer: float = 0.0
+	var _light: OmniLight3D = null
+
+	func _ready() -> void:
+		_light = OmniLight3D.new()
+		_light.name = "PoisonLight"
+		_light.position = Vector3(0.0, 0.7, 0.0)
+		_light.light_color = Color(0.25, 1.0, 0.28)
+		_light.omni_range = 2.2
+		_light.light_energy = 1.8
+		add_child(_light)
+
+	func setup_or_refresh(new_stacks: int, new_attacker: Node) -> void:
+		stacks = maxi(stacks, maxi(1, new_stacks))
+		ticks_left = TOTAL_TICKS
+		if is_instance_valid(new_attacker):
+			attacker = new_attacker
+
+	func _physics_process(delta: float) -> void:
+		var target := get_parent() as Tank
+		if not is_instance_valid(target) or not target.is_active or not target.health or not target.health.is_alive():
+			queue_free()
+			return
+
+		_tick_timer += delta
+		if _light:
+			_light.light_energy = 1.2 + 0.8 * sin(_tick_timer * PI * 4.0)
+
+		while _tick_timer >= TICK_INTERVAL and ticks_left > 0:
+			_tick_timer -= TICK_INTERVAL
+			trigger_tick()
+
+	func trigger_tick() -> void:
+		var target := get_parent() as Tank
+		if not is_instance_valid(target) or not target.is_active or not target.health:
+			queue_free()
+			return
+
+		ticks_left -= 1
+		var valid_attacker: Node = attacker if is_instance_valid(attacker) else null
+		var dot_damage: float = DAMAGE_PER_STACK * float(maxi(1, stacks))
+		var applied := target.health.take_damage(dot_damage, valid_attacker)
+		if applied and valid_attacker is Tank and (valid_attacker as Tank).events:
+			(valid_attacker as Tank).events.emit_damage_dealt(dot_damage, target)
+
+		if ticks_left <= 0:
+			queue_free()
+
 func _apply_poison_to_target(target: Tank, stacks: int) -> void:
-	var poison_node := target.get_node_or_null("PoisonEffect")
-	if not poison_node:
-		poison_node = Node.new()
-		poison_node.name = "PoisonEffect"
-		target.add_child(poison_node)
+	if not is_instance_valid(target) or not target.is_active:
+		return
+	var valid_shooter := get_valid_shooter()
+	var existing := target.get_node_or_null("PoisonEffect") as PoisonDoTNode
+	if existing and is_instance_valid(existing) and not existing.is_queued_for_deletion():
+		existing.setup_or_refresh(stacks, valid_shooter)
+		return
 
-		var timer := Timer.new()
-		timer.wait_time = 0.5
-		timer.autostart = true
-		poison_node.add_child(timer)
-
-		var total_ticks := 6 # 3 секунды DoT
-		var current_ticks := 0
-		var dot_damage := 4.0 * stacks
-
-		timer.timeout.connect(func():
-			current_ticks += 1
-			if is_instance_valid(target) and target.health and target.is_active:
-				target.health.take_damage(dot_damage, get_valid_shooter())
-			if current_ticks >= total_ticks:
-				poison_node.queue_free()
-		)
+	var poison_node := PoisonDoTNode.new()
+	poison_node.name = "PoisonEffect"
+	poison_node.setup_or_refresh(stacks, valid_shooter)
+	target.add_child(poison_node)
 
 func _spawn_impact_vfx(pos: Vector3, normal: Vector3) -> void:
 	var spawn_parent := get_parent()

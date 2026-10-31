@@ -26,6 +26,7 @@ var _tank_body: Tank = null
 
 # Game feel: динамический наклон подвески (Pitch/Roll) и сжатие (Squash/Stretch)
 var _prev_velocity: Vector3 = Vector3.ZERO
+var pre_slide_velocity: Vector3 = Vector3.ZERO
 var _current_tilt_pitch: float = 0.0
 var _current_tilt_roll: float = 0.0
 var _current_slope_pitch: float = 0.0
@@ -226,6 +227,7 @@ func process_movement(move_dir: Vector3, wants_jump: bool, delta: float,
 	else:
 		_tank_body.floor_snap_length = 0.4
 
+	pre_slide_velocity = _tank_body.velocity
 	_tank_body.move_and_slide()
 
 	if not replay:

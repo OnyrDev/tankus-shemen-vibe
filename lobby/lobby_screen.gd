@@ -38,6 +38,7 @@ const TEAM_COLORS: Array[Color] = [
 @onready var opt_bot_count: OptionButton = %OptBotCount
 @onready var opt_bot_difficulty: OptionButton = %OptBotDifficulty
 @onready var chk_friendly_fire: CheckBox = %ChkFriendlyFire
+@onready var chk_admin_panel: CheckBox = get_node_or_null("%ChkAdminPanel")
 @onready var lbl_host_only_hint: Label = %LblHostOnlyHint
 
 # --- Нижняя панель действий ---
@@ -100,6 +101,8 @@ func _connect_signals() -> void:
 	opt_bot_difficulty.item_selected.connect(_on_host_setting_changed)
 	if chk_friendly_fire:
 		chk_friendly_fire.toggled.connect(func(_val): _on_host_setting_changed(0))
+	if chk_admin_panel:
+		chk_admin_panel.toggled.connect(func(_val): _on_host_setting_changed(0))
 
 func _setup_ui_options() -> void:
 	opt_bot_count.add_item("Без ботов", 0)
@@ -159,6 +162,8 @@ func _update_lobby_ui() -> void:
 		opt_team_count.disabled = not is_host or (opt_game_mode and opt_game_mode.selected == 0)
 	if chk_friendly_fire:
 		chk_friendly_fire.disabled = not is_host
+	if chk_admin_panel:
+		chk_admin_panel.disabled = not is_host
 
 	_refresh_player_cards()
 
@@ -366,6 +371,8 @@ func _apply_host_settings_to_rules() -> void:
 		r.team_count = opt_team_count.get_selected_id()
 	if chk_friendly_fire:
 		r.friendly_fire = chk_friendly_fire.button_pressed
+	if chk_admin_panel:
+		r.allow_admin_panel = chk_admin_panel.button_pressed
 
 	if opt_team_count and opt_game_mode:
 		opt_team_count.disabled = (opt_game_mode.selected == 0)
@@ -395,6 +402,8 @@ func _sync_settings_from_game_rules() -> void:
 			opt_team_count.disabled = not Network.is_host or not r.is_team_mode
 	if chk_friendly_fire:
 		chk_friendly_fire.button_pressed = r.friendly_fire
+	if chk_admin_panel:
+		chk_admin_panel.button_pressed = r.allow_admin_panel
 
 	_refresh_player_cards()
 

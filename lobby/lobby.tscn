@@ -141,6 +141,13 @@ text = "Огонь по своим:"
 [node name="ChkFriendlyFire" type="CheckBox" parent="Panel/Margin/VBox/HSplit/RightPanel/HostSettings/GridSettings"]
 layout_mode = 2
 
+[node name="LblAdminPanel" type="Label" parent="Panel/Margin/VBox/HSplit/RightPanel/HostSettings/GridSettings"]
+layout_mode = 2
+text = "Админ-панель (F3):"
+
+[node name="ChkAdminPanel" type="CheckBox" parent="Panel/Margin/VBox/HSplit/RightPanel/HostSettings/GridSettings"]
+layout_mode = 2
+
 [node name="LblBotCount" type="Label" parent="Panel/Margin/VBox/HSplit/RightPanel/HostSettings/GridSettings"]
 layout_mode = 2
 text = "Боты:"

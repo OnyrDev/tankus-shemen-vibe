@@ -344,12 +344,6 @@ func _server_start_draft_phase(all_draft: bool) -> void:
 
 	s2c_start_draft.rpc(_pending_draft_peers)
 
-	# Серверный предохранитель по таймауту драфта (22 сек)
-	get_tree().create_timer(Game.rules.draft_timeout_sec + 2.0).timeout.connect(func():
-		if current_state == State.DRAFT:
-			_server_force_finish_draft()
-	)
-
 func _server_draft_bot(player: PlayerInfo) -> void:
 	if not spawned_tanks_container:
 		return
@@ -590,9 +584,10 @@ func s2c_reset_and_place_tanks(assigned_spawns: Dictionary = {}) -> void:
 		t.respawn(spawn_tf)
 		t.is_frozen = true
 
-	# Сброс интерактивных ящиков и маятников на арене при старте раунда
+	# Сброс интерактивных ящиков, маятников и мин на арене при старте раунда
 	var tree := get_tree()
 	if tree:
+		CardDatabase.JumpMineEffect.clear_all_mines(tree)
 		for crate in tree.get_nodes_in_group("physics_crates"):
 			if crate.has_method("reset_to_start"):
 				crate.reset_to_start()
