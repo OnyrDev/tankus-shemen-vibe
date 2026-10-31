@@ -2,35 +2,22 @@ class_name CardDraft
 extends CanvasLayer
 
 ## Экран выбора способностей (Card Draft) в стиле ROUNDS.
-## Показывает 5 карт, поддерживает клик и клавиши 1-5, таймер 20 секунд с автовыбором.
+## Показывает 5 карт, поддерживает клик и клавиши 1-5 без ограничения по времени.
 
 signal card_selected(card_def: CardDefinition)
 
 @onready var background: ColorRect = $Background
 @onready var title_label: Label = $VBox/Header/Title
-@onready var timer_label: Label = $VBox/Header/TimerLabel
 @onready var cards_container: HBoxContainer = $VBox/CardsContainer
 
 var _current_offer: Array[CardDefinition] = []
 var _target_tank: Tank = null
-var _time_left: float = 20.0
 var _is_draft_active: bool = false
 var _card_panels: Array[Control] = []
 
 func _ready() -> void:
 	visible = false
 	process_mode = Node.PROCESS_MODE_ALWAYS
-
-func _process(delta: float) -> void:
-	if not _is_draft_active:
-		return
-
-	_time_left = maxf(0.0, _time_left - delta)
-	if timer_label:
-		timer_label.text = "TIME: %ds" % int(ceil(_time_left))
-
-	if _time_left <= 0.0:
-		_auto_select_card()
 
 func _unhandled_input(event: InputEvent) -> void:
 	if not _is_draft_active:
@@ -51,7 +38,6 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func open_draft(tank: Tank, custom_offer: Array[CardDefinition] = []) -> void:
 	_target_tank = tank
-	_time_left = 20.0
 	_is_draft_active = true
 	visible = true
 
@@ -196,9 +182,3 @@ func _select_by_index(idx: int) -> void:
 
 	card_selected.emit(chosen_card)
 	close_draft()
-
-func _auto_select_card() -> void:
-	if not _current_offer.is_empty():
-		_select_by_index(0)
-	else:
-		close_draft()

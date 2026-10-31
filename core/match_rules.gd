@@ -20,6 +20,7 @@ const MAP_SCENES: Dictionary = {
 @export var is_team_mode: bool = false
 @export var team_count: int = 2
 @export var friendly_fire: bool = false
+@export var allow_admin_panel: bool = false
 @export var draft_timeout_sec: float = 20.0
 @export var initial_draft_count: int = 5
 @export var round_time_limit_sec: float = 0.0 # 0.0 = unlimited
@@ -33,6 +34,7 @@ func to_dict() -> Dictionary:
 		"is_team_mode": is_team_mode,
 		"team_count": team_count,
 		"friendly_fire": friendly_fire,
+		"allow_admin_panel": allow_admin_panel,
 		"draft_timeout_sec": draft_timeout_sec,
 		"initial_draft_count": initial_draft_count,
 		"round_time_limit_sec": round_time_limit_sec,
@@ -46,6 +48,7 @@ func load_dict(d: Dictionary) -> void:
 	is_team_mode = d.get("is_team_mode", is_team_mode)
 	team_count = clampi(d.get("team_count", team_count), 2, 4)
 	friendly_fire = d.get("friendly_fire", friendly_fire)
+	allow_admin_panel = bool(d.get("allow_admin_panel", allow_admin_panel))
 	draft_timeout_sec = d.get("draft_timeout_sec", draft_timeout_sec)
 	initial_draft_count = d.get("initial_draft_count", initial_draft_count)
 	round_time_limit_sec = d.get("round_time_limit_sec", round_time_limit_sec)

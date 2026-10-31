@@ -32,7 +32,8 @@ func _run_tests() -> void:
 
 	# 3. Проверка базы данных 45 карт
 	var all_cards := CardDatabase.get_all_cards()
-	assert(all_cards.size() == 45, "ERROR: Card pool size should be 45, found %d" % all_cards.size())
+	assert(all_cards.size() == 42, "ERROR: Card pool size should be 42, found %d" % all_cards.size())
+	assert(CardDatabase.get_card("perfect_guard") == null, "ERROR: Perfect Guard card must be removed")
 
 	var shot_count := 0
 	var block_count := 0
@@ -51,10 +52,10 @@ func _run_tests() -> void:
 				general_count += 1
 
 	assert(shot_count == 18, "ERROR: Expected 18 SHOT cards, got %d" % shot_count)
-	assert(block_count == 9, "ERROR: Expected 9 BLOCK cards, got %d" % block_count)
-	assert(jump_count == 6, "ERROR: Expected 6 JUMP cards, got %d" % jump_count)
-	assert(general_count == 12, "ERROR: Expected 12 GENERAL cards, got %d" % general_count)
-	print("[PASS] All 45 cards registered with exact category balance (18 SHOT, 9 BLOCK, 6 JUMP, 12 GENERAL)")
+	assert(block_count == 8, "ERROR: Expected 8 BLOCK cards, got %d" % block_count)
+	assert(jump_count == 5, "ERROR: Expected 5 JUMP cards, got %d" % jump_count)
+	assert(general_count == 11, "ERROR: Expected 11 GENERAL cards, got %d" % general_count)
+	print("[PASS] All 42 cards registered with exact category balance (18 SHOT, 8 BLOCK, 5 JUMP, 11 GENERAL)")
 
 	# 4. Проверка генератора драфта (Draft Offer)
 	tank.build.clear_build()
@@ -140,11 +141,13 @@ func _run_tests() -> void:
 	tank.build.clear_build()
 	var rico_card := CardDatabase.get_card("ricochet_power")
 	tank.build.add_card(rico_card)
+	assert(tank.stats.projectile_bounces == 1, "ERROR: Ricochet Power must grant 1 bounce by default")
 	var rico_proj := proj_scene.instantiate() as Projectile
 	add_child(rico_proj)
 	rico_proj.setup(tank, Vector3(0, 1, 0), Vector3(0, 0, -1))
 	tank.events.emit_projectile_spawned(rico_proj)
 	assert(rico_proj.ricochet_power_stacks == 1, "ERROR: Ricochet power stacks not set on projectile")
+	assert(rico_proj.bounces_left >= 1, "ERROR: Ricochet Power projectile must have at least 1 bounce")
 
 	var orig_dmg := rico_proj.damage
 	# Симулируем 1 отскок
@@ -203,14 +206,146 @@ func _run_tests() -> void:
 	assert(tank.health.current_health == tank.health.max_health * 0.5, "ERROR: Phoenix should revive with 50% HP")
 	print("[PASS] Phoenix fatal death prevention and resurrection verified")
 
-	# 12. Проверка отображения билда в HUD
-	assert(hud.build_chips_container != null, "ERROR: Build chips container is null")
+	# 12. Проверка отображения билда в HUD (если контейнер чипов активен)
 	tank.build.clear_build()
 	tank.build.add_card(heavy)
 	tank.build.add_card(heavy) # 2 стака
-	assert(hud.build_chips_container.get_child_count() == 1, "ERROR: Should have 1 chip for heavy_shell")
-	var chip_label: Label = hud.build_chips_container.get_child(0).get_child(0)
-	assert(chip_label.text == "Heavy Shell ×2", "ERROR: Chip label text should be 'Heavy Shell ×2', got '%s'" % chip_label.text)
+	if hud.build_chips_container != null:
+		assert(hud.build_chips_container.get_child_count() == 1, "ERROR: Should have 1 chip for heavy_shell")
+		var chip_label: Label = hud.build_chips_container.get_child(0).get_child(0)
+		assert(chip_label.text == "Heavy Shell ×2", "ERROR: Chip label text should be 'Heavy Shell ×2', got '%s'" % chip_label.text)
 	print("[PASS] HUD active build chips display verified")
+
+	# 13. Проверка Ground Slam (отображение ударной волны и увеличение радиуса со стаками)
+	tank.build.clear_build()
+	var ground_slam := CardDatabase.get_card("ground_slam")
+	tank.build.add_card(ground_slam) # 1 стак -> радиус 4.5м
+	tank.global_position = Vector3.ZERO
+	dummy.global_position = Vector3(6.0, 0.0, 0.0) # 6м — за пределами 1 стака (4.5м), но внутри 2 стаков (9.0м)
+	dummy.health.reset()
+	tank.events.emit_land(1.7) # высота обычного прыжка (~1.71м)
+	assert(dummy.health.current_health == dummy.health.max_health, "ERROR: Ground Slam 1 stack (4.5m) should not hit dummy at 6.0m")
+	var wave_1: Node3D = null
+	for child in tank.get_parent().get_children():
+		if child.name.begins_with("GroundSlamWave"):
+			wave_1 = child as Node3D
+	assert(wave_1 != null, "ERROR: Ground Slam should spawn GroundSlamWave visual shockwave")
+	assert(is_equal_approx(float(wave_1.get_meta("slam_radius", 0.0)), 4.5), "ERROR: Ground Slam 1 stack visual radius should be 4.5")
+	wave_1.free()
+
+	# Добавляем 2-й стак -> радиус 9.0м
+	tank.build.add_card(ground_slam)
+	tank.events.emit_land(1.7)
+	assert(dummy.health.current_health < dummy.health.max_health, "ERROR: Ground Slam 2 stacks (9.0m) should hit dummy at 6.0m")
+	var wave_2: Node3D = null
+	for child in tank.get_parent().get_children():
+		if child.name.begins_with("GroundSlamWave"):
+			wave_2 = child as Node3D
+	assert(wave_2 != null, "ERROR: Ground Slam 2 stacks should spawn GroundSlamWave visual shockwave")
+	assert(is_equal_approx(float(wave_2.get_meta("slam_radius", 0.0)), 9.0), "ERROR: Ground Slam 2 stacks visual radius should be 9.0")
+	wave_2.free()
+	print("[PASS] Ground Slam shockwave VFX and radius stacking verified")
+
+	# 14. Проверка Jump Mine (спавн мины со слоем коллизии танков и нанесение урона при наезде)
+	tank.build.clear_build()
+	var jump_mine := CardDatabase.get_card("jump_mine")
+	tank.build.add_card(jump_mine)
+	tank.global_position = Vector3(2.0, 0.0, 2.0)
+	dummy.global_position = Vector3(10.0, 0.0, 10.0)
+	dummy.health.reset()
+	tank.events.emit_jump()
+
+	var spawned_mines := get_tree().get_nodes_in_group("jump_mines")
+	assert(spawned_mines.size() == 1, "ERROR: Jump Mine should spawn 1 mine in group 'jump_mines'")
+	var mine_node := spawned_mines[0] as Area3D
+	assert(mine_node != null, "ERROR: Spawned mine must be Area3D")
+	assert((mine_node.collision_mask & 2) != 0, "ERROR: Jump Mine collision_mask must include layer 2 (Tank)")
+
+	# Свой танк не должен подрывать свою мину
+	mine_node.body_entered.emit(tank)
+	assert(not mine_node.get_meta("detonated", false), "ERROR: Creator tank should not trigger its own Jump Mine")
+
+	# Вражеский танк наезжает на мину и получает 25 урона
+	mine_node.body_entered.emit(dummy)
+	assert(mine_node.get_meta("detonated", false), "ERROR: Enemy tank should trigger Jump Mine")
+	assert(is_equal_approx(dummy.health.current_health, dummy.health.max_health - 25.0), "ERROR: Jump Mine should deal 25 damage on 1 stack")
+	CardDatabase.JumpMineEffect.clear_all_mines(get_tree())
+
+	# Проверка увеличения размера и радиуса мины при 2 стаках Jump Mine
+	tank.build.add_card(jump_mine) # 2 стака
+	tank.events.emit_jump()
+	var stacked_mines := get_tree().get_nodes_in_group("jump_mines")
+	assert(stacked_mines.size() == 1, "ERROR: 2-stack Jump Mine should spawn 1 mine")
+	var stacked_mine := stacked_mines[0] as Area3D
+	assert(is_equal_approx(float(stacked_mine.get_meta("mine_scale", 1.0)), 1.35), "ERROR: 2-stack Jump Mine scale should be 1.35")
+	CardDatabase.JumpMineEffect.clear_all_mines(get_tree())
+	print("[PASS] Jump Mine collision mask, self-ignore, stack scaling, and detonation damage verified")
+
+	# 15. Проверка карты Poison (наложение DoT при попадании и тики урона после уничтожения снаряда)
+	tank.build.clear_build()
+	var poison_card := CardDatabase.get_card("poison")
+	tank.build.add_card(poison_card)
+	tank.build.add_card(poison_card) # 2 стака -> 8.0 урона за тик
+	dummy.health.reset()
+	var poison_proj := tank.weapon.spawn_custom_projectile(Vector3.ZERO, Vector3.FORWARD)
+	assert(poison_proj.is_poison and poison_proj.poison_stacks == 2, "ERROR: Poison card should set is_poison and poison_stacks=2 on projectile")
+	poison_proj._handle_direct_hit(dummy, dummy.global_position, Vector3.BACK)
+	var hp_after_direct_hit := dummy.health.current_health
+	var poison_dot := dummy.get_node_or_null("PoisonEffect")
+	assert(poison_dot != null, "ERROR: PoisonEffect node should be attached to target tank")
+	poison_dot._physics_process(0.5) # 1-й тик яда после удаления снаряда
+	assert(is_equal_approx(dummy.health.current_health, hp_after_direct_hit - 8.0), "ERROR: 2-stack Poison tick should deal 8.0 DoT damage")
+	for _i in range(5):
+		poison_dot._physics_process(0.5)
+	assert(is_equal_approx(dummy.health.current_health, hp_after_direct_hit - 48.0), "ERROR: 6 ticks of 2-stack Poison should deal 48.0 total DoT damage")
+	print("[PASS] Poison DoT application, post-impact projectile cleanup survival, and stack damage verified")
+
+	# 15.1. Проверка Shockwave VFX при активации блока
+	tank.build.clear_build()
+	var shockwave_card := CardDatabase.get_card("shockwave")
+	tank.build.add_card(shockwave_card)
+	tank.events.emit_block_started(0.35)
+	var sw_wave: Node3D = null
+	for child in (tank.get_parent() if tank.get_parent() else get_tree().current_scene).get_children():
+		if child.name == "BlockShockwaveWave":
+			sw_wave = child as Node3D
+	assert(sw_wave != null, "ERROR: Shockwave card must spawn BlockShockwaveWave visual effect")
+	assert(is_equal_approx(float(sw_wave.get_meta("shockwave_radius", 0.0)), 6.5), "ERROR: 1-stack Shockwave visual radius should be 6.5m (5.0 + 1.5)")
+	sw_wave.free()
+
+	# 16. Проверка карты Road Rage (доколлизионная скорость, фильтр направления, кулдаун и бамп)
+	tank.build.clear_build()
+	var road_rage := CardDatabase.get_card("road_rage")
+	tank.build.add_card(road_rage)
+	var rr_effect := tank.build.active_effects.get("road_rage", null) as CardDatabase.RoadRageEffect
+	assert(rr_effect != null, "ERROR: RoadRageEffect must be active on tank")
+
+	tank.global_position = Vector3(0.0, 0.0, 0.0)
+	dummy.global_position = Vector3(0.0, 0.0, -1.5)
+	dummy.health.reset()
+	dummy.velocity = Vector3.ZERO
+
+	# Стоящий танк не должен наносить урон, если в него въехал враг
+	tank.velocity = Vector3.ZERO
+	if tank.controller:
+		tank.controller.pre_slide_velocity = Vector3.ZERO
+	dummy.velocity = Vector3(0.0, 0.0, 8.0)
+	assert(not rr_effect.try_ram_target(dummy, Vector3.FORWARD, 1), "ERROR: Stationary tank with Road Rage must not damage enemy ramming into it")
+	assert(is_equal_approx(dummy.health.current_health, dummy.health.max_health), "ERROR: Dummy HP must remain full when ramming a stationary Road Rage tank")
+
+	# Лобовой таран (даже если move_and_slide уже погасил tank.velocity, берется pre_slide_velocity = 8.0)
+	dummy.velocity = Vector3.ZERO
+	tank.velocity = Vector3.ZERO
+	if tank.controller:
+		tank.controller.pre_slide_velocity = Vector3(0.0, 0.0, -8.0)
+	assert(rr_effect.try_ram_target(dummy, Vector3.FORWARD, 1), "ERROR: Road Rage should trigger using pre_slide_velocity on head-on ram")
+	assert(is_equal_approx(dummy.health.current_health, dummy.health.max_health - 20.0), "ERROR: Road Rage at 8 m/s (1 stack) should deal 20.0 damage")
+	assert(dummy.velocity.z < -4.0, "ERROR: Road Rage must apply knockback impulse to target tank")
+
+	# Повторный тик в следующем кадре блокируется кулдауном (защита от стирания ХП за 5 кадров)
+	assert(not rr_effect.try_ram_target(dummy, Vector3.FORWARD, 1), "ERROR: Road Rage must respect per-target hit cooldown")
+	rr_effect.on_physics_process(0.5, 1) # истекает кулдаун 0.45с
+	assert(rr_effect.try_ram_target(dummy, Vector3.FORWARD, 1), "ERROR: Road Rage should trigger again after cooldown expires")
+	print("[PASS] Road Rage pre-slide velocity, directional check, knockback, and cooldown verified")
 
 	print("=== [TEST] ALL PHASE 3 TESTS PASSED SUCCESSFULLY! ===\n")

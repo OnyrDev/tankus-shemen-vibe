@@ -39,13 +39,6 @@ theme_override_font_sizes/font_size = 28
 text = "CHOOSE YOUR UPGRADE"
 horizontal_alignment = 1
 
-[node name="TimerLabel" type="Label" parent="VBox/Header"]
-layout_mode = 2
-theme_override_colors/font_color = Color(1, 0.8, 0.2, 1)
-theme_override_font_sizes/font_size = 18
-text = "TIME: 20s"
-horizontal_alignment = 1
-
 [node name="CardsContainer" type="HBoxContainer" parent="VBox"]
 layout_mode = 2
 theme_override_constants/separation = 16

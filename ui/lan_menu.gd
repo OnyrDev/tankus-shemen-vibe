@@ -19,6 +19,7 @@ signal session_joined()
 @onready var line_direct_port: LineEdit = $MainContainer/Panel/VBox/HBoxDirect/LineEditPort
 
 # Кнопки
+@onready var chk_allow_admin: CheckBox = get_node_or_null("MainContainer/Panel/VBox/ChkAllowAdmin")
 @onready var btn_create_host: Button = $MainContainer/Panel/VBox/BtnCreateHost
 @onready var btn_refresh_lan: Button = $MainContainer/Panel/VBox/HBoxLANHeader/BtnRefreshLAN
 @onready var btn_direct_connect: Button = $MainContainer/Panel/VBox/HBoxDirect/BtnDirectConnect
@@ -118,6 +119,9 @@ func _on_create_host_pressed() -> void:
 		var custom_port := int(line_direct_port.text.strip_edges())
 		if custom_port > 0:
 			port = custom_port
+
+	if chk_allow_admin:
+		Game.rules.allow_admin_panel = chk_allow_admin.button_pressed
 
 	var err := Network.create_host(port)
 	if err == OK:

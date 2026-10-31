@@ -115,10 +115,23 @@ func _handle_debug_key(event: InputEvent) -> bool:
 
 	return false
 
+func _is_admin_panel_allowed() -> bool:
+	var net: Node = get_node_or_null("/root/Network")
+	if net and net.is_multiplayer_active():
+		var game_node: Node = get_node_or_null("/root/Game")
+		if game_node and game_node.rules:
+			return bool(game_node.rules.allow_admin_panel)
+		return false
+	return true
+
 func toggle_debug() -> void:
+	if not visible and not _is_admin_panel_allowed():
+		return
 	set_debug_visible(not visible)
 
 func set_debug_visible(p_visible: bool) -> void:
+	if p_visible and not _is_admin_panel_allowed():
+		return
 	visible = p_visible
 	is_mouse_captured = false
 	if get_viewport():
@@ -165,6 +178,9 @@ func _set_local_tank_input_enabled(enabled_val: bool) -> void:
 
 func _process(delta: float) -> void:
 	if not visible:
+		return
+	if not _is_admin_panel_allowed():
+		set_debug_visible(false)
 		return
 
 	_update_timer += delta
@@ -219,7 +235,7 @@ func _update_tank_stats() -> void:
 	var ammo_max := st.magazine_size if st else (local_tank.weapon.magazine_size if local_tank.weapon else 6)
 	var speed_val := st.move_speed if st else 8.0
 	var jump_val := st.jump_velocity if st else 8.0
-	var air_ctrl := st.air_control if st else 0.3
+	var air_ctrl := st.air_control if st else 1.0
 	var dmg_val := st.damage if st else 28.0
 	var proj_spd := st.projectile_speed if st else 24.0
 	var bounces := st.projectile_bounces if st else 0
@@ -511,8 +527,13 @@ func _remove_card_from_tank(card: CardDefinition) -> void:
 
 	tank.build.remove_card(card)
 
-	if multiplayer.has_multiplayer_peer() and multiplayer.is_server() and tank.net_sync and tank.stats:
-		tank.net_sync.synced_tank_scale = tank.stats.tank_scale
+	if multiplayer.has_multiplayer_peer() and tank.net_sync:
+		if not multiplayer.is_server():
+			tank.net_sync.c2s_remove_card.rpc_id(1, card.id)
+		else:
+			if tank.stats:
+				tank.net_sync.synced_tank_scale = tank.stats.tank_scale
+			tank.net_sync.s2c_card_removed.rpc(card.id)
 
 	if SoundManager:
 		SoundManager.play_sfx("card_hover", -2.0)
@@ -528,8 +549,13 @@ func _clear_tank_build() -> void:
 
 	tank.build.clear_build()
 
-	if multiplayer.has_multiplayer_peer() and multiplayer.is_server() and tank.net_sync and tank.stats:
-		tank.net_sync.synced_tank_scale = tank.stats.tank_scale
+	if multiplayer.has_multiplayer_peer() and tank.net_sync:
+		if not multiplayer.is_server():
+			tank.net_sync.c2s_clear_build.rpc_id(1)
+		else:
+			if tank.stats:
+				tank.net_sync.synced_tank_scale = tank.stats.tank_scale
+			tank.net_sync.s2c_build_cleared.rpc()
 
 	if SoundManager:
 		SoundManager.play_sfx("card_hover", 0.0)
@@ -551,8 +577,11 @@ func _heal_tank() -> void:
 		return
 	tank.health.current_health = tank.health.max_health
 	tank.health.health_changed.emit(tank.health.current_health, tank.health.max_health)
-	if tank.net_sync:
-		tank.net_sync.synced_health = tank.health.current_health
+	if multiplayer.has_multiplayer_peer() and tank.net_sync:
+		if not multiplayer.is_server():
+			tank.net_sync.c2s_heal_tank.rpc_id(1)
+		else:
+			tank.net_sync.synced_health = tank.health.current_health
 	_update_tank_stats()
 
 # --- Системная информация (Top-Left) ---

@@ -24,6 +24,7 @@ signal lobby_left()
 @onready var opt_bot_count: OptionButton = $Panel/Margin/VBox/HSplit/RightPanel/HostSettings/GridSettings/OptBotCount
 @onready var opt_bot_difficulty: OptionButton = $Panel/Margin/VBox/HSplit/RightPanel/HostSettings/GridSettings/OptBotDifficulty
 @onready var chk_friendly_fire: CheckBox = $Panel/Margin/VBox/HSplit/RightPanel/HostSettings/GridSettings/ChkFriendlyFire
+@onready var chk_admin_panel: CheckBox = get_node_or_null("Panel/Margin/VBox/HSplit/RightPanel/HostSettings/GridSettings/ChkAdminPanel")
 @onready var lbl_host_only_hint: Label = $Panel/Margin/VBox/HSplit/RightPanel/HostSettings/LblHostOnlyHint
 
 # Нижняя панель действий
@@ -96,6 +97,8 @@ func _connect_signals() -> void:
 	opt_bot_difficulty.item_selected.connect(_on_host_setting_changed)
 	if chk_friendly_fire:
 		chk_friendly_fire.toggled.connect(func(_val): _on_host_setting_changed(0))
+	if chk_admin_panel:
+		chk_admin_panel.toggled.connect(func(_val): _on_host_setting_changed(0))
 
 func _on_match_state_changed(new_state: String) -> void:
 	if new_state in ["PREPARE", "DRAFT", "COUNTDOWN", "PLAYING", "ROUND_END", "MATCH_END"]:
@@ -157,6 +160,8 @@ func _update_lobby_ui() -> void:
 		opt_team_count.disabled = not is_host or (opt_game_mode and opt_game_mode.selected == 0)
 	if chk_friendly_fire:
 		chk_friendly_fire.disabled = not is_host
+	if chk_admin_panel:
+		chk_admin_panel.disabled = not is_host
 	if lbl_host_only_hint:
 		lbl_host_only_hint.visible = not is_host
 
@@ -360,6 +365,8 @@ func _apply_host_settings_to_rules() -> void:
 		r.team_count = opt_team_count.get_selected_id()
 	if chk_friendly_fire:
 		r.friendly_fire = chk_friendly_fire.button_pressed
+	if chk_admin_panel:
+		r.allow_admin_panel = chk_admin_panel.button_pressed
 
 	if opt_team_count and opt_game_mode:
 		opt_team_count.disabled = (opt_game_mode.selected == 0)
@@ -388,5 +395,7 @@ func _sync_settings_from_game_rules() -> void:
 		opt_team_count.disabled = not r.is_team_mode or not Network.is_host
 	if chk_friendly_fire:
 		chk_friendly_fire.button_pressed = r.friendly_fire
+	if chk_admin_panel:
+		chk_admin_panel.button_pressed = r.allow_admin_panel
 
 	_refresh_player_cards()

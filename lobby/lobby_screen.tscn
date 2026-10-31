@@ -252,6 +252,14 @@ text = "Огонь по своим:"
 unique_name_in_owner = true
 layout_mode = 2
 
+[node name="LblAdminPanel" type="Label" parent="UILayer/Margin/VBox/MainContent/RightPanel/Margin/HostSettings/GridSettings"]
+layout_mode = 2
+text = "Админ-панель (F3):"
+
+[node name="ChkAdminPanel" type="CheckBox" parent="UILayer/Margin/VBox/MainContent/RightPanel/Margin/HostSettings/GridSettings"]
+unique_name_in_owner = true
+layout_mode = 2
+
 [node name="LblBotCount" type="Label" parent="UILayer/Margin/VBox/MainContent/RightPanel/Margin/HostSettings/GridSettings"]
 layout_mode = 2
 text = "Боты:"

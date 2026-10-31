@@ -40,6 +40,7 @@ var _is_destroyed: bool = false
 const ENERGY_COLOR := Color(0.08, 0.7, 1.0)
 
 var _visual_color: Color = ENERGY_COLOR
+var _base_visual_scale: Vector3 = Vector3(0.8, 0.8, 0.8)
 
 @onready var visuals: Node3D = get_node_or_null("Visuals")
 @onready var mesh_instance: MeshInstance3D = get_node_or_null("Visuals/Shell")
@@ -74,16 +75,24 @@ const DEFAULT_TEAM_COLORS: Array[Color] = [
 	Color(0.85, 0.85, 0.85)  # Белый
 ]
 
+var _pierced_rids: Array[RID] = []
+
 func _ready() -> void:
 	add_to_group("projectiles")
 	if is_instance_valid(shooter) and shooter is CollisionObject3D:
 		add_collision_exception_with(shooter as CollisionObject3D)
 
 	velocity = direction.normalized() * speed
-	if size_mult != 1.0:
-		scale = Vector3.ONE * size_mult
+	lifetime = maxf(lifetime, 72.0 / maxf(1.0, speed))
+	if visuals:
+		_base_visual_scale = visuals.scale
+	if light and size_mult != 1.0:
+		light.omni_range = 1.4 * size_mult
 
-	_apply_color(DEFAULT_TEAM_COLORS[team_id % DEFAULT_TEAM_COLORS.size()] if team_id >= 0 else ENERGY_COLOR)
+	if is_poison:
+		_apply_color(Color(0.28, 0.98, 0.32))
+	else:
+		_apply_color(DEFAULT_TEAM_COLORS[team_id % DEFAULT_TEAM_COLORS.size()] if team_id >= 0 else ENERGY_COLOR)
 	_update_visual_direction()
 
 	_setup_network_sync()
@@ -121,6 +130,10 @@ func _setup_network_sync() -> void:
 	config.property_set_spawn(NodePath(".:size_mult"), true)
 	config.property_set_replication_mode(NodePath(".:size_mult"), SceneReplicationConfig.REPLICATION_MODE_NEVER)
 
+	config.add_property(NodePath(".:is_poison"))
+	config.property_set_spawn(NodePath(".:is_poison"), true)
+	config.property_set_replication_mode(NodePath(".:is_poison"), SceneReplicationConfig.REPLICATION_MODE_NEVER)
+
 	_net_sync.replication_config = config
 	_net_sync.set_multiplayer_authority(1)
 	add_child(_net_sync)
@@ -129,6 +142,7 @@ func setup(p_shooter: Node, p_origin: Vector3, p_direction: Vector3, p_color: Co
 	shooter = p_shooter
 	global_position = p_origin
 	direction = p_direction.normalized()
+	lifetime = maxf(lifetime, 72.0 / maxf(1.0, speed))
 	velocity = direction * speed
 
 	if is_instance_valid(shooter) and shooter is Tank:
@@ -137,10 +151,10 @@ func setup(p_shooter: Node, p_origin: Vector3, p_direction: Vector3, p_color: Co
 	if is_node_ready():
 		if is_instance_valid(shooter) and shooter is CollisionObject3D:
 			add_collision_exception_with(shooter as CollisionObject3D)
+		if light and size_mult != 1.0:
+			light.omni_range = 1.4 * size_mult
 		_apply_color(p_color)
 		_update_visual_direction()
-		if size_mult != 1.0:
-			scale = Vector3.ONE * size_mult
 
 func _apply_color(col: Color) -> void:
 	_visual_color = col
@@ -171,6 +185,7 @@ func _update_visual_direction() -> void:
 	var forward := velocity.normalized()
 	var up := Vector3.FORWARD if absf(forward.dot(Vector3.UP)) > 0.95 else Vector3.UP
 	visuals.look_at(visuals.global_position + forward, up)
+	visuals.scale = _base_visual_scale * size_mult
 
 func _physics_process(delta: float) -> void:
 	if _is_destroyed:
@@ -191,6 +206,8 @@ func _physics_process(delta: float) -> void:
 	var collision := move_and_collide(move_delta)
 	if collision:
 		_handle_collision(collision)
+	elif size_mult > 1.0 and not _is_destroyed:
+		_check_enlarged_tank_hit()
 
 func _process_homing(delta: float) -> void:
 	var tree := get_tree()
@@ -216,11 +233,33 @@ func _process_homing(delta: float) -> void:
 		direction = direction.lerp(to_enemy, steer_rate).normalized()
 		velocity = direction * speed
 
-func _handle_collision(collision: KinematicCollision3D) -> void:
-	var collider := collision.get_collider()
-	var col_point := collision.get_position()
-	var col_normal := collision.get_normal()
+func _check_enlarged_tank_hit() -> void:
+	var world := get_world_3d()
+	if not world:
+		return
+	var sphere := SphereShape3D.new()
+	sphere.radius = 0.18 * size_mult
+	var query := PhysicsShapeQueryParameters3D.new()
+	query.shape = sphere
+	query.transform = global_transform
+	query.collision_mask = 2 # Слой 2: только танки (не задевает пол и стены мира)
+	var exclude_rids: Array[RID] = [get_rid()]
+	if is_instance_valid(shooter) and shooter is CollisionObject3D:
+		exclude_rids.append((shooter as CollisionObject3D).get_rid())
+	for prid in _pierced_rids:
+		exclude_rids.append(prid)
+	query.exclude = exclude_rids
 
+	var rest_info := world.direct_space_state.get_rest_info(query)
+	if not rest_info.is_empty():
+		var col_obj := instance_from_id(rest_info["collider_id"])
+		if col_obj != null:
+			_handle_direct_hit(col_obj, rest_info["point"], rest_info["normal"])
+
+func _handle_collision(collision: KinematicCollision3D) -> void:
+	_handle_direct_hit(collision.get_collider(), collision.get_position(), collision.get_normal())
+
+func _handle_direct_hit(collider: Object, col_point: Vector3, col_normal: Vector3) -> void:
 	hit_object.emit(collider, col_point, col_normal)
 
 	var target_tank: Tank = null
@@ -239,7 +278,7 @@ func _handle_collision(collision: KinematicCollision3D) -> void:
 			var bounce_norm := col_normal.normalized() if col_normal.length_squared() > 0.01 else -direction
 			velocity = velocity.bounce(bounce_norm)
 			direction = velocity.normalized()
-			global_position = col_point + bounce_norm * (0.22 * size_mult)
+			global_position = col_point + bounce_norm * 0.22
 			bounced.emit(bounce_norm, bounces_done)
 			if SoundManager:
 				SoundManager.play_sfx_3d("ricochet", col_point)
@@ -295,6 +334,7 @@ func _handle_collision(collision: KinematicCollision3D) -> void:
 		if piercing_count > 0:
 			piercing_count -= 1
 			add_collision_exception_with(target_tank)
+			_pierced_rids.append(target_tank.get_rid())
 			_spawn_impact_vfx(col_point, col_normal)
 			return # снаряд не уничтожается, летит дальше!
 
@@ -319,7 +359,7 @@ func _handle_collision(collision: KinematicCollision3D) -> void:
 
 		# Выдвигаем снаряд из поверхности по нормали на радиус сферы + запас безопасности,
 		# чтобы исключить залипание в коллизии (sticky collision) на следующем тике физики!
-		var safe_dist := 0.22 * size_mult
+		var safe_dist := 0.22
 		global_position = col_point + bounce_normal * safe_dist
 
 		# Бонус карты Ricochet Power (+25% урона, +15% скорости за каждый отскок)
@@ -375,6 +415,8 @@ func _trigger_aoe_explosion(origin: Vector3, splash_damage: float, radius: float
 				var aoe_dmg := splash_damage * clampf(falloff, 0.25, 1.0)
 				if node.health:
 					node.health.take_damage(aoe_dmg, get_valid_shooter())
+				if is_poison and poison_stacks > 0 and node != get_shooter_tank():
+					_apply_poison_to_target(node, poison_stacks)
 
 	if SoundManager:
 		SoundManager.play_sfx_3d("explosion", origin)
@@ -389,29 +431,75 @@ func _trigger_aoe_explosion(origin: Vector3, splash_damage: float, radius: float
 			boom.global_position = origin
 			boom.setup(radius * 0.45)
 
+class PoisonDoTNode extends Node3D:
+	const TICK_INTERVAL: float = 0.5
+	const TOTAL_TICKS: int = 6
+	const DAMAGE_PER_STACK: float = 4.0
+
+	var stacks: int = 1
+	var ticks_left: int = TOTAL_TICKS
+	var attacker: Node = null
+	var _tick_timer: float = 0.0
+	var _light: OmniLight3D = null
+
+	func _ready() -> void:
+		_light = OmniLight3D.new()
+		_light.name = "PoisonLight"
+		_light.position = Vector3(0.0, 0.7, 0.0)
+		_light.light_color = Color(0.25, 1.0, 0.28)
+		_light.omni_range = 2.2
+		_light.light_energy = 1.8
+		add_child(_light)
+
+	func setup_or_refresh(new_stacks: int, new_attacker: Node) -> void:
+		stacks = maxi(stacks, maxi(1, new_stacks))
+		ticks_left = TOTAL_TICKS
+		if is_instance_valid(new_attacker):
+			attacker = new_attacker
+
+	func _physics_process(delta: float) -> void:
+		var target := get_parent() as Tank
+		if not is_instance_valid(target) or not target.is_active or not target.health or not target.health.is_alive():
+			queue_free()
+			return
+
+		_tick_timer += delta
+		if _light:
+			_light.light_energy = 1.2 + 0.8 * sin(_tick_timer * PI * 4.0)
+
+		while _tick_timer >= TICK_INTERVAL and ticks_left > 0:
+			_tick_timer -= TICK_INTERVAL
+			trigger_tick()
+
+	func trigger_tick() -> void:
+		var target := get_parent() as Tank
+		if not is_instance_valid(target) or not target.is_active or not target.health:
+			queue_free()
+			return
+
+		ticks_left -= 1
+		var valid_attacker: Node = attacker if is_instance_valid(attacker) else null
+		var dot_damage: float = DAMAGE_PER_STACK * float(maxi(1, stacks))
+		var applied := target.health.take_damage(dot_damage, valid_attacker)
+		if applied and valid_attacker is Tank and (valid_attacker as Tank).events:
+			(valid_attacker as Tank).events.emit_damage_dealt(dot_damage, target)
+
+		if ticks_left <= 0:
+			queue_free()
+
 func _apply_poison_to_target(target: Tank, stacks: int) -> void:
-	var poison_node := target.get_node_or_null("PoisonEffect")
-	if not poison_node:
-		poison_node = Node.new()
-		poison_node.name = "PoisonEffect"
-		target.add_child(poison_node)
+	if not is_instance_valid(target) or not target.is_active:
+		return
+	var valid_shooter := get_valid_shooter()
+	var existing := target.get_node_or_null("PoisonEffect") as PoisonDoTNode
+	if existing and is_instance_valid(existing) and not existing.is_queued_for_deletion():
+		existing.setup_or_refresh(stacks, valid_shooter)
+		return
 
-		var timer := Timer.new()
-		timer.wait_time = 0.5
-		timer.autostart = true
-		poison_node.add_child(timer)
-
-		var total_ticks := 6 # 3 секунды DoT
-		var current_ticks := 0
-		var dot_damage := 4.0 * stacks
-
-		timer.timeout.connect(func():
-			current_ticks += 1
-			if is_instance_valid(target) and target.health and target.is_active:
-				target.health.take_damage(dot_damage, get_valid_shooter())
-			if current_ticks >= total_ticks:
-				poison_node.queue_free()
-		)
+	var poison_node := PoisonDoTNode.new()
+	poison_node.name = "PoisonEffect"
+	poison_node.setup_or_refresh(stacks, valid_shooter)
+	target.add_child(poison_node)
 
 func _spawn_impact_vfx(pos: Vector3, normal: Vector3) -> void:
 	var spawn_parent := get_parent()

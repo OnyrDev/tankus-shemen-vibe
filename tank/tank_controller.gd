@@ -8,7 +8,7 @@ extends Node
 @export var move_speed: float = 8.0
 @export var acceleration: float = 22.0
 @export var braking: float = 26.0
-@export var air_control: float = 0.45
+@export var air_control: float = 1.0
 @export var jump_velocity: float = 8.5
 @export var gravity: float = 18.0
 @export var body_turn_speed: float = 12.0
@@ -26,6 +26,7 @@ var _tank_body: Tank = null
 
 # Game feel: динамический наклон подвески (Pitch/Roll) и сжатие (Squash/Stretch)
 var _prev_velocity: Vector3 = Vector3.ZERO
+var pre_slide_velocity: Vector3 = Vector3.ZERO
 var _current_tilt_pitch: float = 0.0
 var _current_tilt_roll: float = 0.0
 var _current_slope_pitch: float = 0.0
@@ -150,8 +151,7 @@ func process_movement(move_dir: Vector3, wants_jump: bool, delta: float,
 		_peak_y = _tank_body.global_position.y
 
 		# Восстанавливаем double jump при касании земли
-		if _tank_body.build and _tank_body.build.has_card("double_jump"):
-			_can_double_jump = true
+		_can_double_jump = _tank_body.build != null and _tank_body.build.has_card("double_jump")
 	else:
 		_was_in_air = true
 		_coyote_timer = maxf(0.0, _coyote_timer - delta)
@@ -166,11 +166,12 @@ func process_movement(move_dir: Vector3, wants_jump: bool, delta: float,
 		_is_jumping = true
 		_coyote_timer = 0.0
 		_peak_y = _tank_body.global_position.y
+		_can_double_jump = _tank_body.build != null and _tank_body.build.has_card("double_jump")
 		if authoritative and _tank_body.events:
 			_tank_body.events.emit_jump()
 		if not replay:
 			_apply_jump_stretch()
-	elif wants_jump and not on_floor and _can_double_jump:
+	elif wants_jump and not on_floor and _can_double_jump and _tank_body.build != null and _tank_body.build.has_card("double_jump"):
 		# Выполнение Double Jump в воздухе
 		_can_double_jump = false
 		_tank_body.velocity.y = jump_velocity
@@ -226,6 +227,7 @@ func process_movement(move_dir: Vector3, wants_jump: bool, delta: float,
 	else:
 		_tank_body.floor_snap_length = 0.4
 
+	pre_slide_velocity = _tank_body.velocity
 	_tank_body.move_and_slide()
 
 	if not replay:

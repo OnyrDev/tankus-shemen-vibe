@@ -537,6 +537,93 @@ func s2c_card_added(card_id: String) -> void:
 	if card_def:
 		_tank.build.add_card(card_def)
 
+
+@rpc("authority", "unreliable")
+func s2c_spawn_ground_slam_vfx(origin: Vector3, radius: float) -> void:
+	if _is_server() or not _tank:
+		return
+	var spawn_parent: Node = _tank.get_parent() if _tank.get_parent() else get_tree().current_scene
+	if spawn_parent:
+		CardDatabase.GroundSlamEffect.spawn_shockwave_vfx(spawn_parent, origin, radius, _tank.team_color)
+
+@rpc("authority", "unreliable")
+func s2c_spawn_block_shockwave_vfx(origin: Vector3, radius: float) -> void:
+	if _is_server() or not _tank:
+		return
+	var spawn_parent: Node = _tank.get_parent() if _tank.get_parent() else get_tree().current_scene
+	if spawn_parent:
+		var wave_col: Color = _tank.team_color.lightened(0.35) if _tank else Color(0.2, 0.85, 1.0)
+		CardDatabase.ShockwaveEffect.spawn_shockwave_vfx(spawn_parent, origin, radius, wave_col)
+
+@rpc("authority", "reliable")
+func s2c_spawn_jump_mine(mine_id: int, origin: Vector3, stacks: int = 1) -> void:
+	if _is_server() or not _tank:
+		return
+	CardDatabase.JumpMineEffect.spawn_client_mine(mine_id, origin, _tank, stacks)
+
+@rpc("authority", "reliable")
+func s2c_detonate_jump_mine(mine_id: int, exploded: bool) -> void:
+	if _is_server():
+		return
+	CardDatabase.JumpMineEffect.remove_mine_by_id(mine_id, exploded, _tank)
+
+@rpc("any_peer", "reliable")
+func c2s_remove_card(card_id: String) -> void:
+	if not _is_server() or not Game.rules.allow_admin_panel:
+		return
+	var sender_id := multiplayer.get_remote_sender_id()
+	if sender_id != 0 and sender_id != _tank.peer_id:
+		return
+	var card_def := CardDatabase.get_card(card_id)
+	if not card_def:
+		return
+	if _tank and _tank.build:
+		_tank.build.remove_card(card_def)
+		if _tank.stats:
+			synced_tank_scale = _tank.stats.tank_scale
+	if multiplayer.has_multiplayer_peer():
+		s2c_card_removed.rpc(card_id)
+
+@rpc("authority", "reliable")
+func s2c_card_removed(card_id: String) -> void:
+	if _is_server() or not _tank or not _tank.build or _is_local_owner:
+		return
+	var card_def := CardDatabase.get_card(card_id)
+	if card_def:
+		_tank.build.remove_card(card_def)
+
+@rpc("any_peer", "reliable")
+func c2s_clear_build() -> void:
+	if not _is_server() or not Game.rules.allow_admin_panel:
+		return
+	var sender_id := multiplayer.get_remote_sender_id()
+	if sender_id != 0 and sender_id != _tank.peer_id:
+		return
+	if _tank and _tank.build:
+		_tank.build.clear_build()
+		if _tank.stats:
+			synced_tank_scale = _tank.stats.tank_scale
+	if multiplayer.has_multiplayer_peer():
+		s2c_build_cleared.rpc()
+
+@rpc("authority", "reliable")
+func s2c_build_cleared() -> void:
+	if _is_server() or not _tank or not _tank.build or _is_local_owner:
+		return
+	_tank.build.clear_build()
+
+@rpc("any_peer", "reliable")
+func c2s_heal_tank() -> void:
+	if not _is_server() or not Game.rules.allow_admin_panel:
+		return
+	var sender_id := multiplayer.get_remote_sender_id()
+	if sender_id != 0 and sender_id != _tank.peer_id:
+		return
+	if _tank and _tank.health:
+		_tank.health.current_health = _tank.health.max_health
+		_tank.health.health_changed.emit(_tank.health.current_health, _tank.health.max_health)
+		synced_health = _tank.health.current_health
+
 func _update_synced_properties_from_tank() -> void:
 	synced_position = _tank.global_position
 	synced_rotation_y = _tank.rotation.y
