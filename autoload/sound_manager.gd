@@ -19,6 +19,7 @@ const SFX_PATHS: Dictionary = {
 	"card_hover": "res://assets/audio/sfx/sfx_card_hover.wav",
 	"card_select": "res://assets/audio/sfx/sfx_card_select.wav",
 	"reload_done": "res://assets/audio/sfx/sfx_reload_done.wav",
+	"vkusno_i_tochka": "res://assets/audio/sfx/vkusno_i_tochka.wav",
 }
 
 var _streams: Dictionary = {}

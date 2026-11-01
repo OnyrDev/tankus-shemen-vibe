@@ -545,6 +545,9 @@ class BurgerTerminalEffect extends CardEffect:
 			var pop_tween := term.create_tween()
 			pop_tween.tween_property(visual_holder, "scale", Vector3.ONE, 0.18).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 
+		if SoundManager:
+			SoundManager.play_sfx_3d("vkusno_i_tochka", origin, 2.0, 0.0)
+
 		_active_terminals[terminal_id] = term
 		return term
 
