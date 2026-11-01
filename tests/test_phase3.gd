@@ -32,7 +32,7 @@ func _run_tests() -> void:
 
 	# 3. Проверка базы данных 43 карт
 	var all_cards := CardDatabase.get_all_cards()
-	assert(all_cards.size() == 45, "ERROR: Card pool size should be 45, found %d" % all_cards.size())
+	assert(all_cards.size() == 46, "ERROR: Card pool size should be 46, found %d" % all_cards.size())
 	assert(CardDatabase.get_card("perfect_guard") == null, "ERROR: Perfect Guard card must be removed")
 
 	var shot_count := 0
@@ -52,10 +52,10 @@ func _run_tests() -> void:
 				general_count += 1
 
 	assert(shot_count == 19, "ERROR: Expected 19 SHOT cards, got %d" % shot_count)
-	assert(block_count == 9, "ERROR: Expected 9 BLOCK cards, got %d" % block_count)
+	assert(block_count == 10, "ERROR: Expected 10 BLOCK cards, got %d" % block_count)
 	assert(jump_count == 5, "ERROR: Expected 5 JUMP cards, got %d" % jump_count)
 	assert(general_count == 12, "ERROR: Expected 12 GENERAL cards, got %d" % general_count)
-	print("[PASS] All 45 cards registered with exact category balance (19 SHOT, 9 BLOCK, 5 JUMP, 12 GENERAL)")
+	print("[PASS] All 46 cards registered with exact category balance (19 SHOT, 10 BLOCK, 5 JUMP, 12 GENERAL)")
 
 	# 4. Проверка генератора драфта (Draft Offer)
 	tank.build.clear_build()
@@ -516,5 +516,69 @@ func _run_tests() -> void:
 	assert(tank.stats.block_cooldown > CardDatabase.WallhackEffect.get_reveal_duration(4), "ERROR: 4-stack block cooldown must exceed Wallhack reveal duration")
 	CardDatabase.WallhackEffect.clear_all_reveals(get_tree())
 	print("[PASS] Wallhack normal shield activation, X-ray material overlay, stack-scaled duration (2s/stack), and uncapped +40% block cooldown verified")
+
+	# 20. Проверка карты Burger Terminal (спавн терминала при блоке, выброс бургера раз в 1с, хил +10/стак, время жизни +1с/стак)
+	tank.build.clear_build()
+	CardDatabase.BurgerTerminalEffect.clear_all(get_tree())
+	var bt_card := CardDatabase.get_card("burger_terminal")
+	assert(bt_card != null and bt_card.category == CardDefinition.Category.BLOCK, "ERROR: Burger Terminal must be registered as BLOCK card")
+	assert(is_equal_approx(CardDatabase.BurgerTerminalEffect.get_terminal_lifetime(1), 3.0), "ERROR: 1-stack Burger Terminal lifetime must be 3.0s")
+	assert(is_equal_approx(CardDatabase.BurgerTerminalEffect.get_terminal_lifetime(2), 4.0), "ERROR: 2-stack Burger Terminal lifetime must be 4.0s")
+	assert(is_equal_approx(CardDatabase.BurgerTerminalEffect.get_burger_heal(1), 10.0), "ERROR: 1-stack burger heal must be 10.0 HP")
+	assert(is_equal_approx(CardDatabase.BurgerTerminalEffect.get_burger_heal(2), 20.0), "ERROR: 2-stack burger heal must be 20.0 HP")
+
+	tank.stats.recalculate(tank.build.cards, CardDatabase)
+	var bt_base_cd: float = tank.stats.block_cooldown
+	tank.build.add_card(bt_card)
+	assert(is_equal_approx(tank.stats.block_cooldown, bt_base_cd * 1.40), "ERROR: 1-stack Burger Terminal must increase block cooldown by +40%")
+	tank.global_position = Vector3(12.0, 0.0, 12.0)
+	dummy.global_position = Vector3(45.0, 0.0, 45.0)
+	tank.block.reset()
+	assert(tank.block.activate_block(), "ERROR: Block must activate with Burger Terminal card")
+	var terminals := get_tree().get_nodes_in_group("burger_terminals")
+	assert(terminals.size() == 1, "ERROR: Block with Burger Terminal must spawn 1 terminal")
+	var term_node := terminals[0]
+	assert(term_node.find_child("Terminal_Root", true, false) != null, "ERROR: Terminal must instantiate 3D model from terminal.glb")
+	assert(term_node.find_child("Ground_Pavement", true, false) == null, "ERROR: Studio Ground_Pavement must be stripped from terminal instance")
+
+	# Отодвигаем танк, чтобы бургеры не съедались мгновенно в момент выброса
+	tank.global_position = Vector3(25.0, 0.0, 25.0)
+	term_node._physics_process(1.0)
+	var burgers := get_tree().get_nodes_in_group("burger_pickups")
+	assert(burgers.size() == 1, "ERROR: Terminal must throw 1 burger after 1.0s")
+	var first_burger := burgers[0] as Area3D
+	assert(first_burger.find_child("bun", true, false) != null, "ERROR: Burger pickup must instantiate 3D model from Burger.glb")
+
+	# Подбираем бургер раненым танком -> +10 HP на 1 стаке
+	tank.health.current_health = 50.0
+	first_burger.body_entered.emit(tank)
+	assert(is_equal_approx(tank.health.current_health, 60.0), "ERROR: 1-stack burger must heal tank by +10 HP")
+
+	# Дотикиваем оставшиеся 2 секунды (всего 3.0с на 1 стаке) -> еще 2 бургера и терминал исчезает
+	term_node._physics_process(1.0)
+	term_node._physics_process(1.0)
+	assert(not is_instance_valid(term_node) or term_node.is_queued_for_deletion(), "ERROR: 1-stack terminal must expire after 3.0s")
+	assert(get_tree().get_nodes_in_group("burger_pickups").size() == 2, "ERROR: 1-stack terminal must have thrown 2 more burgers before expiring")
+
+	# 2 стака: время жизни терминала 4.0с (+1с), хил бургера +20 HP, КД блока +40% за стак
+	CardDatabase.BurgerTerminalEffect.clear_all(get_tree())
+	tank.build.add_card(bt_card)
+	assert(is_equal_approx(tank.stats.block_cooldown, bt_base_cd * 1.40 * 1.40), "ERROR: 2-stack Burger Terminal block cooldown must stack multiplicatively")
+	tank.global_position = Vector3(12.0, 0.0, 12.0)
+	tank.block.reset()
+	assert(tank.block.activate_block(), "ERROR: Block must activate on 2-stack Burger Terminal")
+	var term2 := get_tree().get_nodes_in_group("burger_terminals")[0]
+	tank.global_position = Vector3(25.0, 0.0, 25.0)
+	term2._physics_process(3.0)
+	assert(is_instance_valid(term2) and not term2.is_queued_for_deletion(), "ERROR: 2-stack terminal must still exist at 3.0s")
+	term2._physics_process(1.0)
+	assert(not is_instance_valid(term2) or term2.is_queued_for_deletion(), "ERROR: 2-stack terminal must expire at 4.0s")
+	var burgers_2s := get_tree().get_nodes_in_group("burger_pickups")
+	assert(burgers_2s.size() == 4, "ERROR: 2-stack terminal must throw 4 burgers over 4.0s")
+	tank.health.current_health = 40.0
+	(burgers_2s[0] as Area3D).body_entered.emit(tank)
+	assert(is_equal_approx(tank.health.current_health, 60.0), "ERROR: 2-stack burger must heal tank by +20 HP")
+	CardDatabase.BurgerTerminalEffect.clear_all(get_tree())
+	print("[PASS] Burger Terminal 3D models, 1s burger dispense interval, +10 HP/stack heal, +1s/stack lifetime, and +40% block cooldown verified")
 
 	print("=== [TEST] ALL PHASE 3 TESTS PASSED SUCCESSFULLY! ===\n")

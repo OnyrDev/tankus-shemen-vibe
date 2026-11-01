@@ -419,6 +419,290 @@ class WallhackEffect extends CardEffect:
 				if tank.peer_id in tank.multiplayer.get_peers():
 					tank.net_sync.s2c_activate_wallhack.rpc_id(tank.peer_id, reveal_duration)
 
+class BurgerTerminalEffect extends CardEffect:
+	## При активации щита ставит терминал, который раз в секунду выбрасывает бургер (+10 HP за стак).
+	## Базовое время жизни терминала 3с (+1с за каждый дополнительный стак).
+	const TERMINAL_SCENE: PackedScene = preload("res://assets/props/terminal/terminal.glb")
+	const BURGER_SCENE: PackedScene = preload("res://assets/props/burger/Burger.glb")
+	const BASE_TERMINAL_LIFETIME: float = 3.0
+	const EXTRA_LIFETIME_PER_STACK: float = 1.0
+	const BURGER_INTERVAL: float = 1.0
+	const BASE_HEAL: float = 10.0
+	const BURGER_LIFETIME: float = 8.0
+	const BURGER_PICKUP_RADIUS: float = 1.15
+	const BURGER_VISUAL_SCALE: float = 0.35
+	const DISPENSE_MIN_DIST: float = 2.8
+	const DISPENSE_MAX_DIST: float = 5.2
+
+	static var _next_terminal_id: int = 1
+	static var _next_burger_id: int = 1
+	static var _active_terminals: Dictionary = {}
+	static var _active_burgers: Dictionary = {}
+
+	class TerminalNode extends Node3D:
+		var terminal_id: int = 0
+		var owner_tank: Tank = null
+		var stacks: int = 1
+		var lifetime: float = 3.0
+		var heal_amount: float = 10.0
+		var is_client_visual: bool = false
+		var burgers_spawned: int = 0
+		var max_burgers: int = 3
+		var _age: float = 0.0
+		var _spawn_timer: float = 0.0
+
+		func _ready() -> void:
+			add_to_group("burger_terminals")
+
+		func _physics_process(delta: float) -> void:
+			if is_client_visual:
+				_age += delta
+				if _age >= lifetime:
+					BurgerTerminalEffect.remove_terminal_by_id(terminal_id)
+				return
+
+			_age += delta
+			_spawn_timer += delta
+
+			while _spawn_timer >= BURGER_INTERVAL and burgers_spawned < max_burgers:
+				_spawn_timer -= BURGER_INTERVAL
+				burgers_spawned += 1
+				_dispense_burger()
+
+			if _age >= lifetime:
+				var valid_owner := owner_tank if is_instance_valid(owner_tank) else null
+				BurgerTerminalEffect.remove_terminal_by_id(terminal_id)
+				if valid_owner and valid_owner.net_sync and valid_owner.multiplayer and valid_owner.multiplayer.has_multiplayer_peer() and valid_owner.multiplayer.is_server():
+					valid_owner.net_sync.s2c_remove_burger_terminal.rpc(terminal_id)
+
+		func _dispense_burger() -> void:
+			var spawn_parent := get_parent()
+			if not spawn_parent:
+				return
+			var angle: float = float(burgers_spawned - 1) * (TAU / maxf(3.0, float(max_burgers))) + randf_range(-0.25, 0.25)
+			var dist: float = randf_range(DISPENSE_MIN_DIST, DISPENSE_MAX_DIST)
+			var forward := -global_transform.basis.z
+			forward.y = 0.0
+			if forward.length_squared() < 0.001:
+				forward = Vector3.FORWARD
+			forward = forward.normalized()
+			var offset := forward.rotated(Vector3.UP, angle) * dist
+			var from_pos := global_position + Vector3(0.0, 0.85, 0.0)
+			var target_pos := global_position + Vector3(offset.x, 0.0, offset.z)
+			var valid_owner := owner_tank if is_instance_valid(owner_tank) else null
+			BurgerTerminalEffect.spawn_server_burger(from_pos, target_pos, heal_amount, spawn_parent, valid_owner)
+
+	static func get_terminal_lifetime(stacks: int) -> float:
+		return BASE_TERMINAL_LIFETIME + EXTRA_LIFETIME_PER_STACK * float(maxi(1, stacks) - 1)
+
+	static func get_burger_heal(stacks: int) -> float:
+		return BASE_HEAL * float(maxi(1, stacks))
+
+	static func create_terminal_node(terminal_id: int, origin: Vector3, yaw: float, stacks: int, spawn_parent: Node, owner_tank: Tank = null, is_client: bool = false) -> TerminalNode:
+		if not spawn_parent:
+			return null
+		remove_terminal_by_id(terminal_id)
+
+		var effective_stacks: int = maxi(1, stacks)
+		var term := TerminalNode.new()
+		term.name = "BurgerTerminal_%d" % terminal_id
+		term.terminal_id = terminal_id
+		term.owner_tank = owner_tank
+		term.stacks = effective_stacks
+		term.lifetime = get_terminal_lifetime(effective_stacks)
+		term.heal_amount = get_burger_heal(effective_stacks)
+		term.max_burgers = int(round(term.lifetime / BURGER_INTERVAL))
+		term.is_client_visual = is_client
+		term.set_meta("terminal_id", terminal_id)
+		term.set_meta("stacks", effective_stacks)
+
+		var visual_holder := Node3D.new()
+		visual_holder.name = "TerminalVisual"
+		if TERMINAL_SCENE:
+			var glb_inst := TERMINAL_SCENE.instantiate()
+			if glb_inst:
+				# Скрываем студийную подложку Ground_Pavement (8x8м) из GLB
+				var pavement := glb_inst.get_node_or_null("Ground_Pavement")
+				if pavement:
+					pavement.free()
+				visual_holder.add_child(glb_inst)
+		term.add_child(visual_holder)
+
+		var light := OmniLight3D.new()
+		light.name = "TerminalLight"
+		light.position = Vector3(0.0, 1.5, 0.45)
+		light.light_color = Color(1.0, 0.78, 0.28)
+		light.omni_range = 3.2
+		light.light_energy = 1.6
+		term.add_child(light)
+
+		spawn_parent.add_child(term)
+		term.global_position = origin
+		term.rotation = Vector3(0.0, yaw, 0.0)
+
+		if term.is_inside_tree():
+			visual_holder.scale = Vector3.ONE * 0.2
+			var pop_tween := term.create_tween()
+			pop_tween.tween_property(visual_holder, "scale", Vector3.ONE, 0.18).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+
+		_active_terminals[terminal_id] = term
+		return term
+
+	static func create_burger_node(burger_id: int, from_pos: Vector3, target_pos: Vector3, heal_amount: float, spawn_parent: Node) -> Area3D:
+		if not spawn_parent:
+			return null
+		remove_burger_by_id(burger_id)
+
+		var burger := Area3D.new()
+		burger.name = "BurgerPickup_%d" % burger_id
+		burger.collision_layer = 0
+		burger.collision_mask = 2 # Слой 2: Tank
+		burger.monitorable = false
+		burger.monitoring = true
+		burger.set_meta("burger_id", burger_id)
+		burger.set_meta("heal_amount", heal_amount)
+		burger.set_meta("target_pos", target_pos)
+		burger.add_to_group("burger_pickups")
+
+		var shape := CollisionShape3D.new()
+		var sphere := SphereShape3D.new()
+		sphere.radius = BURGER_PICKUP_RADIUS
+		shape.shape = sphere
+		shape.position = Vector3(0.0, 0.45, 0.0)
+		burger.add_child(shape)
+
+		var visual_holder := Node3D.new()
+		visual_holder.name = "BurgerVisual"
+		visual_holder.scale = Vector3.ONE * BURGER_VISUAL_SCALE
+		if BURGER_SCENE:
+			var glb_inst := BURGER_SCENE.instantiate()
+			if glb_inst:
+				visual_holder.add_child(glb_inst)
+		burger.add_child(visual_holder)
+
+		var light := OmniLight3D.new()
+		light.name = "BurgerLight"
+		light.position = Vector3(0.0, 0.55, 0.0)
+		light.light_color = Color(0.35, 1.0, 0.45)
+		light.omni_range = 2.0
+		light.light_energy = 1.3
+		burger.add_child(light)
+
+		spawn_parent.add_child(burger)
+		burger.global_position = target_pos
+
+		if burger.is_inside_tree():
+			visual_holder.position = from_pos - target_pos
+			var arc_tween := burger.create_tween()
+			arc_tween.tween_property(visual_holder, "position", Vector3(0.0, 0.08, 0.0), 0.30).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+
+		_active_burgers[burger_id] = burger
+		return burger
+
+	static func spawn_server_burger(from_pos: Vector3, target_pos: Vector3, heal_amount: float, spawn_parent: Node, owner_tank: Tank = null) -> Area3D:
+		var burger_id: int = _next_burger_id
+		_next_burger_id += 1
+		var burger := create_burger_node(burger_id, from_pos, target_pos, heal_amount, spawn_parent)
+		if not burger:
+			return null
+
+		if owner_tank and owner_tank.net_sync and owner_tank.multiplayer and owner_tank.multiplayer.has_multiplayer_peer() and owner_tank.multiplayer.is_server():
+			owner_tank.net_sync.s2c_spawn_burger_pickup.rpc(burger_id, from_pos, target_pos, heal_amount)
+
+		var try_consume := func(body: Node3D) -> void:
+			if not is_instance_valid(burger) or burger.get_meta("consumed", false):
+				return
+			if body is Tank and body.is_active and body.health and body.health.is_alive():
+				burger.set_meta("consumed", true)
+				body.health.heal(heal_amount)
+				remove_burger_by_id(burger_id)
+				if is_instance_valid(owner_tank) and owner_tank.net_sync and owner_tank.multiplayer and owner_tank.multiplayer.has_multiplayer_peer() and owner_tank.multiplayer.is_server():
+					owner_tank.net_sync.s2c_remove_burger_pickup.rpc(burger_id)
+
+		burger.body_entered.connect(try_consume)
+
+		var tree := burger.get_tree()
+		if tree:
+			for node in tree.get_nodes_in_group("tanks"):
+				if node is Tank and node.is_active and node.health and node.health.is_alive():
+					if node.global_position.distance_to(target_pos) <= BURGER_PICKUP_RADIUS:
+						try_consume.call(node)
+						break
+
+			tree.create_timer(BURGER_LIFETIME).timeout.connect(func() -> void:
+				if is_instance_valid(burger) and not burger.get_meta("consumed", false):
+					burger.set_meta("consumed", true)
+					remove_burger_by_id(burger_id)
+					if is_instance_valid(owner_tank) and owner_tank.net_sync and owner_tank.multiplayer and owner_tank.multiplayer.has_multiplayer_peer() and owner_tank.multiplayer.is_server():
+						owner_tank.net_sync.s2c_remove_burger_pickup.rpc(burger_id)
+			)
+
+		return burger
+
+	static func spawn_client_terminal(terminal_id: int, origin: Vector3, yaw: float, stacks: int, context_node: Node) -> TerminalNode:
+		var spawn_parent := JumpMineEffect._resolve_spawn_parent(context_node)
+		return create_terminal_node(terminal_id, origin, yaw, stacks, spawn_parent, null, true)
+
+	static func spawn_client_burger(burger_id: int, from_pos: Vector3, target_pos: Vector3, heal_amount: float, context_node: Node) -> Area3D:
+		var spawn_parent := JumpMineEffect._resolve_spawn_parent(context_node)
+		return create_burger_node(burger_id, from_pos, target_pos, heal_amount, spawn_parent)
+
+	static func remove_terminal_by_id(terminal_id: int) -> void:
+		var term: Node3D = _active_terminals.get(terminal_id, null) as Node3D
+		_active_terminals.erase(terminal_id)
+		if is_instance_valid(term):
+			term.remove_from_group("burger_terminals")
+			term.queue_free()
+
+	static func remove_burger_by_id(burger_id: int) -> void:
+		var burger: Area3D = _active_burgers.get(burger_id, null) as Area3D
+		_active_burgers.erase(burger_id)
+		if is_instance_valid(burger):
+			burger.remove_from_group("burger_pickups")
+			burger.queue_free()
+
+	static func clear_all(tree: SceneTree) -> void:
+		_active_terminals.clear()
+		_active_burgers.clear()
+		if not tree:
+			return
+		for node in tree.get_nodes_in_group("burger_terminals"):
+			if is_instance_valid(node):
+				node.remove_from_group("burger_terminals")
+				node.queue_free()
+		for node in tree.get_nodes_in_group("burger_pickups"):
+			if is_instance_valid(node):
+				node.remove_from_group("burger_pickups")
+				node.queue_free()
+
+	func on_block_started(_duration: float, stacks: int) -> void:
+		if not tank or not is_instance_valid(tank):
+			return
+		if tank.multiplayer and tank.multiplayer.has_multiplayer_peer() and not tank.multiplayer.is_server():
+			return
+
+		var spawn_parent := JumpMineEffect._resolve_spawn_parent(tank)
+		if not spawn_parent:
+			return
+
+		var effective_stacks: int = maxi(1, stacks)
+		var terminal_id: int = _next_terminal_id
+		_next_terminal_id += 1
+
+		var origin: Vector3 = tank.global_position
+		if tank.get_world_3d():
+			var space := tank.get_world_3d().direct_space_state
+			var ray := PhysicsRayQueryParameters3D.create(origin + Vector3.UP * 0.8, origin + Vector3.DOWN * 12.0, 1)
+			var hit := space.intersect_ray(ray)
+			if not hit.is_empty():
+				origin.y = hit.position.y
+
+		var yaw: float = tank.rotation.y
+		create_terminal_node(terminal_id, origin, yaw, effective_stacks, spawn_parent, tank, false)
+
+		if tank.net_sync and tank.multiplayer and tank.multiplayer.has_multiplayer_peer() and tank.multiplayer.is_server():
+			tank.net_sync.s2c_spawn_burger_terminal.rpc(terminal_id, origin, yaw, effective_stacks)
+
 
 class GroundSlamEffect extends CardEffect:
 	const BASE_RADIUS: float = 4.5
@@ -1330,7 +1614,7 @@ static func _init_cards() -> void:
 
 	_register("spread", "Разброс", "Снаряды летят с разбросом (±8° за стак), но урон +70%. Стаки увеличивают и разброс, и урон.", CardDefinition.Category.SHOT, false, 99, {"damage_mult": 1.70}, SpreadEffect)
 
-	# --- BLOCK CARDS (9) ---
+	# --- BLOCK CARDS (10) ---
 	_register("quick_guard", "Quick Guard", "-25% кулдаун защитного блока.", CardDefinition.Category.BLOCK, false, 99, {"block_cooldown_mult": 0.75})
 	_register("long_block", "Long Block", "+50% длительность окна щита, +15% кулдаун.", CardDefinition.Category.BLOCK, false, 99, {"block_duration_mult": 1.50, "block_cooldown_mult": 1.15})
 	_register("blink", "Blink", "Телепортация на 5м по направлению прицела при активации щита.", CardDefinition.Category.BLOCK, false, 99, {}, BlinkEffect)
@@ -1340,6 +1624,7 @@ static func _init_cards() -> void:
 	_register("counter_shot", "Counter Shot", "Успешный блок автоматически выпускает ответный снаряд.", CardDefinition.Category.BLOCK, false, 99, {}, CounterShotEffect)
 	_register("reflect", "Reflect", "Заблокированный снаряд отражается обратно во врага со сменой владельца.", CardDefinition.Category.BLOCK, true, 1, {})
 	_register("wallhack", "Wallhack", "При активации щита противники просвечиваются сквозь стены на 2с (+2с за стак). +40% кулдаун блока.", CardDefinition.Category.BLOCK, false, 99, {"block_cooldown_mult": 1.40}, WallhackEffect)
+	_register("burger_terminal", "Burger Terminal", "При активации щита ставит терминал на 3с (+1с за стак). Раз в секунду терминал кидает бургер на +10 HP (+10 HP за стак). +40% кулдаун блока.", CardDefinition.Category.BLOCK, false, 99, {"block_cooldown_mult": 1.40}, BurgerTerminalEffect)
 
 	# --- JUMP CARDS (5) ---
 	_register("high_jump", "High Jump", "+40% высота прыжка танка.", CardDefinition.Category.JUMP, false, 99, {"jump_velocity_mult": 1.40})

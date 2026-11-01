@@ -585,6 +585,30 @@ func s2c_activate_wallhack(duration: float) -> void:
 		return
 	CardDatabase.WallhackEffect.reveal_enemies_for_tank(_tank, duration)
 
+@rpc("authority", "reliable")
+func s2c_spawn_burger_terminal(terminal_id: int, origin: Vector3, yaw: float, stacks: int) -> void:
+	if _is_server() or not _tank:
+		return
+	CardDatabase.BurgerTerminalEffect.spawn_client_terminal(terminal_id, origin, yaw, stacks, _tank)
+
+@rpc("authority", "reliable")
+func s2c_remove_burger_terminal(terminal_id: int) -> void:
+	if _is_server():
+		return
+	CardDatabase.BurgerTerminalEffect.remove_terminal_by_id(terminal_id)
+
+@rpc("authority", "reliable")
+func s2c_spawn_burger_pickup(burger_id: int, from_pos: Vector3, target_pos: Vector3, heal_amount: float) -> void:
+	if _is_server() or not _tank:
+		return
+	CardDatabase.BurgerTerminalEffect.spawn_client_burger(burger_id, from_pos, target_pos, heal_amount, _tank)
+
+@rpc("authority", "reliable")
+func s2c_remove_burger_pickup(burger_id: int) -> void:
+	if _is_server():
+		return
+	CardDatabase.BurgerTerminalEffect.remove_burger_by_id(burger_id)
+
 @rpc("any_peer", "reliable")
 func c2s_remove_card(card_id: String) -> void:
 	if not _is_server() or not Game.rules.allow_admin_panel:
