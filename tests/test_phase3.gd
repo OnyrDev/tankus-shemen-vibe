@@ -32,7 +32,7 @@ func _run_tests() -> void:
 
 	# 3. Проверка базы данных 43 карт
 	var all_cards := CardDatabase.get_all_cards()
-	assert(all_cards.size() == 43, "ERROR: Card pool size should be 43, found %d" % all_cards.size())
+	assert(all_cards.size() == 44, "ERROR: Card pool size should be 44, found %d" % all_cards.size())
 	assert(CardDatabase.get_card("perfect_guard") == null, "ERROR: Perfect Guard card must be removed")
 
 	var shot_count := 0
@@ -54,8 +54,8 @@ func _run_tests() -> void:
 	assert(shot_count == 19, "ERROR: Expected 19 SHOT cards, got %d" % shot_count)
 	assert(block_count == 8, "ERROR: Expected 8 BLOCK cards, got %d" % block_count)
 	assert(jump_count == 5, "ERROR: Expected 5 JUMP cards, got %d" % jump_count)
-	assert(general_count == 11, "ERROR: Expected 11 GENERAL cards, got %d" % general_count)
-	print("[PASS] All 43 cards registered with exact category balance (19 SHOT, 8 BLOCK, 5 JUMP, 11 GENERAL)")
+	assert(general_count == 12, "ERROR: Expected 12 GENERAL cards, got %d" % general_count)
+	print("[PASS] All 44 cards registered with exact category balance (19 SHOT, 8 BLOCK, 5 JUMP, 12 GENERAL)")
 
 	# 4. Проверка генератора драфта (Draft Offer)
 	tank.build.clear_build()
@@ -382,5 +382,85 @@ func _run_tests() -> void:
 		sp_proj2.free()
 	assert(widest > max_dev_1, "ERROR: 2-stack Spread should reach angles beyond the 1-stack limit")
 	print("[PASS] Spread card damage stacking, horizontal deviation cone, and stack-scaled angle verified")
+
+	# 18. Проверка карты Firefly (огненный след: ширина, лимит длины, время жизни, поджог врага)
+	tank.build.clear_build()
+	var firefly_card := CardDatabase.get_card("firefly")
+	assert(firefly_card != null and firefly_card.category == CardDefinition.Category.GENERAL, "ERROR: Firefly must be registered as GENERAL card")
+	tank.build.add_card(firefly_card)
+	var ff := tank.build.active_effects.get("firefly", null) as CardDatabase.FireflyEffect
+	assert(ff != null, "ERROR: FireflyEffect must be active on tank")
+	CardDatabase.FireflyEffect.clear_all_trails(get_tree())
+
+	var ff_scale: float = tank.stats.tank_scale
+	var ff_max_len: float = CardDatabase.FireflyEffect.get_max_trail_length(ff_scale)
+	assert(is_equal_approx(ff_max_len, 6.6 * ff_scale), "ERROR: Firefly max trail length must be 2 tank lengths")
+	assert(is_equal_approx(CardDatabase.FireflyEffect.get_trail_width(ff_scale), 2.0 * ff_scale), "ERROR: Firefly trail width must match tank width")
+
+	# Длинный путь вдоль оси X: лимит длины обрезает старые сегменты
+	var ff_y: float = tank.global_position.y
+	for i in range(20):
+		var seg_a := Vector3(float(i), ff_y, 20.0)
+		var seg_b := Vector3(float(i + 1), ff_y, 20.0)
+		assert(ff.add_segment(seg_a, seg_b, ff_scale), "ERROR: Firefly segment must be created")
+	assert(ff.get_total_trail_length() <= ff_max_len + 0.001, "ERROR: Firefly trail must not exceed 2 tank lengths (%.2f)" % ff.get_total_trail_length())
+	assert(ff.get_segment_count() > 1 and ff.get_segment_count() < 20, "ERROR: Firefly must drop old segments over the length cap")
+	assert(get_tree().get_nodes_in_group("fire_trail_segments").size() == ff.get_segment_count(), "ERROR: Firefly visual nodes must match active segments")
+
+	# Враг внутри огня загорается, снаружи — нет
+	dummy.health.reset()
+	dummy.velocity = Vector3.ZERO
+	var fire_head := Vector3(20.0, ff_y, 20.0) # конец последнего сегмента
+	dummy.global_position = fire_head + Vector3(-1.0, 0.0, 0.0)
+	var old_dummy_burn := dummy.get_node_or_null("BurnEffect")
+	if old_dummy_burn:
+		old_dummy_burn.free()
+	ff.on_physics_process(0.016, 1)
+	var burn_dot := dummy.get_node_or_null("BurnEffect")
+	assert(burn_dot != null, "ERROR: Enemy standing in Firefly trail must catch fire")
+	var hp_before_burn := dummy.health.current_health
+	burn_dot._physics_process(0.5)
+	assert(is_equal_approx(dummy.health.current_health, hp_before_burn - 4.0), "ERROR: 1-stack burn tick must deal 4.0 damage like Poison")
+	burn_dot.free()
+
+	dummy.global_position = fire_head + Vector3(-1.0, 0.0, 6.0) # далеко в стороне от следа
+	ff.on_physics_process(0.016, 1)
+	assert(dummy.get_node_or_null("BurnEffect") == null, "ERROR: Enemy outside Firefly trail must not catch fire")
+
+	# Собственный танк огонь не поджигает
+	tank.global_position = fire_head + Vector3(-1.0, 0.0, 0.0)
+	ff.on_physics_process(0.016, 1)
+	assert(tank.get_node_or_null("BurnEffect") == null, "ERROR: Firefly owner must be immune to own fire")
+
+	# Через 2 секунды след полностью гаснет
+	ff.on_physics_process(2.1, 1)
+	assert(ff.get_segment_count() == 0, "ERROR: Firefly trail must disappear after 2 seconds")
+	dummy.global_position = fire_head + Vector3(-1.0, 0.0, 0.0)
+	ff.on_physics_process(0.016, 1)
+	assert(dummy.get_node_or_null("BurnEffect") == null, "ERROR: Expired Firefly trail must not ignite enemies")
+
+	# Стаки удлиняют след (+2 длины танка за стак), но не меняют время горения сегментов
+	assert(is_equal_approx(CardDatabase.FireflyEffect.get_max_trail_length(ff_scale, 1), 6.6 * ff_scale), "ERROR: 1-stack Firefly trail must be 2 tanks long")
+	assert(is_equal_approx(CardDatabase.FireflyEffect.get_max_trail_length(ff_scale, 3), 3.3 * 6.0 * ff_scale), "ERROR: 3-stack Firefly trail must be 6 tanks long")
+	CardDatabase.FireflyEffect.clear_all_trails(get_tree())
+	for i in range(30):
+		ff.add_segment(Vector3(float(i), ff_y, 30.0), Vector3(float(i + 1), ff_y, 30.0), ff_scale, 3)
+	var len_3: float = ff.get_total_trail_length()
+	assert(len_3 <= 19.8 * ff_scale + 0.001 and len_3 > 13.2 * ff_scale + 1.0, "ERROR: 3-stack Firefly trail must reach ~6 tanks (%.2f)" % len_3)
+	ff.on_physics_process(1.9, 3)
+	assert(ff.get_segment_count() > 0, "ERROR: Firefly segments must still burn just before 2s")
+	ff.on_physics_process(0.2, 3)
+	assert(ff.get_segment_count() == 0, "ERROR: Firefly segment lifetime must stay 2s regardless of stacks")
+	var burn_check := dummy.get_node_or_null("BurnEffect")
+	if burn_check:
+		burn_check.free()
+	ff.add_segment(Vector3(0.0, ff_y, 40.0), Vector3(1.0, ff_y, 40.0), ff_scale, 3)
+	dummy.global_position = Vector3(0.5, ff_y, 40.0)
+	ff.on_physics_process(0.016, 3)
+	burn_check = dummy.get_node_or_null("BurnEffect")
+	assert(burn_check != null and burn_check.ticks_left == 6, "ERROR: Burn duration must stay 6 ticks regardless of stacks")
+	burn_check.free()
+	CardDatabase.FireflyEffect.clear_all_trails(get_tree())
+	print("[PASS] Firefly trail width, 2-tank length cap, stack-scaled trail length, fixed lifetime/burn time, burn DoT and owner immunity verified")
 
 	print("=== [TEST] ALL PHASE 3 TESTS PASSED SUCCESSFULLY! ===\n")

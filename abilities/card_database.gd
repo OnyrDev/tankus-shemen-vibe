@@ -708,6 +708,382 @@ class RoadRageEffect extends CardEffect:
 					continue
 				try_ram_target(target, -n, stacks)
 
+class FireflyEffect extends CardEffect:
+	## Едущий танк оставляет огненный след шириной с танк и длиной не более двух танков.
+	## Сегмент горит LIFETIME секунд (не зависит от стаков); длина следа растёт со стаками; враг, вставший в огонь, загорается (DoT как у Poison).
+	## Логика и урон — только на сервере, клиенты получают визуал сегментов по RPC.
+	const TRAIL_WIDTH: float = 2.0
+	const TANK_LENGTH: float = 3.3
+	const MAX_TRAIL_TANKS: float = 2.0
+	const EXTRA_TRAIL_TANKS_PER_STACK: float = 2.0
+	const LIFETIME: float = 2.0
+	const FADE_TIME: float = 0.3
+	const SEGMENT_LENGTH: float = 0.75
+	const TELEPORT_BREAK_DIST: float = 4.0
+	const TARGET_RADIUS: float = 0.75
+	const MAX_HEIGHT_DELTA: float = 1.6
+	static var _next_segment_id: int = 1
+	static var _trail_nodes: Dictionary = {}
+	static var _flame_texture: Texture2D = null
+
+	var _segments: Array[Dictionary] = []
+	var _last_point: Vector3 = Vector3.INF
+
+	class BurnDoTNode extends Node3D:
+		const TICK_INTERVAL: float = 0.5
+		const TOTAL_TICKS: int = 6
+		const DAMAGE_PER_STACK: float = 4.0
+
+		var stacks: int = 1
+		var ticks_left: int = TOTAL_TICKS
+		var attacker: Node = null
+		var _tick_timer: float = 0.0
+		var _light: OmniLight3D = null
+
+		func _ready() -> void:
+			_light = OmniLight3D.new()
+			_light.name = "BurnLight"
+			_light.position = Vector3(0.0, 0.8, 0.0)
+			_light.light_color = Color(1.0, 0.45, 0.1)
+			_light.omni_range = 2.6
+			_light.light_energy = 1.8
+			add_child(_light)
+
+			var flames := CPUParticles3D.new()
+			flames.name = "BurnFlames"
+			flames.amount = 14
+			flames.lifetime = 0.6
+			flames.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE
+			flames.emission_sphere_radius = 0.6
+			flames.direction = Vector3.UP
+			flames.spread = 15.0
+			flames.gravity = Vector3(0.0, 2.5, 0.0)
+			flames.initial_velocity_min = 0.5
+			flames.initial_velocity_max = 1.4
+			flames.scale_amount_min = 0.7
+			flames.scale_amount_max = 1.3
+			flames.position = Vector3(0.0, 0.6, 0.0)
+			flames.mesh = FireflyEffect.create_flame_quad()
+			flames.color_ramp = FireflyEffect.create_flame_gradient()
+			add_child(flames)
+
+		func setup_or_refresh(new_stacks: int, new_attacker: Node) -> void:
+			stacks = maxi(stacks, maxi(1, new_stacks))
+			ticks_left = TOTAL_TICKS
+			if is_instance_valid(new_attacker):
+				attacker = new_attacker
+
+		func _physics_process(delta: float) -> void:
+			var target := get_parent() as Tank
+			if not is_instance_valid(target) or not target.is_active or not target.health or not target.health.is_alive():
+				queue_free()
+				return
+
+			_tick_timer += delta
+			if _light:
+				_light.light_energy = 1.4 + 0.6 * sin(_tick_timer * PI * 5.0)
+
+			while _tick_timer >= TICK_INTERVAL and ticks_left > 0:
+				_tick_timer -= TICK_INTERVAL
+				trigger_tick()
+
+		func trigger_tick() -> void:
+			var target := get_parent() as Tank
+			if not is_instance_valid(target) or not target.is_active or not target.health:
+				queue_free()
+				return
+
+			ticks_left -= 1
+			var valid_attacker: Node = attacker if is_instance_valid(attacker) else null
+			var dot_damage: float = DAMAGE_PER_STACK * float(maxi(1, stacks))
+			var applied := target.health.take_damage(dot_damage, valid_attacker)
+			if applied and valid_attacker is Tank and (valid_attacker as Tank).events:
+				(valid_attacker as Tank).events.emit_damage_dealt(dot_damage, target)
+
+			if ticks_left <= 0:
+				queue_free()
+
+	static func get_trail_width(scale_mult: float) -> float:
+		return TRAIL_WIDTH * scale_mult
+
+	## Максимальная длина следа: 2 длины танка на 1 стаке, +2 длины танка за каждый следующий стак.
+	static func get_max_trail_length(scale_mult: float, stacks: int = 1) -> float:
+		var tanks_long: float = MAX_TRAIL_TANKS + EXTRA_TRAIL_TANKS_PER_STACK * float(maxi(1, stacks) - 1)
+		return TANK_LENGTH * tanks_long * scale_mult
+
+	static func create_flame_gradient() -> Gradient:
+		var grad := Gradient.new()
+		grad.offsets = PackedFloat32Array([0.0, 0.55, 1.0])
+		grad.colors = PackedColorArray([
+			Color(1.0, 0.85, 0.25, 0.9),
+			Color(1.0, 0.38, 0.05, 0.7),
+			Color(0.4, 0.05, 0.0, 0.0)
+		])
+		return grad
+
+	static func create_flame_quad() -> QuadMesh:
+		if not _flame_texture:
+			var soft := Gradient.new()
+			soft.offsets = PackedFloat32Array([0.0, 1.0])
+			soft.colors = PackedColorArray([Color(1.0, 1.0, 1.0, 1.0), Color(1.0, 1.0, 1.0, 0.0)])
+			var tex := GradientTexture2D.new()
+			tex.gradient = soft
+			tex.fill = GradientTexture2D.FILL_RADIAL
+			tex.fill_from = Vector2(0.5, 0.5)
+			tex.fill_to = Vector2(1.0, 0.5)
+			tex.width = 64
+			tex.height = 64
+			_flame_texture = tex
+
+		var mat := StandardMaterial3D.new()
+		mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+		mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+		mat.vertex_color_use_as_albedo = true
+		mat.albedo_texture = _flame_texture
+
+		var quad := QuadMesh.new()
+		quad.size = Vector2(0.6, 0.6)
+		quad.material = mat
+		return quad
+
+	static func apply_burn(target: Tank, stacks: int, attacker: Node) -> void:
+		if not is_instance_valid(target) or not target.is_active:
+			return
+		var existing := target.get_node_or_null("BurnEffect") as BurnDoTNode
+		if existing and is_instance_valid(existing) and not existing.is_queued_for_deletion():
+			existing.setup_or_refresh(stacks, attacker)
+			return
+
+		var burn_node := BurnDoTNode.new()
+		burn_node.name = "BurnEffect"
+		burn_node.setup_or_refresh(stacks, attacker)
+		target.add_child(burn_node)
+
+	static func remove_segment_by_id(seg_id: int) -> void:
+		var node: Node3D = _trail_nodes.get(seg_id, null) as Node3D
+		_trail_nodes.erase(seg_id)
+		if is_instance_valid(node):
+			node.remove_from_group("fire_trail_segments")
+			node.queue_free()
+
+	static func clear_all_trails(tree: SceneTree) -> void:
+		_trail_nodes.clear()
+		if not tree:
+			return
+		for node in tree.get_nodes_in_group("fire_trail_segments"):
+			if is_instance_valid(node):
+				node.remove_from_group("fire_trail_segments")
+				node.queue_free()
+
+	static func create_segment_node(seg_id: int, a: Vector3, b: Vector3, width: float, parent: Node) -> Node3D:
+		if not parent:
+			return null
+		remove_segment_by_id(seg_id)
+
+		var flat_dir := Vector3(b.x - a.x, 0.0, b.z - a.z)
+		var seg_len: float = maxf(0.1, flat_dir.length())
+
+		var node := Node3D.new()
+		node.name = "FireTrailSegment_%d" % seg_id
+		node.set_meta("segment_id", seg_id)
+		node.add_to_group("fire_trail_segments")
+		parent.add_child(node)
+		node.global_position = (a + b) * 0.5 + Vector3(0.0, 0.06, 0.0)
+		if flat_dir.length_squared() > 0.0001:
+			node.rotation.y = atan2(-flat_dir.x, -flat_dir.z)
+
+		# Раскалённое пятно на земле
+		var glow := MeshInstance3D.new()
+		glow.name = "FireGlow"
+		var box := BoxMesh.new()
+		box.size = Vector3(width, 0.04, seg_len + 0.1)
+		glow.mesh = box
+		var glow_mat := StandardMaterial3D.new()
+		glow_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		glow_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		glow_mat.albedo_color = Color(1.0, 0.42, 0.08, 0.55)
+		glow.material_override = glow_mat
+		node.add_child(glow)
+
+		# Язычки пламени
+		var flames := CPUParticles3D.new()
+		flames.name = "FireFlames"
+		flames.amount = 10
+		flames.lifetime = 0.7
+		flames.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
+		flames.emission_box_extents = Vector3(width * 0.5, 0.02, seg_len * 0.5)
+		flames.direction = Vector3.UP
+		flames.spread = 12.0
+		flames.gravity = Vector3(0.0, 2.5, 0.0)
+		flames.initial_velocity_min = 0.6
+		flames.initial_velocity_max = 1.6
+		flames.scale_amount_min = 0.8
+		flames.scale_amount_max = 1.4
+		flames.mesh = create_flame_quad()
+		flames.color_ramp = create_flame_gradient()
+		node.add_child(flames)
+
+		# Свет только на каждом третьем сегменте, чтобы не плодить OmniLight3D
+		var light: OmniLight3D = null
+		if seg_id % 3 == 0:
+			light = OmniLight3D.new()
+			light.name = "FireLight"
+			light.position = Vector3(0.0, 0.6, 0.0)
+			light.light_color = Color(1.0, 0.5, 0.12)
+			light.omni_range = width * 1.8
+			light.light_energy = 1.4
+			node.add_child(light)
+
+		# Самоуничтожение через LIFETIME (на клиентах без отдельного RPC)
+		var tween := node.create_tween()
+		tween.tween_interval(maxf(0.0, LIFETIME - FADE_TIME))
+		tween.tween_callback(func() -> void:
+			flames.emitting = false
+		)
+		tween.tween_property(glow_mat, "albedo_color:a", 0.0, FADE_TIME)
+		if light:
+			tween.parallel().tween_property(light, "light_energy", 0.0, FADE_TIME)
+		tween.tween_callback(func() -> void:
+			remove_segment_by_id(seg_id)
+		)
+
+		_trail_nodes[seg_id] = node
+		return node
+
+	static func spawn_client_segment(seg_id: int, a: Vector3, b: Vector3, width: float, context_node: Node) -> Node3D:
+		var parent := JumpMineEffect._resolve_spawn_parent(context_node)
+		return create_segment_node(seg_id, a, b, width, parent)
+
+	static func _distance_to_segment_xz(p: Vector3, a: Vector3, b: Vector3) -> float:
+		var p2 := Vector2(p.x, p.z)
+		var a2 := Vector2(a.x, a.z)
+		var b2 := Vector2(b.x, b.z)
+		var ab := b2 - a2
+		var len_sq := ab.length_squared()
+		if len_sq < 0.0001:
+			return p2.distance_to(a2)
+		var t := clampf((p2 - a2).dot(ab) / len_sq, 0.0, 1.0)
+		return p2.distance_to(a2 + ab * t)
+
+	func is_point_in_fire(point: Vector3, target_radius: float = TARGET_RADIUS) -> bool:
+		for seg in _segments:
+			var a: Vector3 = seg["a"]
+			var b: Vector3 = seg["b"]
+			if absf(point.y - a.y) > MAX_HEIGHT_DELTA:
+				continue
+			if _distance_to_segment_xz(point, a, b) <= float(seg["width"]) * 0.5 + target_radius:
+				return true
+		return false
+
+	func get_segment_count() -> int:
+		return _segments.size()
+
+	func get_total_trail_length() -> float:
+		var total: float = 0.0
+		for seg in _segments:
+			total += Vector2((seg["b"] as Vector3).x - (seg["a"] as Vector3).x, (seg["b"] as Vector3).z - (seg["a"] as Vector3).z).length()
+		return total
+
+	func _remove_segment_at(index: int, notify_clients: bool) -> void:
+		var seg: Dictionary = _segments[index]
+		_segments.remove_at(index)
+		var seg_id: int = seg["id"]
+		remove_segment_by_id(seg_id)
+		if notify_clients and _is_network_server():
+			tank.net_sync.s2c_remove_fire_segment.rpc(seg_id)
+
+	func _is_network_server() -> bool:
+		return tank and tank.net_sync and tank.multiplayer and tank.multiplayer.has_multiplayer_peer() and tank.multiplayer.is_server()
+
+	func _age_segments(delta: float) -> void:
+		var i := _segments.size() - 1
+		while i >= 0:
+			var seg: Dictionary = _segments[i]
+			seg["age"] = float(seg["age"]) + delta
+			var node: Node3D = _trail_nodes.get(int(seg["id"]), null) as Node3D
+			# Сегмент умирает по таймеру либо если его визуал уничтожен (сброс раунда)
+			if float(seg["age"]) >= LIFETIME or not is_instance_valid(node):
+				_remove_segment_at(i, false)
+			i -= 1
+
+	func _drop_trail(scale_mult: float, stacks: int) -> void:
+		var forward := -tank.global_transform.basis.z
+		forward.y = 0.0
+		if forward.length_squared() < 0.0001:
+			return
+		forward = forward.normalized()
+		var rear := tank.global_position - forward * (TANK_LENGTH * 0.5 * scale_mult)
+
+		if not _last_point.is_finite() or not tank.is_on_floor():
+			_last_point = rear
+			return
+
+		var flat_dist := Vector2(rear.x - _last_point.x, rear.z - _last_point.z).length()
+		if flat_dist > TELEPORT_BREAK_DIST * scale_mult:
+			_last_point = rear # телепорт / респавн — след обрывается
+			return
+		if flat_dist < SEGMENT_LENGTH * scale_mult:
+			return
+
+		var a := Vector3(_last_point.x, tank.global_position.y, _last_point.z)
+		var b := Vector3(rear.x, tank.global_position.y, rear.z)
+		if add_segment(a, b, scale_mult, stacks):
+			_last_point = rear
+
+	## Создаёт сегмент следа между точками a и b, рассылает его клиентам
+	## и обрезает самые старые сегменты, если след длиннее двух танков.
+	func add_segment(a: Vector3, b: Vector3, scale_mult: float = 1.0, stacks: int = 1) -> bool:
+		var parent := JumpMineEffect._resolve_spawn_parent(tank)
+		if not parent:
+			return false
+
+		var width := get_trail_width(scale_mult)
+		var seg_id := _next_segment_id
+		_next_segment_id += 1
+		if not create_segment_node(seg_id, a, b, width, parent):
+			return false
+
+		_segments.append({"id": seg_id, "a": a, "b": b, "width": width, "age": 0.0})
+
+		if _is_network_server():
+			tank.net_sync.s2c_spawn_fire_segment.rpc(seg_id, a, b, width)
+
+		# Ограничение общей длины следа: самые старые сегменты гаснут первыми
+		var max_len := get_max_trail_length(scale_mult, stacks)
+		while _segments.size() > 1 and get_total_trail_length() > max_len:
+			_remove_segment_at(0, true)
+		return true
+
+	func _ignite_enemies(stacks: int) -> void:
+		if _segments.is_empty():
+			return
+		var tree := tank.get_tree()
+		if not tree:
+			return
+		for node in tree.get_nodes_in_group("tanks"):
+			var target := node as Tank
+			if not target or target == tank or not target.is_active:
+				continue
+			if not target.health or not target.health.is_alive():
+				continue
+			if Game and Game.rules and Game.rules.is_team_mode and not Game.rules.friendly_fire:
+				if target.team_id == tank.team_id:
+					continue
+			var target_scale: float = target.stats.tank_scale if target.stats else 1.0
+			if is_point_in_fire(target.global_position, TARGET_RADIUS * target_scale):
+				apply_burn(target, stacks, tank)
+
+	func on_physics_process(delta: float, stacks: int) -> void:
+		if not tank or not is_instance_valid(tank):
+			return
+		var scale_mult: float = tank.stats.tank_scale if tank.stats else 1.0
+		_age_segments(delta)
+		if tank.is_active:
+			_drop_trail(scale_mult, stacks)
+		_ignite_enemies(stacks)
+
 class PhoenixEffect extends CardEffect:
 	var _used_this_round: bool = false
 
@@ -812,7 +1188,7 @@ static func _init_cards() -> void:
 	_register("death_from_above", "Death From Above", "+40% урона снарядам, выпущенным в прыжке.", CardDefinition.Category.JUMP, false, 99, {}, DeathFromAboveEffect)
 	_register("double_jump", "Double Jump", "Разрешает второй прыжок прямо в воздухе.", CardDefinition.Category.JUMP, true, 1, {})
 
-	# --- GENERAL CARDS (11) ---
+	# --- GENERAL CARDS (12) ---
 	_register("tankier", "Tankier", "+40 максимального здоровья танка.", CardDefinition.Category.GENERAL, false, 99, {"hp_flat": 40.0})
 	_register("lightweight", "Lightweight", "+30% к скорости танка, снижена масса.", CardDefinition.Category.GENERAL, false, 99, {"move_speed_mult": 1.30, "knockback_resistance_mult": 0.7})
 	_register("heavyweight", "Heavyweight", "+75% устойчивость к отталкиванию, +30% максимального HP, -12% скорости.", CardDefinition.Category.GENERAL, false, 99, {"knockback_resistance_mult": 1.75, "hp_mult": 1.30, "move_speed_mult": 0.88})
@@ -823,6 +1199,7 @@ static func _init_cards() -> void:
 	_register("road_rage", "Road Rage", "Таран вражеского танка на скорости наносит урон.", CardDefinition.Category.GENERAL, false, 99, {}, RoadRageEffect)
 	_register("tiny_tank", "Tiny Tank", "Танк меньше (-30%) и быстрее (+25%), но теряет 25 HP.", CardDefinition.Category.GENERAL, false, 99, {"scale_mult": 0.70, "move_speed_mult": 1.25, "hp_flat": -25.0})
 	_register("big_tank", "Big Tank", "Танк крупнее (+40%) и прочнее (+60 HP), но медленнее (-15%).", CardDefinition.Category.GENERAL, false, 99, {"scale_mult": 1.40, "hp_flat": 60.0, "move_speed_mult": 0.85})
+	_register("firefly", "Firefly", "Едущий танк оставляет огненный след (шириной с танк, до 2 танков в длину, горит 2 сек). Враг в огне горит и получает урон как от яда. Каждый стак усиливает урон горения и удлиняет след на 2 танка.", CardDefinition.Category.GENERAL, false, 99, {}, FireflyEffect)
 	_register("phoenix", "Phoenix", "Один раз за раунд смертельный урон отменяется, танк оживает с 50% HP.", CardDefinition.Category.GENERAL, true, 1, {}, PhoenixEffect)
 
 static func _register(

@@ -138,6 +138,10 @@ func respawn(new_transform: Transform3D = spawn_point, reset_health: bool = true
 	if poison_node:
 		poison_node.queue_free()
 
+	var burn_node := get_node_or_null("BurnEffect")
+	if burn_node:
+		burn_node.queue_free()
+
 	if visuals:
 		visuals.visible = true
 

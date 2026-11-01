@@ -567,6 +567,18 @@ func s2c_detonate_jump_mine(mine_id: int, exploded: bool) -> void:
 		return
 	CardDatabase.JumpMineEffect.remove_mine_by_id(mine_id, exploded, _tank)
 
+@rpc("authority", "reliable")
+func s2c_spawn_fire_segment(seg_id: int, a: Vector3, b: Vector3, width: float) -> void:
+	if _is_server() or not _tank:
+		return
+	CardDatabase.FireflyEffect.spawn_client_segment(seg_id, a, b, width, _tank)
+
+@rpc("authority", "reliable")
+func s2c_remove_fire_segment(seg_id: int) -> void:
+	if _is_server():
+		return
+	CardDatabase.FireflyEffect.remove_segment_by_id(seg_id)
+
 @rpc("any_peer", "reliable")
 func c2s_remove_card(card_id: String) -> void:
 	if not _is_server() or not Game.rules.allow_admin_panel:
