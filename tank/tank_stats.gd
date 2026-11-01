@@ -150,7 +150,7 @@ func recalculate(cards_with_stacks: Dictionary, card_db: Object = null) -> void:
 	reload_time = clampf(BASE_RELOAD_TIME * mult_reload_time, 0.25, 6.0)
 	magazine_size = maxi(1, BASE_MAGAZINE_SIZE + flat_magazine)
 	block_duration = clampf((BASE_BLOCK_DURATION + flat_block_dur) * mult_block_dur, 0.15, 1.5)
-	block_cooldown = clampf(BASE_BLOCK_COOLDOWN * mult_block_cd, 0.5, 8.0)
+	block_cooldown = maxf(0.5, BASE_BLOCK_COOLDOWN * mult_block_cd)
 	tank_scale = clampf(BASE_SCALE * mult_scale, 0.45, 2.0)
 	knockback_resistance = clampf(BASE_KNOCKBACK_RESISTANCE * mult_knockback_res, 0.2, 5.0)
 

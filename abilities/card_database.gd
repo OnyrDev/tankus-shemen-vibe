@@ -260,6 +260,165 @@ class CounterShotEffect extends CardEffect:
 				base_dir = tank.turret.get_shoot_direction()
 			tank.weapon.spawn_custom_projectile(base_pos, base_dir)
 
+class WallhackEffect extends CardEffect:
+	## При активации щита подсвечивает вражеские танки сквозь стены на BASE_DURATION секунд за стак.
+	## Щит срабатывает штатно, а кулдаун блока увеличен на +40% через stat_modifiers.
+	const BASE_DURATION: float = 2.0
+	const FADE_OUT_TIME: float = 0.25
+
+	class WallhackRevealNode extends Node3D:
+		var time_left: float = 2.0
+		var _elapsed: float = 0.0
+		var _xray_mat: StandardMaterial3D = null
+		var _outline_mat: StandardMaterial3D = null
+
+		func _ready() -> void:
+			add_to_group("wallhack_reveals")
+			_apply_xray_overlay()
+
+		func setup_or_refresh(duration: float) -> void:
+			time_left = maxf(time_left, maxf(0.1, duration))
+			if is_inside_tree():
+				_apply_xray_overlay()
+
+		func _apply_xray_overlay() -> void:
+			var target := get_parent() as Tank
+			if not is_instance_valid(target) or not target.visuals:
+				return
+
+			var base_col: Color = target.team_color if target else Color(1.0, 0.25, 0.2)
+			var fill_col: Color = base_col.lightened(0.30)
+			var rim_col: Color = base_col.lightened(0.55)
+
+			if not _outline_mat:
+				_outline_mat = StandardMaterial3D.new()
+				_outline_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+				_outline_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+				_outline_mat.cull_mode = BaseMaterial3D.CULL_FRONT
+				_outline_mat.grow = true
+				_outline_mat.grow_amount = 0.035
+				_outline_mat.no_depth_test = true
+				_outline_mat.render_priority = 11
+			_outline_mat.albedo_color = Color(rim_col.r, rim_col.g, rim_col.b, 0.92)
+
+			if not _xray_mat:
+				_xray_mat = StandardMaterial3D.new()
+				_xray_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+				_xray_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+				_xray_mat.no_depth_test = true
+				_xray_mat.render_priority = 10
+				_xray_mat.next_pass = _outline_mat
+			_xray_mat.albedo_color = Color(fill_col.r, fill_col.g, fill_col.b, 0.48)
+
+			for node in target.visuals.find_children("*", "MeshInstance3D", true, false):
+				var mesh := node as MeshInstance3D
+				if mesh and mesh != target.shield_mesh and mesh.name != "ShieldMesh":
+					mesh.material_overlay = _xray_mat
+
+		func clear_overlay() -> void:
+			var target := get_parent() as Tank
+			if is_instance_valid(target):
+				target.set_meta("wallhack_revealed", false)
+				if target.visuals:
+					for node in target.visuals.find_children("*", "MeshInstance3D", true, false):
+						var mesh := node as MeshInstance3D
+						if mesh and mesh.material_overlay == _xray_mat:
+							mesh.material_overlay = null
+
+		func _exit_tree() -> void:
+			clear_overlay()
+
+		func _physics_process(delta: float) -> void:
+			var target := get_parent() as Tank
+			if not is_instance_valid(target) or not target.is_active or (target.health and not target.health.is_alive()):
+				clear_overlay()
+				queue_free()
+				return
+
+			_elapsed += delta
+			time_left -= delta
+			if time_left <= 0.0:
+				clear_overlay()
+				queue_free()
+				return
+
+			if _xray_mat and _outline_mat:
+				var fade := clampf(time_left / FADE_OUT_TIME, 0.0, 1.0)
+				var pulse := 0.42 + 0.14 * sin(_elapsed * PI * 4.5)
+				_xray_mat.albedo_color.a = pulse * fade
+				_outline_mat.albedo_color.a = 0.92 * fade
+
+	static func get_reveal_duration(stacks: int) -> float:
+		return BASE_DURATION * float(maxi(1, stacks))
+
+	static func apply_reveal_to_target(target_tank: Tank, duration: float) -> WallhackRevealNode:
+		if not is_instance_valid(target_tank) or not target_tank.is_active:
+			return null
+
+		target_tank.set_meta("wallhack_revealed", true)
+		var existing := target_tank.get_node_or_null("WallhackReveal") as WallhackRevealNode
+		if existing and is_instance_valid(existing):
+			if not existing.is_queued_for_deletion():
+				existing.setup_or_refresh(duration)
+				return existing
+			existing.name = "WallhackRevealExpired"
+
+		var reveal_node := WallhackRevealNode.new()
+		reveal_node.name = "WallhackReveal"
+		reveal_node.time_left = maxf(0.1, duration)
+		target_tank.add_child(reveal_node)
+		reveal_node.setup_or_refresh(duration)
+		return reveal_node
+
+	static func reveal_enemies_for_tank(viewer_tank: Tank, duration: float) -> int:
+		if not is_instance_valid(viewer_tank):
+			return 0
+		var tree := viewer_tank.get_tree()
+		if not tree:
+			return 0
+
+		var revealed_count: int = 0
+		for node in tree.get_nodes_in_group("tanks"):
+			var target := node as Tank
+			if not target or target == viewer_tank or not target.is_active:
+				continue
+			if target.health and not target.health.is_alive():
+				continue
+			if Game and Game.rules and Game.rules.is_team_mode:
+				if target.team_id == viewer_tank.team_id:
+					continue
+			if apply_reveal_to_target(target, duration) != null:
+				revealed_count += 1
+		return revealed_count
+
+	static func clear_all_reveals(tree: SceneTree) -> void:
+		if not tree:
+			return
+		for node in tree.get_nodes_in_group("wallhack_reveals"):
+			if is_instance_valid(node):
+				if node.has_method("clear_overlay"):
+					node.clear_overlay()
+				node.remove_from_group("wallhack_reveals")
+				node.queue_free()
+
+	func on_block_started(_duration: float, stacks: int) -> void:
+		if not tank or not is_instance_valid(tank):
+			return
+
+		var reveal_duration: float = get_reveal_duration(stacks)
+		var p_info := Network.get_player_info(tank.peer_id) if Network else null
+		var is_bot: bool = p_info != null and p_info.is_bot
+
+		# На локальном владельце (или в синглплеере/песочнице) сразу включаем просвет врагов
+		if (tank.net_sync == null or tank.net_sync.is_local_owner()) and not is_bot:
+			reveal_enemies_for_tank(tank, reveal_duration)
+
+		# Если блок нажал удаленный клиент — отправляем ему персональный RPC на включение просвета
+		if tank.net_sync and not tank.net_sync.is_local_owner() and not is_bot:
+			if tank.multiplayer and tank.multiplayer.has_multiplayer_peer() and tank.multiplayer.is_server():
+				if tank.peer_id in tank.multiplayer.get_peers():
+					tank.net_sync.s2c_activate_wallhack.rpc_id(tank.peer_id, reveal_duration)
+
 
 class GroundSlamEffect extends CardEffect:
 	const BASE_RADIUS: float = 4.5
@@ -1171,7 +1330,7 @@ static func _init_cards() -> void:
 
 	_register("spread", "Разброс", "Снаряды летят с разбросом (±8° за стак), но урон +70%. Стаки увеличивают и разброс, и урон.", CardDefinition.Category.SHOT, false, 99, {"damage_mult": 1.70}, SpreadEffect)
 
-	# --- BLOCK CARDS (8) ---
+	# --- BLOCK CARDS (9) ---
 	_register("quick_guard", "Quick Guard", "-25% кулдаун защитного блока.", CardDefinition.Category.BLOCK, false, 99, {"block_cooldown_mult": 0.75})
 	_register("long_block", "Long Block", "+50% длительность окна щита, +15% кулдаун.", CardDefinition.Category.BLOCK, false, 99, {"block_duration_mult": 1.50, "block_cooldown_mult": 1.15})
 	_register("blink", "Blink", "Телепортация на 5м по направлению прицела при активации щита.", CardDefinition.Category.BLOCK, false, 99, {}, BlinkEffect)
@@ -1180,6 +1339,7 @@ static func _init_cards() -> void:
 	_register("ammo_shield", "Ammo Shield", "Успешный блок восстанавливает +1 снаряд в обойму.", CardDefinition.Category.BLOCK, false, 99, {}, AmmoShieldEffect)
 	_register("counter_shot", "Counter Shot", "Успешный блок автоматически выпускает ответный снаряд.", CardDefinition.Category.BLOCK, false, 99, {}, CounterShotEffect)
 	_register("reflect", "Reflect", "Заблокированный снаряд отражается обратно во врага со сменой владельца.", CardDefinition.Category.BLOCK, true, 1, {})
+	_register("wallhack", "Wallhack", "При активации щита противники просвечиваются сквозь стены на 2с (+2с за стак). +40% кулдаун блока.", CardDefinition.Category.BLOCK, false, 99, {"block_cooldown_mult": 1.40}, WallhackEffect)
 
 	# --- JUMP CARDS (5) ---
 	_register("high_jump", "High Jump", "+40% высота прыжка танка.", CardDefinition.Category.JUMP, false, 99, {"jump_velocity_mult": 1.40})

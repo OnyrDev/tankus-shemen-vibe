@@ -32,7 +32,7 @@ func _run_tests() -> void:
 
 	# 3. Проверка базы данных 43 карт
 	var all_cards := CardDatabase.get_all_cards()
-	assert(all_cards.size() == 44, "ERROR: Card pool size should be 44, found %d" % all_cards.size())
+	assert(all_cards.size() == 45, "ERROR: Card pool size should be 45, found %d" % all_cards.size())
 	assert(CardDatabase.get_card("perfect_guard") == null, "ERROR: Perfect Guard card must be removed")
 
 	var shot_count := 0
@@ -52,10 +52,10 @@ func _run_tests() -> void:
 				general_count += 1
 
 	assert(shot_count == 19, "ERROR: Expected 19 SHOT cards, got %d" % shot_count)
-	assert(block_count == 8, "ERROR: Expected 8 BLOCK cards, got %d" % block_count)
+	assert(block_count == 9, "ERROR: Expected 9 BLOCK cards, got %d" % block_count)
 	assert(jump_count == 5, "ERROR: Expected 5 JUMP cards, got %d" % jump_count)
 	assert(general_count == 12, "ERROR: Expected 12 GENERAL cards, got %d" % general_count)
-	print("[PASS] All 44 cards registered with exact category balance (19 SHOT, 8 BLOCK, 5 JUMP, 12 GENERAL)")
+	print("[PASS] All 45 cards registered with exact category balance (19 SHOT, 9 BLOCK, 5 JUMP, 12 GENERAL)")
 
 	# 4. Проверка генератора драфта (Draft Offer)
 	tank.build.clear_build()
@@ -462,5 +462,59 @@ func _run_tests() -> void:
 	burn_check.free()
 	CardDatabase.FireflyEffect.clear_all_trails(get_tree())
 	print("[PASS] Firefly trail width, 2-tank length cap, stack-scaled trail length, fixed lifetime/burn time, burn DoT and owner immunity verified")
+
+	# 19. Проверка карты Wallhack (штатный щит при блоке, просвет врагов на 2с за стак, +40% кулдаун блока без верхнего лимита)
+	tank.build.clear_build()
+	tank.stats.recalculate(tank.build.cards, CardDatabase)
+	var base_block_cd: float = tank.stats.block_cooldown
+	var wallhack_card := CardDatabase.get_card("wallhack")
+	assert(wallhack_card != null and wallhack_card.category == CardDefinition.Category.BLOCK, "ERROR: Wallhack must be registered as BLOCK card")
+	tank.build.add_card(wallhack_card)
+	assert(is_equal_approx(tank.stats.block_cooldown, base_block_cd * 1.40), "ERROR: 1-stack Wallhack must increase block cooldown by +40%")
+	assert(is_equal_approx(CardDatabase.WallhackEffect.get_reveal_duration(1), 2.0), "ERROR: 1-stack Wallhack duration must be 2.0s")
+	assert(is_equal_approx(CardDatabase.WallhackEffect.get_reveal_duration(2), 4.0), "ERROR: 2-stack Wallhack duration must be 4.0s")
+
+	CardDatabase.WallhackEffect.clear_all_reveals(get_tree())
+	dummy.health.reset()
+	dummy.is_active = true
+	tank.block.reset()
+	assert(tank.block.activate_block(), "ERROR: Tank block must activate normally with Wallhack card")
+	assert(tank.block.is_blocking(), "ERROR: Shield must be active as normal when Wallhack triggers")
+	assert(dummy.get_meta("wallhack_revealed", false) == true, "ERROR: Enemy tank must be marked wallhack_revealed on block")
+	var wh_node := dummy.get_node_or_null("WallhackReveal")
+	assert(wh_node != null and is_equal_approx(wh_node.time_left, 2.0), "ERROR: WallhackReveal node must be attached to enemy with 2.0s timer")
+
+	var has_xray_overlay := false
+	for mnode in dummy.visuals.find_children("*", "MeshInstance3D", true, false):
+		var m := mnode as MeshInstance3D
+		if m and m != dummy.shield_mesh and m.material_overlay is StandardMaterial3D:
+			var xmat := m.material_overlay as StandardMaterial3D
+			if xmat.no_depth_test:
+				has_xray_overlay = true
+				break
+	assert(has_xray_overlay, "ERROR: Enemy meshes must have X-ray material_overlay (no_depth_test=true) during Wallhack")
+	assert(tank.get_meta("wallhack_revealed", false) == false, "ERROR: Wallhack owner must not reveal itself")
+
+	# Через 2 секунды просвет с врага снимается
+	wh_node._physics_process(2.05)
+	assert(dummy.get_meta("wallhack_revealed", false) == false, "ERROR: Wallhack reveal must expire after 2 seconds on 1 stack")
+
+	# 2 стака: кулдаун блока стакается, длительность просвета 4 секунды
+	tank.build.add_card(wallhack_card)
+	assert(is_equal_approx(tank.stats.block_cooldown, base_block_cd * 1.40 * 1.40), "ERROR: 2-stack Wallhack cooldown must stack multiplicatively")
+	tank.block.reset()
+	assert(tank.block.activate_block(), "ERROR: Block must activate on 2 stacks")
+	var wh_node2 := dummy.get_node_or_null("WallhackReveal")
+	assert(wh_node2 != null and is_equal_approx(wh_node2.time_left, 4.0), "ERROR: 2-stack Wallhack must reveal enemies for 4.0s")
+	wh_node2._physics_process(2.5)
+	assert(dummy.get_meta("wallhack_revealed", false) == true, "ERROR: 2-stack Wallhack must still be active at 2.5s")
+	wh_node2._physics_process(1.6)
+	assert(dummy.get_meta("wallhack_revealed", false) == false, "ERROR: 2-stack Wallhack must expire after 4.0s")
+	tank.build.add_card(wallhack_card)
+	tank.build.add_card(wallhack_card) # 4 стака: КД 3.0 * 1.4^4 = 11.5248с > 8.0с (без старого потолка)
+	assert(is_equal_approx(tank.stats.block_cooldown, base_block_cd * pow(1.40, 4)), "ERROR: block_cooldown must not have an upper cap")
+	assert(tank.stats.block_cooldown > CardDatabase.WallhackEffect.get_reveal_duration(4), "ERROR: 4-stack block cooldown must exceed Wallhack reveal duration")
+	CardDatabase.WallhackEffect.clear_all_reveals(get_tree())
+	print("[PASS] Wallhack normal shield activation, X-ray material overlay, stack-scaled duration (2s/stack), and uncapped +40% block cooldown verified")
 
 	print("=== [TEST] ALL PHASE 3 TESTS PASSED SUCCESSFULLY! ===\n")

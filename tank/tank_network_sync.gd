@@ -579,6 +579,12 @@ func s2c_remove_fire_segment(seg_id: int) -> void:
 		return
 	CardDatabase.FireflyEffect.remove_segment_by_id(seg_id)
 
+@rpc("authority", "reliable")
+func s2c_activate_wallhack(duration: float) -> void:
+	if _is_server() or not _tank or not _is_local_owner:
+		return
+	CardDatabase.WallhackEffect.reveal_enemies_for_tank(_tank, duration)
+
 @rpc("any_peer", "reliable")
 func c2s_remove_card(card_id: String) -> void:
 	if not _is_server() or not Game.rules.allow_admin_panel:
