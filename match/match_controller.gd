@@ -588,6 +588,10 @@ func s2c_reset_and_place_tanks(assigned_spawns: Dictionary = {}) -> void:
 	var tree := get_tree()
 	if tree:
 		CardDatabase.JumpMineEffect.clear_all_mines(tree)
+		CardDatabase.FireflyEffect.clear_all_trails(tree)
+		CardDatabase.WallhackEffect.clear_all_reveals(tree)
+		CardDatabase.BurgerTerminalEffect.clear_all(tree)
+		CardDatabase.AirVortexEffect.clear_all(tree)
 		for crate in tree.get_nodes_in_group("physics_crates"):
 			if crate.has_method("reset_to_start"):
 				crate.reset_to_start()

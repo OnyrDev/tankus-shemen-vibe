@@ -114,15 +114,16 @@ func _process(_delta: float) -> void:
 		visible = false
 		return
 
-	# Raycast-проверка прямой видимости через стены
-	var space := target_tank.get_world_3d().direct_space_state
-	var query := PhysicsRayQueryParameters3D.create(cam.global_position, world_pos)
-	query.collision_mask = 1 # Стены и геометрия уровня (слой 1)
-	var hit := space.intersect_ray(query)
-	if not hit.is_empty():
-		# Между камерой и танком стена
-		visible = false
-		return
+	# Raycast-проверка прямой видимости через стены (пропускается при активном просвете Wallhack)
+	if not target_tank.get_meta("wallhack_revealed", false):
+		var space := target_tank.get_world_3d().direct_space_state
+		var query := PhysicsRayQueryParameters3D.create(cam.global_position, world_pos)
+		query.collision_mask = 1 # Стены и геометрия уровня (слой 1)
+		var hit := space.intersect_ray(query)
+		if not hit.is_empty():
+			# Между камерой и танком стена
+			visible = false
+			return
 
 	# Танк виден — проецируем на экран
 	visible = true

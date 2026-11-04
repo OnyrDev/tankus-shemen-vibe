@@ -83,6 +83,330 @@ class ShotgunEffect extends CardEffect:
 			var rot_dir := base_dir.rotated(Vector3.UP, angle).normalized()
 			tank.weapon.spawn_custom_projectile(base_pos, rot_dir, shot_dmg)
 
+class SpreadEffect extends CardEffect:
+	## Бонус урона (+70% за стак) задаётся через stat_modifiers карты, здесь — только разброс.
+	const SPREAD_DEG_PER_STACK: float = 8.0
+	const MAX_SPREAD_DEG: float = 60.0
+
+	## Максимальное отклонение снаряда от линии прицела (в градусах) для заданного числа стаков.
+	static func get_max_spread_deg(stacks: int) -> float:
+		return minf(SPREAD_DEG_PER_STACK * float(maxi(1, stacks)), MAX_SPREAD_DEG)
+
+	func on_projectile_spawned(proj: Projectile, stacks: int) -> void:
+		var max_angle: float = deg_to_rad(get_max_spread_deg(stacks))
+		var angle: float = randf_range(-max_angle, max_angle)
+		proj.direction = proj.direction.rotated(Vector3.UP, angle).normalized()
+		proj.velocity = proj.direction * proj.speed
+
+class CriticalHitEffect extends CardEffect:
+	## 20% фиксированный шанс критического выстрела на 140% урона (+30% к крит-урону за каждый доп. стак).
+	## Дебафф +20% к времени перезарядки задаётся через stat_modifiers карты.
+	const CRIT_CHANCE: float = 0.20
+	const BASE_CRIT_MULT: float = 1.40
+	const EXTRA_CRIT_MULT_PER_STACK: float = 0.30
+
+	static func get_crit_chance(_stacks: int = 1) -> float:
+		return CRIT_CHANCE
+
+	static func get_crit_damage_multiplier(stacks: int) -> float:
+		return BASE_CRIT_MULT + EXTRA_CRIT_MULT_PER_STACK * float(maxi(1, stacks) - 1)
+
+	static func apply_crit_to_projectile(proj: Projectile, stacks: int) -> void:
+		if not proj:
+			return
+		var mult: float = get_crit_damage_multiplier(stacks)
+		proj.damage *= mult
+		proj.set_meta("is_critical_hit", true)
+		proj.set_meta("crit_multiplier", mult)
+		proj._apply_color(Color(1.0, 0.20, 0.24))
+
+	func on_projectile_spawned(proj: Projectile, stacks: int) -> void:
+		if not proj:
+			return
+		if randf() < CRIT_CHANCE:
+			apply_crit_to_projectile(proj, stacks)
+
+class AirVortexEffect extends CardEffect:
+	## При попадании по врагу или на последнем отскоке по препятствию создаёт воздушную воронку на 3с.
+	## Базовый радиус 3.0м (+1.0м за каждый дополнительный стак). Засасывает все танки и физические ящики.
+	const BASE_RADIUS: float = 3.0
+	const EXTRA_RADIUS_PER_STACK: float = 1.0
+	const LIFETIME: float = 3.0
+	const MAX_HEIGHT_DELTA: float = 3.0
+	## Общий множитель силы втягивания (крути его: 0.5 — в 2 раза слабее, 1.0 — норма, 2.0 — в 2 раза сильнее)
+	const PULL_STRENGTH: float = 1.3
+	const TANK_PULL_SPEED: float = 4.2
+	const TANK_PULL_ACCEL: float = 16.0
+	const TANK_DIRECT_PULL_SPEED: float = 1.8
+	const CRATE_PULL_SPEED: float = 3.8
+	const CRATE_PULL_ACCEL: float = 14.0
+	const CRATE_DIRECT_PULL_SPEED: float = 1.6
+
+	static var _next_vortex_id: int = 1
+	static var _active_vortexes: Dictionary = {}
+
+	class VortexNode extends Node3D:
+		var vortex_id: int = 0
+		var owner_tank: Tank = null
+		var stacks: int = 1
+		var radius: float = 2.0
+		var lifetime: float = 3.0
+		var is_client_visual: bool = false
+		var _age: float = 0.0
+		var _swirl_root: Node3D = null
+		var _inner_ring: MeshInstance3D = null
+		var _ring_mat: StandardMaterial3D = null
+		var _funnel_mat: StandardMaterial3D = null
+		var _light: OmniLight3D = null
+
+		func _ready() -> void:
+			add_to_group("air_vortexes")
+
+		func _process(delta: float) -> void:
+			if _swirl_root:
+				_swirl_root.rotation.y += delta * 11.5
+			if _inner_ring:
+				_inner_ring.rotation.y -= delta * 18.0
+
+			var time_left: float = maxf(0.0, lifetime - _age)
+			var fade: float = clampf(time_left / 0.35, 0.0, 1.0)
+			if _ring_mat:
+				_ring_mat.albedo_color.a = 0.72 * fade
+			if _funnel_mat:
+				_funnel_mat.albedo_color.a = 0.34 * fade
+			if _light:
+				_light.light_energy = 1.6 * fade
+
+		func _physics_process(delta: float) -> void:
+			_age += delta
+			if not is_client_visual:
+				_pull_entities(delta)
+
+			if _age >= lifetime:
+				var valid_owner := owner_tank if is_instance_valid(owner_tank) else null
+				AirVortexEffect.remove_vortex_by_id(vortex_id)
+				if not is_client_visual and valid_owner and valid_owner.net_sync and valid_owner.multiplayer and valid_owner.multiplayer.has_multiplayer_peer() and valid_owner.multiplayer.is_server():
+					valid_owner.net_sync.s2c_remove_air_vortex.rpc(vortex_id)
+
+		func _pull_entities(delta: float) -> void:
+			var tree := get_tree()
+			if not tree:
+				return
+
+			# 1. Засасываем вообще все активные танки в радиусе (врагов, союзников и самого стрелка)
+			for node in tree.get_nodes_in_group("tanks"):
+				var target := node as Tank
+				if not target or not is_instance_valid(target) or not target.is_active:
+					continue
+				if target.health and not target.health.is_alive():
+					continue
+				if absf(target.global_position.y - global_position.y) > MAX_HEIGHT_DELTA:
+					continue
+
+				var to_center := Vector3(global_position.x - target.global_position.x, 0.0, global_position.z - target.global_position.z)
+				var flat_dist := to_center.length()
+				if flat_dist > radius or flat_dist < 0.08:
+					continue
+
+				var pull_dir := to_center / flat_dist
+				var kb_res: float = target.stats.knockback_resistance if target.stats else 1.0
+				var pull_scale: float = PULL_STRENGTH / maxf(0.4, kb_res)
+				var desired_vel := pull_dir * (TANK_PULL_SPEED * pull_scale)
+				target.velocity.x = move_toward(target.velocity.x, desired_vel.x, TANK_PULL_ACCEL * pull_scale * delta)
+				target.velocity.z = move_toward(target.velocity.z, desired_vel.z, TANK_PULL_ACCEL * pull_scale * delta)
+
+				var step_dist := minf(maxf(0.0, flat_dist - 0.12), TANK_DIRECT_PULL_SPEED * pull_scale * delta)
+				if step_dist > 0.0001:
+					target.move_and_collide(pull_dir * step_dist)
+
+			# 2. Засасываем физические ящики в радиусе
+			for node in tree.get_nodes_in_group("physics_crates"):
+				var crate := node as RigidBody3D
+				if not crate or not is_instance_valid(crate) or crate.freeze:
+					continue
+				if absf(crate.global_position.y - global_position.y) > MAX_HEIGHT_DELTA:
+					continue
+
+				var to_center := Vector3(global_position.x - crate.global_position.x, 0.0, global_position.z - crate.global_position.z)
+				var flat_dist := to_center.length()
+				if flat_dist > radius or flat_dist < 0.08:
+					continue
+
+				var pull_dir := to_center / flat_dist
+				crate.sleeping = false
+				var desired_vel := pull_dir * (CRATE_PULL_SPEED * PULL_STRENGTH)
+				crate.linear_velocity.x = move_toward(crate.linear_velocity.x, desired_vel.x, CRATE_PULL_ACCEL * PULL_STRENGTH * delta)
+				crate.linear_velocity.z = move_toward(crate.linear_velocity.z, desired_vel.z, CRATE_PULL_ACCEL * PULL_STRENGTH * delta)
+				crate.apply_central_force(pull_dir * (crate.mass * CRATE_PULL_ACCEL * PULL_STRENGTH))
+
+				var step_dist := minf(maxf(0.0, flat_dist - 0.12), CRATE_DIRECT_PULL_SPEED * PULL_STRENGTH * delta)
+				if step_dist > 0.0001:
+					crate.move_and_collide(pull_dir * step_dist)
+
+	static func get_vortex_radius(stacks: int) -> float:
+		return BASE_RADIUS + EXTRA_RADIUS_PER_STACK * float(maxi(1, stacks) - 1)
+
+	static func create_vortex_node(vortex_id: int, origin: Vector3, stacks: int, spawn_parent: Node, owner_tank: Tank = null, is_client: bool = false) -> VortexNode:
+		if not spawn_parent:
+			return null
+		remove_vortex_by_id(vortex_id)
+
+		var effective_stacks: int = maxi(1, stacks)
+		var v_radius: float = get_vortex_radius(effective_stacks)
+
+		var vortex := VortexNode.new()
+		vortex.name = "AirVortex_%d" % vortex_id
+		vortex.vortex_id = vortex_id
+		vortex.owner_tank = owner_tank
+		vortex.stacks = effective_stacks
+		vortex.radius = v_radius
+		vortex.lifetime = LIFETIME
+		vortex.is_client_visual = is_client
+		vortex.set_meta("vortex_id", vortex_id)
+		vortex.set_meta("stacks", effective_stacks)
+		vortex.set_meta("radius", v_radius)
+
+		var swirl_root := Node3D.new()
+		swirl_root.name = "SwirlVisual"
+		vortex.add_child(swirl_root)
+		vortex._swirl_root = swirl_root
+
+		var ring_mat := StandardMaterial3D.new()
+		ring_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		ring_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		ring_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+		ring_mat.albedo_color = Color(0.38, 0.88, 1.0, 0.72)
+		vortex._ring_mat = ring_mat
+
+		var outer_mesh := MeshInstance3D.new()
+		outer_mesh.name = "OuterRing"
+		var outer_torus := TorusMesh.new()
+		outer_torus.outer_radius = v_radius
+		outer_torus.inner_radius = maxf(0.15, v_radius - 0.14)
+		outer_torus.rings = 32
+		outer_torus.ring_segments = 12
+		outer_mesh.mesh = outer_torus
+		outer_mesh.material_override = ring_mat
+		outer_mesh.position = Vector3(0.0, 0.12, 0.0)
+		swirl_root.add_child(outer_mesh)
+
+		var inner_mesh := MeshInstance3D.new()
+		inner_mesh.name = "InnerRing"
+		var inner_torus := TorusMesh.new()
+		inner_torus.outer_radius = maxf(0.35, v_radius * 0.55)
+		inner_torus.inner_radius = maxf(0.12, v_radius * 0.55 - 0.12)
+		inner_torus.rings = 24
+		inner_torus.ring_segments = 10
+		inner_mesh.mesh = inner_torus
+		inner_mesh.material_override = ring_mat
+		inner_mesh.position = Vector3(0.0, 0.38, 0.0)
+		swirl_root.add_child(inner_mesh)
+		vortex._inner_ring = inner_mesh
+
+		var funnel_mat := StandardMaterial3D.new()
+		funnel_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		funnel_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		funnel_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+		funnel_mat.albedo_color = Color(0.55, 0.92, 1.0, 0.34)
+		vortex._funnel_mat = funnel_mat
+
+		var funnel_mesh := MeshInstance3D.new()
+		funnel_mesh.name = "FunnelMesh"
+		var cyl := CylinderMesh.new()
+		cyl.top_radius = v_radius * 0.88
+		cyl.bottom_radius = 0.22
+		cyl.height = 1.35
+		cyl.radial_segments = 24
+		cyl.cap_top = false
+		cyl.cap_bottom = false
+		funnel_mesh.mesh = cyl
+		funnel_mesh.material_override = funnel_mat
+		funnel_mesh.position = Vector3(0.0, 0.68, 0.0)
+		swirl_root.add_child(funnel_mesh)
+
+		var light := OmniLight3D.new()
+		light.name = "VortexLight"
+		light.position = Vector3(0.0, 0.75, 0.0)
+		light.light_color = Color(0.38, 0.88, 1.0)
+		light.omni_range = v_radius + 1.5
+		light.light_energy = 1.6
+		vortex.add_child(light)
+		vortex._light = light
+
+		spawn_parent.add_child(vortex)
+		vortex.global_position = origin
+
+		if vortex.is_inside_tree():
+			swirl_root.scale = Vector3.ONE * 0.2
+			var pop_tween := vortex.create_tween()
+			pop_tween.tween_property(swirl_root, "scale", Vector3.ONE, 0.16).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+
+		_active_vortexes[vortex_id] = vortex
+		return vortex
+
+	static func spawn_client_vortex(vortex_id: int, origin: Vector3, stacks: int, context_node: Node) -> VortexNode:
+		var spawn_parent := JumpMineEffect._resolve_spawn_parent(context_node)
+		return create_vortex_node(vortex_id, origin, stacks, spawn_parent, null, true)
+
+	static func remove_vortex_by_id(vortex_id: int) -> void:
+		var vortex: Node3D = _active_vortexes.get(vortex_id, null) as Node3D
+		_active_vortexes.erase(vortex_id)
+		if is_instance_valid(vortex):
+			vortex.remove_from_group("air_vortexes")
+			vortex.queue_free()
+
+	static func clear_all(tree: SceneTree) -> void:
+		_active_vortexes.clear()
+		if not tree:
+			return
+		for node in tree.get_nodes_in_group("air_vortexes"):
+			if is_instance_valid(node):
+				node.remove_from_group("air_vortexes")
+				node.queue_free()
+
+	func on_projectile_hit(proj: Projectile, target: Node, point: Vector3, _normal: Vector3, stacks: int) -> void:
+		if not tank or not is_instance_valid(tank):
+			return
+		if tank.multiplayer and tank.multiplayer.has_multiplayer_peer() and not tank.multiplayer.is_server():
+			return
+
+		var is_enemy_tank: bool = target is Tank and target != tank
+		if is_enemy_tank:
+			var hit_tank := target as Tank
+			if hit_tank.block and hit_tank.block.is_blocking() and hit_tank.build and hit_tank.build.has_card("reflect"):
+				return
+		else:
+			# На препятствиях/стенах воронка появляется только на последнем ударе, когда рикошетов не осталось
+			if proj and proj.bounces_left > 0:
+				return
+
+		var spawn_parent := JumpMineEffect._resolve_spawn_parent(tank)
+		if not spawn_parent:
+			return
+
+		var effective_stacks: int = maxi(1, stacks)
+		var vortex_id: int = _next_vortex_id
+		_next_vortex_id += 1
+
+		var origin := Vector3(point.x, tank.global_position.y, point.z)
+		if tank.get_world_3d():
+			var space := tank.get_world_3d().direct_space_state
+			var ray_start := Vector3(point.x, point.y + 0.6, point.z)
+			if _normal.length_squared() > 0.01:
+				var flat_norm := Vector3(_normal.x, 0.0, _normal.z)
+				if flat_norm.length_squared() > 0.01:
+					flat_norm = flat_norm.normalized()
+					ray_start.x += flat_norm.x * 0.25
+					ray_start.z += flat_norm.z * 0.25
+			var ray := PhysicsRayQueryParameters3D.create(ray_start, ray_start + Vector3.DOWN * 12.0, 1)
+			var hit := space.intersect_ray(ray)
+			if not hit.is_empty():
+				origin.y = hit.position.y
+
+		create_vortex_node(vortex_id, origin, effective_stacks, spawn_parent, tank, false)
+		if tank.net_sync and tank.multiplayer and tank.multiplayer.has_multiplayer_peer() and tank.multiplayer.is_server():
+			tank.net_sync.s2c_spawn_air_vortex.rpc(vortex_id, origin, effective_stacks)
+
 class BlinkEffect extends CardEffect:
 	func on_block_started(_duration: float, stacks: int) -> void:
 		if not tank or not tank.turret:
@@ -244,6 +568,452 @@ class CounterShotEffect extends CardEffect:
 				base_pos = tank.turret.get_muzzle_position()
 				base_dir = tank.turret.get_shoot_direction()
 			tank.weapon.spawn_custom_projectile(base_pos, base_dir)
+
+class WallhackEffect extends CardEffect:
+	## При активации щита подсвечивает вражеские танки сквозь стены на BASE_DURATION секунд за стак.
+	## Щит срабатывает штатно, а кулдаун блока увеличен на +40% через stat_modifiers.
+	const BASE_DURATION: float = 2.0
+	const FADE_OUT_TIME: float = 0.25
+
+	class WallhackRevealNode extends Node3D:
+		var time_left: float = 2.0
+		var _elapsed: float = 0.0
+		var _xray_mat: StandardMaterial3D = null
+		var _outline_mat: StandardMaterial3D = null
+
+		func _ready() -> void:
+			add_to_group("wallhack_reveals")
+			_apply_xray_overlay()
+
+		func setup_or_refresh(duration: float) -> void:
+			time_left = maxf(time_left, maxf(0.1, duration))
+			if is_inside_tree():
+				_apply_xray_overlay()
+
+		func _apply_xray_overlay() -> void:
+			var target := get_parent() as Tank
+			if not is_instance_valid(target) or not target.visuals:
+				return
+
+			var base_col: Color = target.team_color if target else Color(1.0, 0.25, 0.2)
+			var fill_col: Color = base_col.lightened(0.30)
+			var rim_col: Color = base_col.lightened(0.55)
+
+			if not _outline_mat:
+				_outline_mat = StandardMaterial3D.new()
+				_outline_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+				_outline_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+				_outline_mat.cull_mode = BaseMaterial3D.CULL_FRONT
+				_outline_mat.grow = true
+				_outline_mat.grow_amount = 0.035
+				_outline_mat.no_depth_test = true
+				_outline_mat.render_priority = 11
+			_outline_mat.albedo_color = Color(rim_col.r, rim_col.g, rim_col.b, 0.92)
+
+			if not _xray_mat:
+				_xray_mat = StandardMaterial3D.new()
+				_xray_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+				_xray_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+				_xray_mat.no_depth_test = true
+				_xray_mat.render_priority = 10
+				_xray_mat.next_pass = _outline_mat
+			_xray_mat.albedo_color = Color(fill_col.r, fill_col.g, fill_col.b, 0.48)
+
+			for node in target.visuals.find_children("*", "MeshInstance3D", true, false):
+				var mesh := node as MeshInstance3D
+				if mesh and mesh != target.shield_mesh and mesh.name != "ShieldMesh":
+					mesh.material_overlay = _xray_mat
+
+		func clear_overlay() -> void:
+			var target := get_parent() as Tank
+			if is_instance_valid(target):
+				target.set_meta("wallhack_revealed", false)
+				if target.visuals:
+					for node in target.visuals.find_children("*", "MeshInstance3D", true, false):
+						var mesh := node as MeshInstance3D
+						if mesh and mesh.material_overlay == _xray_mat:
+							mesh.material_overlay = null
+
+		func _exit_tree() -> void:
+			clear_overlay()
+
+		func _physics_process(delta: float) -> void:
+			var target := get_parent() as Tank
+			if not is_instance_valid(target) or not target.is_active or (target.health and not target.health.is_alive()):
+				clear_overlay()
+				queue_free()
+				return
+
+			_elapsed += delta
+			time_left -= delta
+			if time_left <= 0.0:
+				clear_overlay()
+				queue_free()
+				return
+
+			if _xray_mat and _outline_mat:
+				var fade := clampf(time_left / FADE_OUT_TIME, 0.0, 1.0)
+				var pulse := 0.42 + 0.14 * sin(_elapsed * PI * 4.5)
+				_xray_mat.albedo_color.a = pulse * fade
+				_outline_mat.albedo_color.a = 0.92 * fade
+
+	static func get_reveal_duration(stacks: int) -> float:
+		return BASE_DURATION * float(maxi(1, stacks))
+
+	static func apply_reveal_to_target(target_tank: Tank, duration: float) -> WallhackRevealNode:
+		if not is_instance_valid(target_tank) or not target_tank.is_active:
+			return null
+
+		target_tank.set_meta("wallhack_revealed", true)
+		var existing := target_tank.get_node_or_null("WallhackReveal") as WallhackRevealNode
+		if existing and is_instance_valid(existing):
+			if not existing.is_queued_for_deletion():
+				existing.setup_or_refresh(duration)
+				return existing
+			existing.name = "WallhackRevealExpired"
+
+		var reveal_node := WallhackRevealNode.new()
+		reveal_node.name = "WallhackReveal"
+		reveal_node.time_left = maxf(0.1, duration)
+		target_tank.add_child(reveal_node)
+		reveal_node.setup_or_refresh(duration)
+		return reveal_node
+
+	static func reveal_enemies_for_tank(viewer_tank: Tank, duration: float) -> int:
+		if not is_instance_valid(viewer_tank):
+			return 0
+		var tree := viewer_tank.get_tree()
+		if not tree:
+			return 0
+
+		var revealed_count: int = 0
+		for node in tree.get_nodes_in_group("tanks"):
+			var target := node as Tank
+			if not target or target == viewer_tank or not target.is_active:
+				continue
+			if target.health and not target.health.is_alive():
+				continue
+			if Game and Game.rules and Game.rules.is_team_mode:
+				if target.team_id == viewer_tank.team_id:
+					continue
+			if apply_reveal_to_target(target, duration) != null:
+				revealed_count += 1
+		return revealed_count
+
+	static func clear_all_reveals(tree: SceneTree) -> void:
+		if not tree:
+			return
+		for node in tree.get_nodes_in_group("wallhack_reveals"):
+			if is_instance_valid(node):
+				if node.has_method("clear_overlay"):
+					node.clear_overlay()
+				node.remove_from_group("wallhack_reveals")
+				node.queue_free()
+
+	func on_block_started(_duration: float, stacks: int) -> void:
+		if not tank or not is_instance_valid(tank):
+			return
+
+		var reveal_duration: float = get_reveal_duration(stacks)
+		var p_info := Network.get_player_info(tank.peer_id) if Network else null
+		var is_bot: bool = p_info != null and p_info.is_bot
+
+		# На локальном владельце (или в синглплеере/песочнице) сразу включаем просвет врагов
+		if (tank.net_sync == null or tank.net_sync.is_local_owner()) and not is_bot:
+			reveal_enemies_for_tank(tank, reveal_duration)
+
+		# Если блок нажал удаленный клиент — отправляем ему персональный RPC на включение просвета
+		if tank.net_sync and not tank.net_sync.is_local_owner() and not is_bot:
+			if tank.multiplayer and tank.multiplayer.has_multiplayer_peer() and tank.multiplayer.is_server():
+				if tank.peer_id in tank.multiplayer.get_peers():
+					tank.net_sync.s2c_activate_wallhack.rpc_id(tank.peer_id, reveal_duration)
+
+class BurgerTerminalEffect extends CardEffect:
+	## При активации щита ставит терминал, который раз в секунду выбрасывает бургер (+10 HP за стак).
+	## Базовое время жизни терминала 3с (+1с за каждый дополнительный стак).
+	const TERMINAL_SCENE: PackedScene = preload("res://assets/props/terminal/terminal.glb")
+	const BURGER_SCENE: PackedScene = preload("res://assets/props/burger/Burger.glb")
+	const BASE_TERMINAL_LIFETIME: float = 3.0
+	const EXTRA_LIFETIME_PER_STACK: float = 1.0
+	const BURGER_INTERVAL: float = 1.0
+	const BASE_HEAL: float = 10.0
+	const BURGER_LIFETIME: float = 8.0
+	const BURGER_PICKUP_RADIUS: float = 1.15
+	const BURGER_VISUAL_SCALE: float = 0.35
+	const DISPENSE_MIN_DIST: float = 2.8
+	const DISPENSE_MAX_DIST: float = 5.2
+
+	static var _next_terminal_id: int = 1
+	static var _next_burger_id: int = 1
+	static var _active_terminals: Dictionary = {}
+	static var _active_burgers: Dictionary = {}
+
+	class TerminalNode extends Node3D:
+		var terminal_id: int = 0
+		var owner_tank: Tank = null
+		var stacks: int = 1
+		var lifetime: float = 3.0
+		var heal_amount: float = 10.0
+		var is_client_visual: bool = false
+		var burgers_spawned: int = 0
+		var max_burgers: int = 3
+		var _age: float = 0.0
+		var _spawn_timer: float = 0.0
+
+		func _ready() -> void:
+			add_to_group("burger_terminals")
+
+		func _physics_process(delta: float) -> void:
+			if is_client_visual:
+				_age += delta
+				if _age >= lifetime:
+					BurgerTerminalEffect.remove_terminal_by_id(terminal_id)
+				return
+
+			_age += delta
+			_spawn_timer += delta
+
+			while _spawn_timer >= BURGER_INTERVAL and burgers_spawned < max_burgers:
+				_spawn_timer -= BURGER_INTERVAL
+				burgers_spawned += 1
+				_dispense_burger()
+
+			if _age >= lifetime:
+				var valid_owner := owner_tank if is_instance_valid(owner_tank) else null
+				BurgerTerminalEffect.remove_terminal_by_id(terminal_id)
+				if valid_owner and valid_owner.net_sync and valid_owner.multiplayer and valid_owner.multiplayer.has_multiplayer_peer() and valid_owner.multiplayer.is_server():
+					valid_owner.net_sync.s2c_remove_burger_terminal.rpc(terminal_id)
+
+		func _dispense_burger() -> void:
+			var spawn_parent := get_parent()
+			if not spawn_parent:
+				return
+			var angle: float = float(burgers_spawned - 1) * (TAU / maxf(3.0, float(max_burgers))) + randf_range(-0.25, 0.25)
+			var dist: float = randf_range(DISPENSE_MIN_DIST, DISPENSE_MAX_DIST)
+			var forward := -global_transform.basis.z
+			forward.y = 0.0
+			if forward.length_squared() < 0.001:
+				forward = Vector3.FORWARD
+			forward = forward.normalized()
+			var offset := forward.rotated(Vector3.UP, angle) * dist
+			var from_pos := global_position + Vector3(0.0, 0.85, 0.0)
+			var target_pos := global_position + Vector3(offset.x, 0.0, offset.z)
+			var valid_owner := owner_tank if is_instance_valid(owner_tank) else null
+			BurgerTerminalEffect.spawn_server_burger(from_pos, target_pos, heal_amount, spawn_parent, valid_owner)
+
+	static func get_terminal_lifetime(stacks: int) -> float:
+		return BASE_TERMINAL_LIFETIME + EXTRA_LIFETIME_PER_STACK * float(maxi(1, stacks) - 1)
+
+	static func get_burger_heal(stacks: int) -> float:
+		return BASE_HEAL * float(maxi(1, stacks))
+
+	static func create_terminal_node(terminal_id: int, origin: Vector3, yaw: float, stacks: int, spawn_parent: Node, owner_tank: Tank = null, is_client: bool = false) -> TerminalNode:
+		if not spawn_parent:
+			return null
+		remove_terminal_by_id(terminal_id)
+
+		var effective_stacks: int = maxi(1, stacks)
+		var term := TerminalNode.new()
+		term.name = "BurgerTerminal_%d" % terminal_id
+		term.terminal_id = terminal_id
+		term.owner_tank = owner_tank
+		term.stacks = effective_stacks
+		term.lifetime = get_terminal_lifetime(effective_stacks)
+		term.heal_amount = get_burger_heal(effective_stacks)
+		term.max_burgers = int(round(term.lifetime / BURGER_INTERVAL))
+		term.is_client_visual = is_client
+		term.set_meta("terminal_id", terminal_id)
+		term.set_meta("stacks", effective_stacks)
+
+		var visual_holder := Node3D.new()
+		visual_holder.name = "TerminalVisual"
+		if TERMINAL_SCENE:
+			var glb_inst := TERMINAL_SCENE.instantiate()
+			if glb_inst:
+				# Скрываем студийную подложку Ground_Pavement (8x8м) из GLB
+				var pavement := glb_inst.get_node_or_null("Ground_Pavement")
+				if pavement:
+					pavement.free()
+				visual_holder.add_child(glb_inst)
+		term.add_child(visual_holder)
+
+		var light := OmniLight3D.new()
+		light.name = "TerminalLight"
+		light.position = Vector3(0.0, 1.5, 0.45)
+		light.light_color = Color(1.0, 0.78, 0.28)
+		light.omni_range = 3.2
+		light.light_energy = 1.6
+		term.add_child(light)
+
+		spawn_parent.add_child(term)
+		term.global_position = origin
+		term.rotation = Vector3(0.0, yaw, 0.0)
+
+		if term.is_inside_tree():
+			visual_holder.scale = Vector3.ONE * 0.2
+			var pop_tween := term.create_tween()
+			pop_tween.tween_property(visual_holder, "scale", Vector3.ONE, 0.18).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+
+		if SoundManager:
+			SoundManager.play_sfx_3d("vkusno_i_tochka", origin, 2.0, 0.0)
+
+		_active_terminals[terminal_id] = term
+		return term
+
+	static func create_burger_node(burger_id: int, from_pos: Vector3, target_pos: Vector3, heal_amount: float, spawn_parent: Node) -> Area3D:
+		if not spawn_parent:
+			return null
+		remove_burger_by_id(burger_id)
+
+		var burger := Area3D.new()
+		burger.name = "BurgerPickup_%d" % burger_id
+		burger.collision_layer = 0
+		burger.collision_mask = 2 # Слой 2: Tank
+		burger.monitorable = false
+		burger.monitoring = true
+		burger.set_meta("burger_id", burger_id)
+		burger.set_meta("heal_amount", heal_amount)
+		burger.set_meta("target_pos", target_pos)
+		burger.add_to_group("burger_pickups")
+
+		var shape := CollisionShape3D.new()
+		var sphere := SphereShape3D.new()
+		sphere.radius = BURGER_PICKUP_RADIUS
+		shape.shape = sphere
+		shape.position = Vector3(0.0, 0.45, 0.0)
+		burger.add_child(shape)
+
+		var visual_holder := Node3D.new()
+		visual_holder.name = "BurgerVisual"
+		visual_holder.scale = Vector3.ONE * BURGER_VISUAL_SCALE
+		if BURGER_SCENE:
+			var glb_inst := BURGER_SCENE.instantiate()
+			if glb_inst:
+				visual_holder.add_child(glb_inst)
+		burger.add_child(visual_holder)
+
+		var light := OmniLight3D.new()
+		light.name = "BurgerLight"
+		light.position = Vector3(0.0, 0.55, 0.0)
+		light.light_color = Color(0.35, 1.0, 0.45)
+		light.omni_range = 2.0
+		light.light_energy = 1.3
+		burger.add_child(light)
+
+		spawn_parent.add_child(burger)
+		burger.global_position = target_pos
+
+		if burger.is_inside_tree():
+			visual_holder.position = from_pos - target_pos
+			var arc_tween := burger.create_tween()
+			arc_tween.tween_property(visual_holder, "position", Vector3(0.0, 0.08, 0.0), 0.30).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+
+		_active_burgers[burger_id] = burger
+		return burger
+
+	static func spawn_server_burger(from_pos: Vector3, target_pos: Vector3, heal_amount: float, spawn_parent: Node, owner_tank: Tank = null) -> Area3D:
+		var burger_id: int = _next_burger_id
+		_next_burger_id += 1
+		var burger := create_burger_node(burger_id, from_pos, target_pos, heal_amount, spawn_parent)
+		if not burger:
+			return null
+
+		if owner_tank and owner_tank.net_sync and owner_tank.multiplayer and owner_tank.multiplayer.has_multiplayer_peer() and owner_tank.multiplayer.is_server():
+			owner_tank.net_sync.s2c_spawn_burger_pickup.rpc(burger_id, from_pos, target_pos, heal_amount)
+
+		var try_consume := func(body: Node3D) -> void:
+			if not is_instance_valid(burger) or burger.get_meta("consumed", false):
+				return
+			if body is Tank and body.is_active and body.health and body.health.is_alive():
+				burger.set_meta("consumed", true)
+				body.health.heal(heal_amount)
+				remove_burger_by_id(burger_id)
+				if is_instance_valid(owner_tank) and owner_tank.net_sync and owner_tank.multiplayer and owner_tank.multiplayer.has_multiplayer_peer() and owner_tank.multiplayer.is_server():
+					owner_tank.net_sync.s2c_remove_burger_pickup.rpc(burger_id)
+
+		burger.body_entered.connect(try_consume)
+
+		var tree := burger.get_tree()
+		if tree:
+			for node in tree.get_nodes_in_group("tanks"):
+				if node is Tank and node.is_active and node.health and node.health.is_alive():
+					if node.global_position.distance_to(target_pos) <= BURGER_PICKUP_RADIUS:
+						try_consume.call(node)
+						break
+
+			tree.create_timer(BURGER_LIFETIME).timeout.connect(func() -> void:
+				if is_instance_valid(burger) and not burger.get_meta("consumed", false):
+					burger.set_meta("consumed", true)
+					remove_burger_by_id(burger_id)
+					if is_instance_valid(owner_tank) and owner_tank.net_sync and owner_tank.multiplayer and owner_tank.multiplayer.has_multiplayer_peer() and owner_tank.multiplayer.is_server():
+						owner_tank.net_sync.s2c_remove_burger_pickup.rpc(burger_id)
+			)
+
+		return burger
+
+	static func spawn_client_terminal(terminal_id: int, origin: Vector3, yaw: float, stacks: int, context_node: Node) -> TerminalNode:
+		var spawn_parent := JumpMineEffect._resolve_spawn_parent(context_node)
+		return create_terminal_node(terminal_id, origin, yaw, stacks, spawn_parent, null, true)
+
+	static func spawn_client_burger(burger_id: int, from_pos: Vector3, target_pos: Vector3, heal_amount: float, context_node: Node) -> Area3D:
+		var spawn_parent := JumpMineEffect._resolve_spawn_parent(context_node)
+		return create_burger_node(burger_id, from_pos, target_pos, heal_amount, spawn_parent)
+
+	static func remove_terminal_by_id(terminal_id: int) -> void:
+		var term: Node3D = _active_terminals.get(terminal_id, null) as Node3D
+		_active_terminals.erase(terminal_id)
+		if is_instance_valid(term):
+			term.remove_from_group("burger_terminals")
+			term.queue_free()
+
+	static func remove_burger_by_id(burger_id: int) -> void:
+		var burger: Area3D = _active_burgers.get(burger_id, null) as Area3D
+		_active_burgers.erase(burger_id)
+		if is_instance_valid(burger):
+			burger.remove_from_group("burger_pickups")
+			burger.queue_free()
+
+	static func clear_all(tree: SceneTree) -> void:
+		_active_terminals.clear()
+		_active_burgers.clear()
+		if not tree:
+			return
+		for node in tree.get_nodes_in_group("burger_terminals"):
+			if is_instance_valid(node):
+				node.remove_from_group("burger_terminals")
+				node.queue_free()
+		for node in tree.get_nodes_in_group("burger_pickups"):
+			if is_instance_valid(node):
+				node.remove_from_group("burger_pickups")
+				node.queue_free()
+
+	func on_block_started(_duration: float, stacks: int) -> void:
+		if not tank or not is_instance_valid(tank):
+			return
+		if tank.multiplayer and tank.multiplayer.has_multiplayer_peer() and not tank.multiplayer.is_server():
+			return
+
+		var spawn_parent := JumpMineEffect._resolve_spawn_parent(tank)
+		if not spawn_parent:
+			return
+
+		var effective_stacks: int = maxi(1, stacks)
+		var terminal_id: int = _next_terminal_id
+		_next_terminal_id += 1
+
+		var origin: Vector3 = tank.global_position
+		if tank.get_world_3d():
+			var space := tank.get_world_3d().direct_space_state
+			var ray := PhysicsRayQueryParameters3D.create(origin + Vector3.UP * 0.8, origin + Vector3.DOWN * 12.0, 1)
+			var hit := space.intersect_ray(ray)
+			if not hit.is_empty():
+				origin.y = hit.position.y
+
+		var yaw: float = tank.rotation.y
+		create_terminal_node(terminal_id, origin, yaw, effective_stacks, spawn_parent, tank, false)
+
+		if tank.net_sync and tank.multiplayer and tank.multiplayer.has_multiplayer_peer() and tank.multiplayer.is_server():
+			tank.net_sync.s2c_spawn_burger_terminal.rpc(terminal_id, origin, yaw, effective_stacks)
 
 
 class GroundSlamEffect extends CardEffect:
@@ -571,6 +1341,25 @@ class DeathFromAboveEffect extends CardEffect:
 		if tank and not tank.is_on_floor():
 			proj.damage *= (1.0 + 0.40 * stacks)
 
+class FeatherFallEffect extends CardEffect:
+	## Бонус высоты прыжка (+25% за стак) задаётся через stat_modifiers карты.
+	## При движении вниз (velocity.y <= 0) снижает гравитацию и ограничивает максимальную скорость падения.
+	const FALL_GRAVITY_MULT_PER_STACK: float = 0.38
+	const MIN_FALL_GRAVITY_MULT: float = 0.08
+	const BASE_MAX_FALL_SPEED: float = 3.2
+	const FALL_SPEED_DECAY_PER_STACK: float = 0.68
+	const MIN_MAX_FALL_SPEED: float = 0.8
+
+	static func get_fall_gravity_multiplier(stacks: int) -> float:
+		if stacks <= 0:
+			return 1.0
+		return maxf(MIN_FALL_GRAVITY_MULT, pow(FALL_GRAVITY_MULT_PER_STACK, float(stacks)))
+
+	static func get_max_fall_speed(stacks: int) -> float:
+		if stacks <= 0:
+			return 999.0
+		return maxf(MIN_MAX_FALL_SPEED, BASE_MAX_FALL_SPEED * pow(FALL_SPEED_DECAY_PER_STACK, float(stacks - 1)))
+
 class RegenerationEffect extends CardEffect:
 	var _time_since_last_damage: float = 0.0
 
@@ -693,6 +1482,382 @@ class RoadRageEffect extends CardEffect:
 					continue
 				try_ram_target(target, -n, stacks)
 
+class FireflyEffect extends CardEffect:
+	## Едущий танк оставляет огненный след шириной с танк и длиной не более двух танков.
+	## Сегмент горит LIFETIME секунд (не зависит от стаков); длина следа растёт со стаками; враг, вставший в огонь, загорается (DoT как у Poison).
+	## Логика и урон — только на сервере, клиенты получают визуал сегментов по RPC.
+	const TRAIL_WIDTH: float = 2.0
+	const TANK_LENGTH: float = 3.3
+	const MAX_TRAIL_TANKS: float = 2.0
+	const EXTRA_TRAIL_TANKS_PER_STACK: float = 2.0
+	const LIFETIME: float = 2.0
+	const FADE_TIME: float = 0.3
+	const SEGMENT_LENGTH: float = 0.75
+	const TELEPORT_BREAK_DIST: float = 4.0
+	const TARGET_RADIUS: float = 0.75
+	const MAX_HEIGHT_DELTA: float = 1.6
+	static var _next_segment_id: int = 1
+	static var _trail_nodes: Dictionary = {}
+	static var _flame_texture: Texture2D = null
+
+	var _segments: Array[Dictionary] = []
+	var _last_point: Vector3 = Vector3.INF
+
+	class BurnDoTNode extends Node3D:
+		const TICK_INTERVAL: float = 0.5
+		const TOTAL_TICKS: int = 6
+		const DAMAGE_PER_STACK: float = 4.0
+
+		var stacks: int = 1
+		var ticks_left: int = TOTAL_TICKS
+		var attacker: Node = null
+		var _tick_timer: float = 0.0
+		var _light: OmniLight3D = null
+
+		func _ready() -> void:
+			_light = OmniLight3D.new()
+			_light.name = "BurnLight"
+			_light.position = Vector3(0.0, 0.8, 0.0)
+			_light.light_color = Color(1.0, 0.45, 0.1)
+			_light.omni_range = 2.6
+			_light.light_energy = 1.8
+			add_child(_light)
+
+			var flames := CPUParticles3D.new()
+			flames.name = "BurnFlames"
+			flames.amount = 14
+			flames.lifetime = 0.6
+			flames.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE
+			flames.emission_sphere_radius = 0.6
+			flames.direction = Vector3.UP
+			flames.spread = 15.0
+			flames.gravity = Vector3(0.0, 2.5, 0.0)
+			flames.initial_velocity_min = 0.5
+			flames.initial_velocity_max = 1.4
+			flames.scale_amount_min = 0.7
+			flames.scale_amount_max = 1.3
+			flames.position = Vector3(0.0, 0.6, 0.0)
+			flames.mesh = FireflyEffect.create_flame_quad()
+			flames.color_ramp = FireflyEffect.create_flame_gradient()
+			add_child(flames)
+
+		func setup_or_refresh(new_stacks: int, new_attacker: Node) -> void:
+			stacks = maxi(stacks, maxi(1, new_stacks))
+			ticks_left = TOTAL_TICKS
+			if is_instance_valid(new_attacker):
+				attacker = new_attacker
+
+		func _physics_process(delta: float) -> void:
+			var target := get_parent() as Tank
+			if not is_instance_valid(target) or not target.is_active or not target.health or not target.health.is_alive():
+				queue_free()
+				return
+
+			_tick_timer += delta
+			if _light:
+				_light.light_energy = 1.4 + 0.6 * sin(_tick_timer * PI * 5.0)
+
+			while _tick_timer >= TICK_INTERVAL and ticks_left > 0:
+				_tick_timer -= TICK_INTERVAL
+				trigger_tick()
+
+		func trigger_tick() -> void:
+			var target := get_parent() as Tank
+			if not is_instance_valid(target) or not target.is_active or not target.health:
+				queue_free()
+				return
+
+			ticks_left -= 1
+			var valid_attacker: Node = attacker if is_instance_valid(attacker) else null
+			var dot_damage: float = DAMAGE_PER_STACK * float(maxi(1, stacks))
+			var applied := target.health.take_damage(dot_damage, valid_attacker)
+			if applied and valid_attacker is Tank and (valid_attacker as Tank).events:
+				(valid_attacker as Tank).events.emit_damage_dealt(dot_damage, target)
+
+			if ticks_left <= 0:
+				queue_free()
+
+	static func get_trail_width(scale_mult: float) -> float:
+		return TRAIL_WIDTH * scale_mult
+
+	## Максимальная длина следа: 2 длины танка на 1 стаке, +2 длины танка за каждый следующий стак.
+	static func get_max_trail_length(scale_mult: float, stacks: int = 1) -> float:
+		var tanks_long: float = MAX_TRAIL_TANKS + EXTRA_TRAIL_TANKS_PER_STACK * float(maxi(1, stacks) - 1)
+		return TANK_LENGTH * tanks_long * scale_mult
+
+	static func create_flame_gradient() -> Gradient:
+		var grad := Gradient.new()
+		grad.offsets = PackedFloat32Array([0.0, 0.55, 1.0])
+		grad.colors = PackedColorArray([
+			Color(1.0, 0.85, 0.25, 0.9),
+			Color(1.0, 0.38, 0.05, 0.7),
+			Color(0.4, 0.05, 0.0, 0.0)
+		])
+		return grad
+
+	static func create_flame_quad() -> QuadMesh:
+		if not _flame_texture:
+			var soft := Gradient.new()
+			soft.offsets = PackedFloat32Array([0.0, 1.0])
+			soft.colors = PackedColorArray([Color(1.0, 1.0, 1.0, 1.0), Color(1.0, 1.0, 1.0, 0.0)])
+			var tex := GradientTexture2D.new()
+			tex.gradient = soft
+			tex.fill = GradientTexture2D.FILL_RADIAL
+			tex.fill_from = Vector2(0.5, 0.5)
+			tex.fill_to = Vector2(1.0, 0.5)
+			tex.width = 64
+			tex.height = 64
+			_flame_texture = tex
+
+		var mat := StandardMaterial3D.new()
+		mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+		mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+		mat.vertex_color_use_as_albedo = true
+		mat.albedo_texture = _flame_texture
+
+		var quad := QuadMesh.new()
+		quad.size = Vector2(0.6, 0.6)
+		quad.material = mat
+		return quad
+
+	static func apply_burn(target: Tank, stacks: int, attacker: Node) -> void:
+		if not is_instance_valid(target) or not target.is_active:
+			return
+		var existing := target.get_node_or_null("BurnEffect") as BurnDoTNode
+		if existing and is_instance_valid(existing) and not existing.is_queued_for_deletion():
+			existing.setup_or_refresh(stacks, attacker)
+			return
+
+		var burn_node := BurnDoTNode.new()
+		burn_node.name = "BurnEffect"
+		burn_node.setup_or_refresh(stacks, attacker)
+		target.add_child(burn_node)
+
+	static func remove_segment_by_id(seg_id: int) -> void:
+		var node: Node3D = _trail_nodes.get(seg_id, null) as Node3D
+		_trail_nodes.erase(seg_id)
+		if is_instance_valid(node):
+			node.remove_from_group("fire_trail_segments")
+			node.queue_free()
+
+	static func clear_all_trails(tree: SceneTree) -> void:
+		_trail_nodes.clear()
+		if not tree:
+			return
+		for node in tree.get_nodes_in_group("fire_trail_segments"):
+			if is_instance_valid(node):
+				node.remove_from_group("fire_trail_segments")
+				node.queue_free()
+
+	static func create_segment_node(seg_id: int, a: Vector3, b: Vector3, width: float, parent: Node) -> Node3D:
+		if not parent:
+			return null
+		remove_segment_by_id(seg_id)
+
+		var flat_dir := Vector3(b.x - a.x, 0.0, b.z - a.z)
+		var seg_len: float = maxf(0.1, flat_dir.length())
+
+		var node := Node3D.new()
+		node.name = "FireTrailSegment_%d" % seg_id
+		node.set_meta("segment_id", seg_id)
+		node.add_to_group("fire_trail_segments")
+		parent.add_child(node)
+		node.global_position = (a + b) * 0.5 + Vector3(0.0, 0.06, 0.0)
+		if flat_dir.length_squared() > 0.0001:
+			node.rotation.y = atan2(-flat_dir.x, -flat_dir.z)
+
+		# Раскалённое пятно на земле
+		var glow := MeshInstance3D.new()
+		glow.name = "FireGlow"
+		var box := BoxMesh.new()
+		box.size = Vector3(width, 0.04, seg_len + 0.1)
+		glow.mesh = box
+		var glow_mat := StandardMaterial3D.new()
+		glow_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		glow_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		glow_mat.albedo_color = Color(1.0, 0.42, 0.08, 0.55)
+		glow.material_override = glow_mat
+		node.add_child(glow)
+
+		# Язычки пламени
+		var flames := CPUParticles3D.new()
+		flames.name = "FireFlames"
+		flames.amount = 10
+		flames.lifetime = 0.7
+		flames.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
+		flames.emission_box_extents = Vector3(width * 0.5, 0.02, seg_len * 0.5)
+		flames.direction = Vector3.UP
+		flames.spread = 12.0
+		flames.gravity = Vector3(0.0, 2.5, 0.0)
+		flames.initial_velocity_min = 0.6
+		flames.initial_velocity_max = 1.6
+		flames.scale_amount_min = 0.8
+		flames.scale_amount_max = 1.4
+		flames.mesh = create_flame_quad()
+		flames.color_ramp = create_flame_gradient()
+		node.add_child(flames)
+
+		# Свет только на каждом третьем сегменте, чтобы не плодить OmniLight3D
+		var light: OmniLight3D = null
+		if seg_id % 3 == 0:
+			light = OmniLight3D.new()
+			light.name = "FireLight"
+			light.position = Vector3(0.0, 0.6, 0.0)
+			light.light_color = Color(1.0, 0.5, 0.12)
+			light.omni_range = width * 1.8
+			light.light_energy = 1.4
+			node.add_child(light)
+
+		# Самоуничтожение через LIFETIME (на клиентах без отдельного RPC)
+		var tween := node.create_tween()
+		tween.tween_interval(maxf(0.0, LIFETIME - FADE_TIME))
+		tween.tween_callback(func() -> void:
+			flames.emitting = false
+		)
+		tween.tween_property(glow_mat, "albedo_color:a", 0.0, FADE_TIME)
+		if light:
+			tween.parallel().tween_property(light, "light_energy", 0.0, FADE_TIME)
+		tween.tween_callback(func() -> void:
+			remove_segment_by_id(seg_id)
+		)
+
+		_trail_nodes[seg_id] = node
+		return node
+
+	static func spawn_client_segment(seg_id: int, a: Vector3, b: Vector3, width: float, context_node: Node) -> Node3D:
+		var parent := JumpMineEffect._resolve_spawn_parent(context_node)
+		return create_segment_node(seg_id, a, b, width, parent)
+
+	static func _distance_to_segment_xz(p: Vector3, a: Vector3, b: Vector3) -> float:
+		var p2 := Vector2(p.x, p.z)
+		var a2 := Vector2(a.x, a.z)
+		var b2 := Vector2(b.x, b.z)
+		var ab := b2 - a2
+		var len_sq := ab.length_squared()
+		if len_sq < 0.0001:
+			return p2.distance_to(a2)
+		var t := clampf((p2 - a2).dot(ab) / len_sq, 0.0, 1.0)
+		return p2.distance_to(a2 + ab * t)
+
+	func is_point_in_fire(point: Vector3, target_radius: float = TARGET_RADIUS) -> bool:
+		for seg in _segments:
+			var a: Vector3 = seg["a"]
+			var b: Vector3 = seg["b"]
+			if absf(point.y - a.y) > MAX_HEIGHT_DELTA:
+				continue
+			if _distance_to_segment_xz(point, a, b) <= float(seg["width"]) * 0.5 + target_radius:
+				return true
+		return false
+
+	func get_segment_count() -> int:
+		return _segments.size()
+
+	func get_total_trail_length() -> float:
+		var total: float = 0.0
+		for seg in _segments:
+			total += Vector2((seg["b"] as Vector3).x - (seg["a"] as Vector3).x, (seg["b"] as Vector3).z - (seg["a"] as Vector3).z).length()
+		return total
+
+	func _remove_segment_at(index: int, notify_clients: bool) -> void:
+		var seg: Dictionary = _segments[index]
+		_segments.remove_at(index)
+		var seg_id: int = seg["id"]
+		remove_segment_by_id(seg_id)
+		if notify_clients and _is_network_server():
+			tank.net_sync.s2c_remove_fire_segment.rpc(seg_id)
+
+	func _is_network_server() -> bool:
+		return tank and tank.net_sync and tank.multiplayer and tank.multiplayer.has_multiplayer_peer() and tank.multiplayer.is_server()
+
+	func _age_segments(delta: float) -> void:
+		var i := _segments.size() - 1
+		while i >= 0:
+			var seg: Dictionary = _segments[i]
+			seg["age"] = float(seg["age"]) + delta
+			var node: Node3D = _trail_nodes.get(int(seg["id"]), null) as Node3D
+			# Сегмент умирает по таймеру либо если его визуал уничтожен (сброс раунда)
+			if float(seg["age"]) >= LIFETIME or not is_instance_valid(node):
+				_remove_segment_at(i, false)
+			i -= 1
+
+	func _drop_trail(scale_mult: float, stacks: int) -> void:
+		var forward := -tank.global_transform.basis.z
+		forward.y = 0.0
+		if forward.length_squared() < 0.0001:
+			return
+		forward = forward.normalized()
+		var rear := tank.global_position - forward * (TANK_LENGTH * 0.5 * scale_mult)
+
+		if not _last_point.is_finite() or not tank.is_on_floor():
+			_last_point = rear
+			return
+
+		var flat_dist := Vector2(rear.x - _last_point.x, rear.z - _last_point.z).length()
+		if flat_dist > TELEPORT_BREAK_DIST * scale_mult:
+			_last_point = rear # телепорт / респавн — след обрывается
+			return
+		if flat_dist < SEGMENT_LENGTH * scale_mult:
+			return
+
+		var a := Vector3(_last_point.x, tank.global_position.y, _last_point.z)
+		var b := Vector3(rear.x, tank.global_position.y, rear.z)
+		if add_segment(a, b, scale_mult, stacks):
+			_last_point = rear
+
+	## Создаёт сегмент следа между точками a и b, рассылает его клиентам
+	## и обрезает самые старые сегменты, если след длиннее двух танков.
+	func add_segment(a: Vector3, b: Vector3, scale_mult: float = 1.0, stacks: int = 1) -> bool:
+		var parent := JumpMineEffect._resolve_spawn_parent(tank)
+		if not parent:
+			return false
+
+		var width := get_trail_width(scale_mult)
+		var seg_id := _next_segment_id
+		_next_segment_id += 1
+		if not create_segment_node(seg_id, a, b, width, parent):
+			return false
+
+		_segments.append({"id": seg_id, "a": a, "b": b, "width": width, "age": 0.0})
+
+		if _is_network_server():
+			tank.net_sync.s2c_spawn_fire_segment.rpc(seg_id, a, b, width)
+
+		# Ограничение общей длины следа: самые старые сегменты гаснут первыми
+		var max_len := get_max_trail_length(scale_mult, stacks)
+		while _segments.size() > 1 and get_total_trail_length() > max_len:
+			_remove_segment_at(0, true)
+		return true
+
+	func _ignite_enemies(stacks: int) -> void:
+		if _segments.is_empty():
+			return
+		var tree := tank.get_tree()
+		if not tree:
+			return
+		for node in tree.get_nodes_in_group("tanks"):
+			var target := node as Tank
+			if not target or target == tank or not target.is_active:
+				continue
+			if not target.health or not target.health.is_alive():
+				continue
+			if Game and Game.rules and Game.rules.is_team_mode and not Game.rules.friendly_fire:
+				if target.team_id == tank.team_id:
+					continue
+			var target_scale: float = target.stats.tank_scale if target.stats else 1.0
+			if is_point_in_fire(target.global_position, TARGET_RADIUS * target_scale):
+				apply_burn(target, stacks, tank)
+
+	func on_physics_process(delta: float, stacks: int) -> void:
+		if not tank or not is_instance_valid(tank):
+			return
+		var scale_mult: float = tank.stats.tank_scale if tank.stats else 1.0
+		_age_segments(delta)
+		if tank.is_active:
+			_drop_trail(scale_mult, stacks)
+		_ignite_enemies(stacks)
+
 class PhoenixEffect extends CardEffect:
 	var _used_this_round: bool = false
 
@@ -758,7 +1923,7 @@ static func generate_draft_offer(player_build: TankBuild, count: int = 5) -> Arr
 static func _init_cards() -> void:
 	_cards_cache.clear()
 
-	# --- SHOT CARDS (18) ---
+	# --- SHOT CARDS (22) ---
 	_register("heavy_shell", "Heavy Shell", "+45% урона снарядов, -20% скорости полета.", CardDefinition.Category.SHOT, false, 99, {"damage_mult": 1.45, "proj_speed_mult": 0.8})
 	_register("rapid_fire", "Rapid Fire", "-40% интервал между выстрелами, -15% урона.", CardDefinition.Category.SHOT, false, 99, {"fire_interval_mult": 0.60, "damage_mult": 0.85})
 	_register("fastball", "Fastball", "+50% скорости полета снарядов.", CardDefinition.Category.SHOT, false, 99, {"proj_speed_mult": 1.50})
@@ -778,7 +1943,12 @@ static func _init_cards() -> void:
 	_register("sniper_shell", "Sniper Shell", "+10% урона за каждые 5 метров дистанции полета снаряда.", CardDefinition.Category.SHOT, false, 99, {}, SniperShellEffect)
 	_register("shotgun", "Shotgun", "Выстрел веером из 4 дробин с разбросом.", CardDefinition.Category.SHOT, true, 1, {}, ShotgunEffect)
 
-	# --- BLOCK CARDS (8) ---
+	_register("spread", "Разброс", "Снаряды летят с разбросом (±8° за стак), но урон +70%. Стаки увеличивают и разброс, и урон.", CardDefinition.Category.SHOT, false, 99, {"damage_mult": 1.70}, SpreadEffect)
+	_register("air_vortex", "Air Vortex", "При попадании создает воронку (радиус 3м, +1м за стак) на 3с, засасывающую все танки и ящики. +20% к урону, +30% пауза между выстрелами, +10% скорость перезарядки.", CardDefinition.Category.SHOT, false, 99, {"damage_mult": 1.20, "fire_interval_mult": 1.30, "reload_time_mult": 0.90}, AirVortexEffect)
+	_register("accuracy", "Accuracy", "+40% к урону, +50% к скорости полета снарядов, +70% к времени перезарядки, -40% к скорости движения.", CardDefinition.Category.SHOT, false, 99, {"damage_mult": 1.40, "proj_speed_mult": 1.50, "reload_time_mult": 1.70, "move_speed_mult": 0.60})
+	_register("critical_hit", "Critical Hit", "20% шанс нанести 140% урона (+30% к крит-урону за стак, шанс не меняется). +20% к времени перезарядки.", CardDefinition.Category.SHOT, false, 99, {"reload_time_mult": 1.20}, CriticalHitEffect)
+
+	# --- BLOCK CARDS (10) ---
 	_register("quick_guard", "Quick Guard", "-25% кулдаун защитного блока.", CardDefinition.Category.BLOCK, false, 99, {"block_cooldown_mult": 0.75})
 	_register("long_block", "Long Block", "+50% длительность окна щита, +15% кулдаун.", CardDefinition.Category.BLOCK, false, 99, {"block_duration_mult": 1.50, "block_cooldown_mult": 1.15})
 	_register("blink", "Blink", "Телепортация на 5м по направлению прицела при активации щита.", CardDefinition.Category.BLOCK, false, 99, {}, BlinkEffect)
@@ -787,16 +1957,20 @@ static func _init_cards() -> void:
 	_register("ammo_shield", "Ammo Shield", "Успешный блок восстанавливает +1 снаряд в обойму.", CardDefinition.Category.BLOCK, false, 99, {}, AmmoShieldEffect)
 	_register("counter_shot", "Counter Shot", "Успешный блок автоматически выпускает ответный снаряд.", CardDefinition.Category.BLOCK, false, 99, {}, CounterShotEffect)
 	_register("reflect", "Reflect", "Заблокированный снаряд отражается обратно во врага со сменой владельца.", CardDefinition.Category.BLOCK, true, 1, {})
+	_register("wallhack", "Wallhack", "При активации щита противники просвечиваются сквозь стены на 2с (+2с за стак). +40% кулдаун блока.", CardDefinition.Category.BLOCK, false, 99, {"block_cooldown_mult": 1.40}, WallhackEffect)
+	_register("burger_terminal", "Burger Terminal", "При активации щита ставит терминал на 3с (+1с за стак). Раз в секунду терминал кидает бургер на +10 HP (+10 HP за стак). +40% кулдаун блока.", CardDefinition.Category.BLOCK, false, 99, {"block_cooldown_mult": 1.40}, BurgerTerminalEffect)
 
-	# --- JUMP CARDS (5) ---
+	# --- JUMP CARDS (6) ---
 	_register("high_jump", "High Jump", "+40% высота прыжка танка.", CardDefinition.Category.JUMP, false, 99, {"jump_velocity_mult": 1.40})
 	_register("ground_slam", "Ground Slam", "Приземление с высоты вызывает ударную волну на 18 урона в радиусе 4.5м.", CardDefinition.Category.JUMP, false, 99, {}, GroundSlamEffect)
 	_register("jump_mine", "Jump Mine", "При прыжке на земле остается мина с таймером 8 секунд.", CardDefinition.Category.JUMP, false, 99, {}, JumpMineEffect)
 	_register("death_from_above", "Death From Above", "+40% урона снарядам, выпущенным в прыжке.", CardDefinition.Category.JUMP, false, 99, {}, DeathFromAboveEffect)
 	_register("double_jump", "Double Jump", "Разрешает второй прыжок прямо в воздухе.", CardDefinition.Category.JUMP, true, 1, {})
+	_register("feather_fall", "Feather Fall", "+25% к высоте прыжка. При падении танк плавно планирует вниз; каждый стак усиливает замедление падения и высоту прыжка.", CardDefinition.Category.JUMP, false, 99, {"jump_velocity_mult": 1.25}, FeatherFallEffect)
 
-	# --- GENERAL CARDS (11) ---
+	# --- GENERAL CARDS (13) ---
 	_register("tankier", "Tankier", "+40 максимального здоровья танка.", CardDefinition.Category.GENERAL, false, 99, {"hp_flat": 40.0})
+	_register("huge", "Huge", "+50% максимального здоровья танка.", CardDefinition.Category.GENERAL, false, 99, {"hp_mult": 1.50})
 	_register("lightweight", "Lightweight", "+30% к скорости танка, снижена масса.", CardDefinition.Category.GENERAL, false, 99, {"move_speed_mult": 1.30, "knockback_resistance_mult": 0.7})
 	_register("heavyweight", "Heavyweight", "+75% устойчивость к отталкиванию, +30% максимального HP, -12% скорости.", CardDefinition.Category.GENERAL, false, 99, {"knockback_resistance_mult": 1.75, "hp_mult": 1.30, "move_speed_mult": 0.88})
 	_register("adrenaline", "Adrenaline", "+50% к скорости перемещения, когда HP падает ниже 35%.", CardDefinition.Category.GENERAL, false, 99, {}, AdrenalineEffect)
@@ -806,6 +1980,7 @@ static func _init_cards() -> void:
 	_register("road_rage", "Road Rage", "Таран вражеского танка на скорости наносит урон.", CardDefinition.Category.GENERAL, false, 99, {}, RoadRageEffect)
 	_register("tiny_tank", "Tiny Tank", "Танк меньше (-30%) и быстрее (+25%), но теряет 25 HP.", CardDefinition.Category.GENERAL, false, 99, {"scale_mult": 0.70, "move_speed_mult": 1.25, "hp_flat": -25.0})
 	_register("big_tank", "Big Tank", "Танк крупнее (+40%) и прочнее (+60 HP), но медленнее (-15%).", CardDefinition.Category.GENERAL, false, 99, {"scale_mult": 1.40, "hp_flat": 60.0, "move_speed_mult": 0.85})
+	_register("firefly", "Firefly", "Едущий танк оставляет огненный след (шириной с танк, до 2 танков в длину, горит 2 сек). Враг в огне горит и получает урон как от яда. Каждый стак усиливает урон горения и удлиняет след на 2 танка.", CardDefinition.Category.GENERAL, false, 99, {}, FireflyEffect)
 	_register("phoenix", "Phoenix", "Один раз за раунд смертельный урон отменяется, танк оживает с 50% HP.", CardDefinition.Category.GENERAL, true, 1, {}, PhoenixEffect)
 
 static func _register(

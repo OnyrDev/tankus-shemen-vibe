@@ -181,7 +181,16 @@ func process_movement(move_dir: Vector3, wants_jump: bool, delta: float,
 		if not replay:
 			_apply_jump_stretch()
 	elif not on_floor:
-		_tank_body.velocity.y -= gravity * delta
+		var feather_stacks: int = _tank_body.build.get_stacks("feather_fall") if _tank_body.build else 0
+		if feather_stacks > 0 and _tank_body.velocity.y <= 0.0:
+			var fall_grav_mult: float = CardDatabase.FeatherFallEffect.get_fall_gravity_multiplier(feather_stacks)
+			var max_fall_spd: float = CardDatabase.FeatherFallEffect.get_max_fall_speed(feather_stacks)
+			_tank_body.velocity.y = maxf(_tank_body.velocity.y - gravity * fall_grav_mult * delta, -max_fall_spd)
+		else:
+			_tank_body.velocity.y -= gravity * delta
+			if feather_stacks > 0 and _tank_body.velocity.y < 0.0:
+				var max_fall_spd: float = CardDatabase.FeatherFallEffect.get_max_fall_speed(feather_stacks)
+				_tank_body.velocity.y = maxf(_tank_body.velocity.y, -max_fall_spd)
 
 	# Перемещение с поддержкой наклонных плоскостей (рамп) и скольжения на льду
 	move_dir = Vector3(move_dir.x, 0.0, move_dir.z).limit_length(1.0)
