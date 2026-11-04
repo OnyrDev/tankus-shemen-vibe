@@ -32,7 +32,7 @@ func _run_tests() -> void:
 
 	# 3. Проверка базы данных 43 карт
 	var all_cards := CardDatabase.get_all_cards()
-	assert(all_cards.size() == 46, "ERROR: Card pool size should be 46, found %d" % all_cards.size())
+	assert(all_cards.size() == 51, "ERROR: Card pool size should be 51, found %d" % all_cards.size())
 	assert(CardDatabase.get_card("perfect_guard") == null, "ERROR: Perfect Guard card must be removed")
 
 	var shot_count := 0
@@ -51,11 +51,11 @@ func _run_tests() -> void:
 			CardDefinition.Category.GENERAL:
 				general_count += 1
 
-	assert(shot_count == 19, "ERROR: Expected 19 SHOT cards, got %d" % shot_count)
+	assert(shot_count == 22, "ERROR: Expected 22 SHOT cards, got %d" % shot_count)
 	assert(block_count == 10, "ERROR: Expected 10 BLOCK cards, got %d" % block_count)
-	assert(jump_count == 5, "ERROR: Expected 5 JUMP cards, got %d" % jump_count)
-	assert(general_count == 12, "ERROR: Expected 12 GENERAL cards, got %d" % general_count)
-	print("[PASS] All 46 cards registered with exact category balance (19 SHOT, 10 BLOCK, 5 JUMP, 12 GENERAL)")
+	assert(jump_count == 6, "ERROR: Expected 6 JUMP cards, got %d" % jump_count)
+	assert(general_count == 13, "ERROR: Expected 13 GENERAL cards, got %d" % general_count)
+	print("[PASS] All 51 cards registered with exact category balance (22 SHOT, 10 BLOCK, 6 JUMP, 13 GENERAL)")
 
 	# 4. Проверка генератора драфта (Draft Offer)
 	tank.build.clear_build()
@@ -580,5 +580,250 @@ func _run_tests() -> void:
 	assert(is_equal_approx(tank.health.current_health, 60.0), "ERROR: 2-stack burger must heal tank by +20 HP")
 	CardDatabase.BurgerTerminalEffect.clear_all(get_tree())
 	print("[PASS] Burger Terminal 3D models, 1s burger dispense interval, +10 HP/stack heal, +1s/stack lifetime, and +40% block cooldown verified")
+
+	# 21. Проверка карты Air Vortex (+20% урона, +30% пауза между выстрелами, +10% скорость перезарядки, воронка 2м +1м/стак на 3с, спавн на последнем отскоке, засасывает всех и ящики)
+	tank.build.clear_build()
+	CardDatabase.AirVortexEffect.clear_all(get_tree())
+	tank.stats.recalculate(tank.build.cards, CardDatabase)
+	var av_base_dmg: float = tank.stats.damage
+	var av_base_fire: float = tank.stats.fire_interval
+	var av_base_reload: float = tank.stats.reload_time
+
+	var av_card := CardDatabase.get_card("air_vortex")
+	assert(av_card != null and av_card.category == CardDefinition.Category.SHOT, "ERROR: Air Vortex must be registered as SHOT card")
+	assert(is_equal_approx(CardDatabase.AirVortexEffect.get_vortex_radius(1), 3.0), "ERROR: 1-stack Air Vortex radius must be 3.0m")
+	assert(is_equal_approx(CardDatabase.AirVortexEffect.get_vortex_radius(2), 4.0), "ERROR: 2-stack Air Vortex radius must be 4.0m")
+	assert(is_equal_approx(CardDatabase.AirVortexEffect.get_vortex_radius(3), 5.0), "ERROR: 3-stack Air Vortex radius must be 5.0m")
+
+	tank.build.add_card(av_card)
+	assert(is_equal_approx(tank.stats.damage, av_base_dmg * 1.20), "ERROR: 1-stack Air Vortex must grant +20% damage")
+	assert(is_equal_approx(tank.stats.fire_interval, av_base_fire * 1.30), "ERROR: 1-stack Air Vortex must increase fire interval by +30%")
+	assert(is_equal_approx(tank.stats.reload_time, av_base_reload * 0.90), "ERROR: 1-stack Air Vortex must speed up reload by 10% (reload_time * 0.90)")
+
+	# Проверка правила отскоков: при попадании в препятствие с оставшимися рикошетами воронка НЕ спавнится, а на последнем — спавнится
+	var av_obstacle := StaticBody3D.new()
+	add_child(av_obstacle)
+	var av_proj := proj_scene.instantiate() as Projectile
+	add_child(av_proj)
+	av_proj.setup(tank, Vector3(0.0, 1.0, 0.0), Vector3(0.0, 0.0, -1.0))
+	av_proj.bounces_left = 1
+	tank.events.emit_projectile_hit(av_proj, av_obstacle, Vector3(15.0, 0.5, 15.0), Vector3.UP)
+	assert(get_tree().get_nodes_in_group("air_vortexes").size() == 0, "ERROR: Air Vortex must NOT spawn on obstacle hit while bounces_left > 0")
+
+	# Последний удар по препятствию (bounces_left == 0) -> воронка спавнится
+	av_proj.bounces_left = 0
+	var vortex_center := Vector3(18.0, 0.0, 18.0)
+	tank.events.emit_projectile_hit(av_proj, av_obstacle, vortex_center, Vector3.UP)
+	var vortexes := get_tree().get_nodes_in_group("air_vortexes")
+	assert(vortexes.size() == 1, "ERROR: Air Vortex must spawn on the final obstacle hit (bounces_left == 0)")
+	var vortex_node := vortexes[0]
+	assert(is_equal_approx(vortex_node.radius, 3.0), "ERROR: 1-stack spawned vortex must have radius 3.0m")
+
+	# Попадание напрямую по вражескому танку спавнит воронку сразу даже при bounces_left > 0
+	CardDatabase.AirVortexEffect.clear_all(get_tree())
+	av_proj.bounces_left = 2
+	tank.events.emit_projectile_hit(av_proj, dummy, vortex_center, Vector3.UP)
+	vortexes = get_tree().get_nodes_in_group("air_vortexes")
+	assert(vortexes.size() == 1, "ERROR: Direct hit on enemy tank must spawn Air Vortex immediately even with bounces left")
+	vortex_node = vortexes[0]
+
+	# Проверка засасывания: засасывает и врага (dummy), и самого стрелка (tank), и физический ящик (PhysicsCrate)
+	tank.is_active = true
+	dummy.is_active = true
+	dummy.health.reset()
+	tank.global_position = vortex_center + Vector3(1.6, 0.0, 0.0)
+	dummy.global_position = vortex_center + Vector3(-1.5, 0.0, 0.0)
+	tank.velocity = Vector3.ZERO
+	dummy.velocity = Vector3.ZERO
+
+	var test_crate := PhysicsCrate.new()
+	var crate_col := CollisionShape3D.new()
+	var crate_box := BoxShape3D.new()
+	crate_box.size = Vector3.ONE * 0.8
+	crate_col.shape = crate_box
+	test_crate.add_child(crate_col)
+	add_child(test_crate)
+	test_crate.global_position = vortex_center + Vector3(0.0, 0.4, 1.5)
+	test_crate.linear_velocity = Vector3.ZERO
+
+	var tank_dist_before: float = Vector2(tank.global_position.x - vortex_node.global_position.x, tank.global_position.z - vortex_node.global_position.z).length()
+	var dummy_dist_before: float = Vector2(dummy.global_position.x - vortex_node.global_position.x, dummy.global_position.z - vortex_node.global_position.z).length()
+	var crate_dist_before: float = Vector2(test_crate.global_position.x - vortex_node.global_position.x, test_crate.global_position.z - vortex_node.global_position.z).length()
+
+	vortex_node._physics_process(0.25)
+
+	var tank_dist_after: float = Vector2(tank.global_position.x - vortex_node.global_position.x, tank.global_position.z - vortex_node.global_position.z).length()
+	var dummy_dist_after: float = Vector2(dummy.global_position.x - vortex_node.global_position.x, dummy.global_position.z - vortex_node.global_position.z).length()
+	var crate_dist_after: float = Vector2(test_crate.global_position.x - vortex_node.global_position.x, test_crate.global_position.z - vortex_node.global_position.z).length()
+
+	assert(tank_dist_after < tank_dist_before and tank.velocity.x < 0.0, "ERROR: Air Vortex must pull the shooter tank itself toward the center")
+	assert(dummy_dist_after < dummy_dist_before and dummy.velocity.x > 0.0, "ERROR: Air Vortex must pull enemy tanks toward the center")
+	assert(crate_dist_after < crate_dist_before and test_crate.linear_velocity.z < 0.0, "ERROR: Air Vortex must pull physics crates toward the center")
+
+	# Проверка времени жизни (3.0с): на 2.9с еще живет, на 3.05с исчезает
+	vortex_node._physics_process(2.65) # итого 2.90с
+	assert(is_instance_valid(vortex_node) and not vortex_node.is_queued_for_deletion(), "ERROR: Air Vortex must still exist at 2.9s")
+	vortex_node._physics_process(0.15) # итого 3.05с
+	assert(not is_instance_valid(vortex_node) or vortex_node.is_queued_for_deletion(), "ERROR: Air Vortex must expire after 3.0s")
+
+	# 2 стака: радиус воронки увеличивается до 4.0м и засасывает цель на дистанции 3.6м (которая вне базовых 3.0м)
+	CardDatabase.AirVortexEffect.clear_all(get_tree())
+	tank.build.add_card(av_card)
+	assert(is_equal_approx(tank.stats.damage, av_base_dmg * 1.20 * 1.20), "ERROR: 2-stack Air Vortex damage must stack multiplicatively")
+	assert(is_equal_approx(tank.stats.fire_interval, av_base_fire * 1.30 * 1.30), "ERROR: 2-stack Air Vortex fire interval must stack multiplicatively")
+	assert(is_equal_approx(tank.stats.reload_time, av_base_reload * 0.90 * 0.90), "ERROR: 2-stack Air Vortex reload time must stack multiplicatively")
+	av_proj.bounces_left = 0
+	tank.events.emit_projectile_hit(av_proj, av_obstacle, vortex_center, Vector3.UP)
+	var vortex2 := get_tree().get_nodes_in_group("air_vortexes")[0]
+	assert(is_equal_approx(vortex2.radius, 4.0), "ERROR: 2-stack Air Vortex must have 4.0m radius")
+	dummy.global_position = vortex_center + Vector3(3.6, 0.0, 0.0)
+	dummy.velocity = Vector3.ZERO
+	vortex2._physics_process(0.25)
+	assert(dummy.velocity.x < 0.0, "ERROR: 2-stack Air Vortex (4m radius) must pull tank at 3.6m distance")
+
+	test_crate.queue_free()
+	av_proj.queue_free()
+	av_obstacle.queue_free()
+	CardDatabase.AirVortexEffect.clear_all(get_tree())
+	print("[PASS] Air Vortex stats (+20% dmg, +30% fire interval, +10% reload speed), last-bounce trigger, 3m+1m/stack radius, 3s duration, and all-tank/crate suction verified")
+
+	# 22. Проверка карты Feather Fall (+25% высота прыжка, резкий взлет с обычной гравитацией и плавное планирование на спуске, стаки усиливают эффект)
+	tank.build.clear_build()
+	tank.stats.recalculate(tank.build.cards, CardDatabase)
+	var ff_base_jump_vel: float = tank.stats.jump_velocity
+	var feather_card := CardDatabase.get_card("feather_fall")
+	assert(feather_card != null and feather_card.category == CardDefinition.Category.JUMP, "ERROR: Feather Fall must be registered as JUMP card")
+	assert(feather_card.unique == false, "ERROR: Feather Fall must be stackable")
+
+	tank.build.add_card(feather_card)
+	assert(is_equal_approx(tank.stats.jump_velocity, ff_base_jump_vel * 1.25), "ERROR: 1-stack Feather Fall must increase jump_velocity by +25%")
+	assert(is_equal_approx(tank.controller.jump_velocity, ff_base_jump_vel * 1.25), "ERROR: TankController jump_velocity must sync with Feather Fall stat")
+
+	# На взлёте (velocity.y > 0) действует полная гравитация (резкий подъём)
+	tank.global_position = Vector3(0.0, 6.0, 0.0)
+	tank.velocity = Vector3(0.0, 6.0, 0.0)
+	tank.controller._restored_floor = {"on_floor": false, "floor_normal": Vector3.UP}
+	tank.controller.process_movement(Vector3.ZERO, false, 0.1)
+	var expected_ascent_vy: float = 6.0 - tank.controller.gravity * 0.1
+	assert(is_equal_approx(tank.velocity.y, expected_ascent_vy), "ERROR: Feather Fall must keep full normal gravity while rising (velocity.y > 0)")
+
+	# На спуске (velocity.y <= 0) гравитация снижена, а скорость падения ограничена max_fall_speed (-3.2 м/с на 1 стаке)
+	tank.global_position = Vector3(0.0, 8.0, 0.0)
+	tank.velocity = Vector3(0.0, 0.0, 0.0)
+	tank.controller._restored_floor = {"on_floor": false, "floor_normal": Vector3.UP}
+	tank.controller.process_movement(Vector3.ZERO, false, 0.1)
+	var expected_descent_vy_1s: float = -tank.controller.gravity * CardDatabase.FeatherFallEffect.get_fall_gravity_multiplier(1) * 0.1
+	assert(is_equal_approx(tank.velocity.y, expected_descent_vy_1s), "ERROR: 1-stack Feather Fall descent must use reduced gravity multiplier (0.38)")
+	assert(absf(tank.velocity.y) < tank.controller.gravity * 0.1, "ERROR: Feather Fall descent speed must be slower than normal freefall")
+
+	# При долгом падении на 1 стаке скорость не превышает -3.2 м/с
+	for _step in range(10):
+		tank.global_position = Vector3(0.0, 10.0, 0.0)
+		tank.controller._restored_floor = {"on_floor": false, "floor_normal": Vector3.UP}
+		tank.controller.process_movement(Vector3.ZERO, false, 0.1)
+	var max_fall_1s: float = CardDatabase.FeatherFallEffect.get_max_fall_speed(1)
+	assert(is_equal_approx(tank.velocity.y, -max_fall_1s), "ERROR: 1-stack Feather Fall terminal velocity must clamp at -3.2 m/s")
+
+	# 2 стака: высота прыжка стакается мультипликативно, а падение становится ещё плавнее
+	tank.build.add_card(feather_card)
+	assert(is_equal_approx(tank.stats.jump_velocity, ff_base_jump_vel * 1.25 * 1.25), "ERROR: 2-stack Feather Fall jump_velocity must stack multiplicatively")
+	var max_fall_2s: float = CardDatabase.FeatherFallEffect.get_max_fall_speed(2)
+	assert(max_fall_2s < max_fall_1s, "ERROR: 2-stack Feather Fall max fall speed must be slower than 1-stack")
+	assert(CardDatabase.FeatherFallEffect.get_fall_gravity_multiplier(2) < CardDatabase.FeatherFallEffect.get_fall_gravity_multiplier(1), "ERROR: 2-stack Feather Fall gravity multiplier must be lower than 1-stack")
+
+	tank.global_position = Vector3(0.0, 10.0, 0.0)
+	tank.velocity = Vector3(0.0, -5.0, 0.0)
+	tank.controller._restored_floor = {"on_floor": false, "floor_normal": Vector3.UP}
+	tank.controller.process_movement(Vector3.ZERO, false, 0.1)
+	assert(is_equal_approx(tank.velocity.y, -max_fall_2s), "ERROR: 2-stack Feather Fall must clamp downward velocity to 2-stack max fall speed")
+	print("[PASS] Feather Fall +25% jump height, full-speed ascent, reduced-gravity glide descent, and stack scaling verified")
+
+	# 23. Проверка карты Huge (+50% максимального HP за стак)
+	tank.build.clear_build()
+	tank.health.reset()
+	tank.stats.recalculate(tank.build.cards, CardDatabase)
+	var huge_base_hp: float = tank.stats.max_hp
+	var huge_card := CardDatabase.get_card("huge")
+	assert(huge_card != null and huge_card.category == CardDefinition.Category.GENERAL, "ERROR: Huge must be registered as GENERAL card")
+	assert(huge_card.unique == false, "ERROR: Huge must be stackable")
+	tank.build.add_card(huge_card)
+	assert(is_equal_approx(tank.stats.max_hp, huge_base_hp * 1.50), "ERROR: 1-stack Huge must increase max_hp by +50% (150 HP)")
+	assert(is_equal_approx(tank.health.current_health, huge_base_hp * 1.50), "ERROR: 1-stack Huge must also boost current_health by +50 HP")
+	tank.build.add_card(huge_card)
+	assert(is_equal_approx(tank.stats.max_hp, huge_base_hp * 1.50 * 1.50), "ERROR: 2-stack Huge must stack multiplicatively (225 HP)")
+	print("[PASS] Huge card (+50% max HP per stack) verified")
+
+	# 24. Проверка снайперской карты Accuracy (+40% урона, +50% скорости пули, +70% времени перезарядки, -40% скорости движения)
+	tank.build.clear_build()
+	tank.stats.recalculate(tank.build.cards, CardDatabase)
+	var acc_base_dmg: float = tank.stats.damage
+	var acc_base_proj_spd: float = tank.stats.projectile_speed
+	var acc_base_reload: float = tank.stats.reload_time
+	var acc_base_move: float = tank.stats.move_speed
+
+	var acc_card := CardDatabase.get_card("accuracy")
+	assert(acc_card != null and acc_card.category == CardDefinition.Category.SHOT, "ERROR: Accuracy must be registered as SHOT card")
+	assert(acc_card.unique == false, "ERROR: Accuracy must be stackable")
+
+	tank.build.add_card(acc_card)
+	assert(is_equal_approx(tank.stats.damage, acc_base_dmg * 1.40), "ERROR: 1-stack Accuracy must grant +40% damage")
+	assert(is_equal_approx(tank.stats.projectile_speed, acc_base_proj_spd * 1.50), "ERROR: 1-stack Accuracy must grant +50% projectile speed")
+	assert(is_equal_approx(tank.stats.reload_time, acc_base_reload * 1.70), "ERROR: 1-stack Accuracy must increase reload time by +70%")
+	assert(is_equal_approx(tank.stats.move_speed, acc_base_move * 0.60), "ERROR: 1-stack Accuracy must reduce move speed by -40%")
+
+	tank.build.add_card(acc_card)
+	assert(is_equal_approx(tank.stats.damage, acc_base_dmg * 1.40 * 1.40), "ERROR: 2-stack Accuracy damage must stack multiplicatively")
+	assert(is_equal_approx(tank.stats.projectile_speed, acc_base_proj_spd * 1.50 * 1.50), "ERROR: 2-stack Accuracy projectile speed must stack multiplicatively")
+	assert(is_equal_approx(tank.stats.reload_time, acc_base_reload * 1.70 * 1.70), "ERROR: 2-stack Accuracy reload time must stack multiplicatively")
+	assert(is_equal_approx(tank.stats.move_speed, acc_base_move * 0.60 * 0.60), "ERROR: 2-stack Accuracy move speed must stack multiplicatively")
+	print("[PASS] Accuracy card (+40% dmg, +50% proj speed, +70% reload time, -40% move speed) verified")
+
+	# 25. Проверка карты Critical Hit (20% шанс на 140% урона, +30% к крит-урону за доп. стак, фиксированный шанс 20%, +20% ко времени перезарядки)
+	tank.build.clear_build()
+	tank.stats.recalculate(tank.build.cards, CardDatabase)
+	var crit_base_reload: float = tank.stats.reload_time
+	var crit_base_dmg: float = tank.stats.damage
+
+	var crit_card := CardDatabase.get_card("critical_hit")
+	assert(crit_card != null and crit_card.category == CardDefinition.Category.SHOT, "ERROR: Critical Hit must be registered as SHOT card")
+	assert(crit_card.unique == false, "ERROR: Critical Hit must be stackable")
+	assert(is_equal_approx(CardDatabase.CriticalHitEffect.get_crit_chance(1), 0.20), "ERROR: 1-stack crit chance must be 20%")
+	assert(is_equal_approx(CardDatabase.CriticalHitEffect.get_crit_chance(5), 0.20), "ERROR: Crit chance must stay 20% regardless of stacks")
+	assert(is_equal_approx(CardDatabase.CriticalHitEffect.get_crit_damage_multiplier(1), 1.40), "ERROR: 1-stack crit damage multiplier must be 1.40 (140%)")
+	assert(is_equal_approx(CardDatabase.CriticalHitEffect.get_crit_damage_multiplier(2), 1.70), "ERROR: 2-stack crit damage multiplier must be 1.70 (170%)")
+	assert(is_equal_approx(CardDatabase.CriticalHitEffect.get_crit_damage_multiplier(3), 2.00), "ERROR: 3-stack crit damage multiplier must be 2.00 (200%)")
+
+	tank.build.add_card(crit_card)
+	assert(is_equal_approx(tank.stats.reload_time, crit_base_reload * 1.20), "ERROR: 1-stack Critical Hit must increase reload time by +20%")
+	assert(is_equal_approx(tank.stats.damage, crit_base_dmg), "ERROR: Non-crit base damage must stay unchanged")
+
+	# Проверяем срабатывание крита на 1 и 2 стаках и статистическое наличие критов/обычных выстрелов на серии
+	var crit_hits := 0
+	var normal_hits := 0
+	seed(424242)
+	for _i in range(80):
+		var cproj := proj_scene.instantiate() as Projectile
+		add_child(cproj)
+		cproj.setup(tank, Vector3(0.0, 1.0, 0.0), Vector3(0.0, 0.0, -1.0))
+		tank.events.emit_projectile_spawned(cproj)
+		if cproj.get_meta("is_critical_hit", false):
+			crit_hits += 1
+			assert(is_equal_approx(cproj.damage, crit_base_dmg * 1.40), "ERROR: 1-stack critical projectile must deal 140% damage")
+		else:
+			normal_hits += 1
+			assert(is_equal_approx(cproj.damage, crit_base_dmg), "ERROR: Non-critical projectile must deal 100% damage")
+		cproj.queue_free()
+	assert(crit_hits > 0 and normal_hits > 0, "ERROR: 20% crit chance over 80 shots must produce both crits and normal shots")
+
+	# 2 стака: перезарядка +20% за стак, крит-урон 170% (1.40 + 0.30)
+	tank.build.add_card(crit_card)
+	assert(is_equal_approx(tank.stats.reload_time, crit_base_reload * 1.20 * 1.20), "ERROR: 2-stack Critical Hit reload debuff must stack multiplicatively")
+	var crit_proj_2s := proj_scene.instantiate() as Projectile
+	add_child(crit_proj_2s)
+	crit_proj_2s.setup(tank, Vector3(0.0, 1.0, 0.0), Vector3(0.0, 0.0, -1.0))
+	CardDatabase.CriticalHitEffect.apply_crit_to_projectile(crit_proj_2s, 2)
+	assert(is_equal_approx(crit_proj_2s.damage, crit_base_dmg * 1.70), "ERROR: 2-stack critical projectile must deal 170% damage")
+	crit_proj_2s.queue_free()
+	print("[PASS] Critical Hit 20% fixed chance, 140% (+30%/stack) crit damage, and +20% reload time debuff verified")
 
 	print("=== [TEST] ALL PHASE 3 TESTS PASSED SUCCESSFULLY! ===\n")

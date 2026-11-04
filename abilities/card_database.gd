@@ -98,6 +98,315 @@ class SpreadEffect extends CardEffect:
 		proj.direction = proj.direction.rotated(Vector3.UP, angle).normalized()
 		proj.velocity = proj.direction * proj.speed
 
+class CriticalHitEffect extends CardEffect:
+	## 20% фиксированный шанс критического выстрела на 140% урона (+30% к крит-урону за каждый доп. стак).
+	## Дебафф +20% к времени перезарядки задаётся через stat_modifiers карты.
+	const CRIT_CHANCE: float = 0.20
+	const BASE_CRIT_MULT: float = 1.40
+	const EXTRA_CRIT_MULT_PER_STACK: float = 0.30
+
+	static func get_crit_chance(_stacks: int = 1) -> float:
+		return CRIT_CHANCE
+
+	static func get_crit_damage_multiplier(stacks: int) -> float:
+		return BASE_CRIT_MULT + EXTRA_CRIT_MULT_PER_STACK * float(maxi(1, stacks) - 1)
+
+	static func apply_crit_to_projectile(proj: Projectile, stacks: int) -> void:
+		if not proj:
+			return
+		var mult: float = get_crit_damage_multiplier(stacks)
+		proj.damage *= mult
+		proj.set_meta("is_critical_hit", true)
+		proj.set_meta("crit_multiplier", mult)
+		proj._apply_color(Color(1.0, 0.20, 0.24))
+
+	func on_projectile_spawned(proj: Projectile, stacks: int) -> void:
+		if not proj:
+			return
+		if randf() < CRIT_CHANCE:
+			apply_crit_to_projectile(proj, stacks)
+
+class AirVortexEffect extends CardEffect:
+	## При попадании по врагу или на последнем отскоке по препятствию создаёт воздушную воронку на 3с.
+	## Базовый радиус 3.0м (+1.0м за каждый дополнительный стак). Засасывает все танки и физические ящики.
+	const BASE_RADIUS: float = 3.0
+	const EXTRA_RADIUS_PER_STACK: float = 1.0
+	const LIFETIME: float = 3.0
+	const MAX_HEIGHT_DELTA: float = 3.0
+	## Общий множитель силы втягивания (крути его: 0.5 — в 2 раза слабее, 1.0 — норма, 2.0 — в 2 раза сильнее)
+	const PULL_STRENGTH: float = 1.3
+	const TANK_PULL_SPEED: float = 4.2
+	const TANK_PULL_ACCEL: float = 16.0
+	const TANK_DIRECT_PULL_SPEED: float = 1.8
+	const CRATE_PULL_SPEED: float = 3.8
+	const CRATE_PULL_ACCEL: float = 14.0
+	const CRATE_DIRECT_PULL_SPEED: float = 1.6
+
+	static var _next_vortex_id: int = 1
+	static var _active_vortexes: Dictionary = {}
+
+	class VortexNode extends Node3D:
+		var vortex_id: int = 0
+		var owner_tank: Tank = null
+		var stacks: int = 1
+		var radius: float = 2.0
+		var lifetime: float = 3.0
+		var is_client_visual: bool = false
+		var _age: float = 0.0
+		var _swirl_root: Node3D = null
+		var _inner_ring: MeshInstance3D = null
+		var _ring_mat: StandardMaterial3D = null
+		var _funnel_mat: StandardMaterial3D = null
+		var _light: OmniLight3D = null
+
+		func _ready() -> void:
+			add_to_group("air_vortexes")
+
+		func _process(delta: float) -> void:
+			if _swirl_root:
+				_swirl_root.rotation.y += delta * 11.5
+			if _inner_ring:
+				_inner_ring.rotation.y -= delta * 18.0
+
+			var time_left: float = maxf(0.0, lifetime - _age)
+			var fade: float = clampf(time_left / 0.35, 0.0, 1.0)
+			if _ring_mat:
+				_ring_mat.albedo_color.a = 0.72 * fade
+			if _funnel_mat:
+				_funnel_mat.albedo_color.a = 0.34 * fade
+			if _light:
+				_light.light_energy = 1.6 * fade
+
+		func _physics_process(delta: float) -> void:
+			_age += delta
+			if not is_client_visual:
+				_pull_entities(delta)
+
+			if _age >= lifetime:
+				var valid_owner := owner_tank if is_instance_valid(owner_tank) else null
+				AirVortexEffect.remove_vortex_by_id(vortex_id)
+				if not is_client_visual and valid_owner and valid_owner.net_sync and valid_owner.multiplayer and valid_owner.multiplayer.has_multiplayer_peer() and valid_owner.multiplayer.is_server():
+					valid_owner.net_sync.s2c_remove_air_vortex.rpc(vortex_id)
+
+		func _pull_entities(delta: float) -> void:
+			var tree := get_tree()
+			if not tree:
+				return
+
+			# 1. Засасываем вообще все активные танки в радиусе (врагов, союзников и самого стрелка)
+			for node in tree.get_nodes_in_group("tanks"):
+				var target := node as Tank
+				if not target or not is_instance_valid(target) or not target.is_active:
+					continue
+				if target.health and not target.health.is_alive():
+					continue
+				if absf(target.global_position.y - global_position.y) > MAX_HEIGHT_DELTA:
+					continue
+
+				var to_center := Vector3(global_position.x - target.global_position.x, 0.0, global_position.z - target.global_position.z)
+				var flat_dist := to_center.length()
+				if flat_dist > radius or flat_dist < 0.08:
+					continue
+
+				var pull_dir := to_center / flat_dist
+				var kb_res: float = target.stats.knockback_resistance if target.stats else 1.0
+				var pull_scale: float = PULL_STRENGTH / maxf(0.4, kb_res)
+				var desired_vel := pull_dir * (TANK_PULL_SPEED * pull_scale)
+				target.velocity.x = move_toward(target.velocity.x, desired_vel.x, TANK_PULL_ACCEL * pull_scale * delta)
+				target.velocity.z = move_toward(target.velocity.z, desired_vel.z, TANK_PULL_ACCEL * pull_scale * delta)
+
+				var step_dist := minf(maxf(0.0, flat_dist - 0.12), TANK_DIRECT_PULL_SPEED * pull_scale * delta)
+				if step_dist > 0.0001:
+					target.move_and_collide(pull_dir * step_dist)
+
+			# 2. Засасываем физические ящики в радиусе
+			for node in tree.get_nodes_in_group("physics_crates"):
+				var crate := node as RigidBody3D
+				if not crate or not is_instance_valid(crate) or crate.freeze:
+					continue
+				if absf(crate.global_position.y - global_position.y) > MAX_HEIGHT_DELTA:
+					continue
+
+				var to_center := Vector3(global_position.x - crate.global_position.x, 0.0, global_position.z - crate.global_position.z)
+				var flat_dist := to_center.length()
+				if flat_dist > radius or flat_dist < 0.08:
+					continue
+
+				var pull_dir := to_center / flat_dist
+				crate.sleeping = false
+				var desired_vel := pull_dir * (CRATE_PULL_SPEED * PULL_STRENGTH)
+				crate.linear_velocity.x = move_toward(crate.linear_velocity.x, desired_vel.x, CRATE_PULL_ACCEL * PULL_STRENGTH * delta)
+				crate.linear_velocity.z = move_toward(crate.linear_velocity.z, desired_vel.z, CRATE_PULL_ACCEL * PULL_STRENGTH * delta)
+				crate.apply_central_force(pull_dir * (crate.mass * CRATE_PULL_ACCEL * PULL_STRENGTH))
+
+				var step_dist := minf(maxf(0.0, flat_dist - 0.12), CRATE_DIRECT_PULL_SPEED * PULL_STRENGTH * delta)
+				if step_dist > 0.0001:
+					crate.move_and_collide(pull_dir * step_dist)
+
+	static func get_vortex_radius(stacks: int) -> float:
+		return BASE_RADIUS + EXTRA_RADIUS_PER_STACK * float(maxi(1, stacks) - 1)
+
+	static func create_vortex_node(vortex_id: int, origin: Vector3, stacks: int, spawn_parent: Node, owner_tank: Tank = null, is_client: bool = false) -> VortexNode:
+		if not spawn_parent:
+			return null
+		remove_vortex_by_id(vortex_id)
+
+		var effective_stacks: int = maxi(1, stacks)
+		var v_radius: float = get_vortex_radius(effective_stacks)
+
+		var vortex := VortexNode.new()
+		vortex.name = "AirVortex_%d" % vortex_id
+		vortex.vortex_id = vortex_id
+		vortex.owner_tank = owner_tank
+		vortex.stacks = effective_stacks
+		vortex.radius = v_radius
+		vortex.lifetime = LIFETIME
+		vortex.is_client_visual = is_client
+		vortex.set_meta("vortex_id", vortex_id)
+		vortex.set_meta("stacks", effective_stacks)
+		vortex.set_meta("radius", v_radius)
+
+		var swirl_root := Node3D.new()
+		swirl_root.name = "SwirlVisual"
+		vortex.add_child(swirl_root)
+		vortex._swirl_root = swirl_root
+
+		var ring_mat := StandardMaterial3D.new()
+		ring_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		ring_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		ring_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+		ring_mat.albedo_color = Color(0.38, 0.88, 1.0, 0.72)
+		vortex._ring_mat = ring_mat
+
+		var outer_mesh := MeshInstance3D.new()
+		outer_mesh.name = "OuterRing"
+		var outer_torus := TorusMesh.new()
+		outer_torus.outer_radius = v_radius
+		outer_torus.inner_radius = maxf(0.15, v_radius - 0.14)
+		outer_torus.rings = 32
+		outer_torus.ring_segments = 12
+		outer_mesh.mesh = outer_torus
+		outer_mesh.material_override = ring_mat
+		outer_mesh.position = Vector3(0.0, 0.12, 0.0)
+		swirl_root.add_child(outer_mesh)
+
+		var inner_mesh := MeshInstance3D.new()
+		inner_mesh.name = "InnerRing"
+		var inner_torus := TorusMesh.new()
+		inner_torus.outer_radius = maxf(0.35, v_radius * 0.55)
+		inner_torus.inner_radius = maxf(0.12, v_radius * 0.55 - 0.12)
+		inner_torus.rings = 24
+		inner_torus.ring_segments = 10
+		inner_mesh.mesh = inner_torus
+		inner_mesh.material_override = ring_mat
+		inner_mesh.position = Vector3(0.0, 0.38, 0.0)
+		swirl_root.add_child(inner_mesh)
+		vortex._inner_ring = inner_mesh
+
+		var funnel_mat := StandardMaterial3D.new()
+		funnel_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		funnel_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		funnel_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+		funnel_mat.albedo_color = Color(0.55, 0.92, 1.0, 0.34)
+		vortex._funnel_mat = funnel_mat
+
+		var funnel_mesh := MeshInstance3D.new()
+		funnel_mesh.name = "FunnelMesh"
+		var cyl := CylinderMesh.new()
+		cyl.top_radius = v_radius * 0.88
+		cyl.bottom_radius = 0.22
+		cyl.height = 1.35
+		cyl.radial_segments = 24
+		cyl.cap_top = false
+		cyl.cap_bottom = false
+		funnel_mesh.mesh = cyl
+		funnel_mesh.material_override = funnel_mat
+		funnel_mesh.position = Vector3(0.0, 0.68, 0.0)
+		swirl_root.add_child(funnel_mesh)
+
+		var light := OmniLight3D.new()
+		light.name = "VortexLight"
+		light.position = Vector3(0.0, 0.75, 0.0)
+		light.light_color = Color(0.38, 0.88, 1.0)
+		light.omni_range = v_radius + 1.5
+		light.light_energy = 1.6
+		vortex.add_child(light)
+		vortex._light = light
+
+		spawn_parent.add_child(vortex)
+		vortex.global_position = origin
+
+		if vortex.is_inside_tree():
+			swirl_root.scale = Vector3.ONE * 0.2
+			var pop_tween := vortex.create_tween()
+			pop_tween.tween_property(swirl_root, "scale", Vector3.ONE, 0.16).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+
+		_active_vortexes[vortex_id] = vortex
+		return vortex
+
+	static func spawn_client_vortex(vortex_id: int, origin: Vector3, stacks: int, context_node: Node) -> VortexNode:
+		var spawn_parent := JumpMineEffect._resolve_spawn_parent(context_node)
+		return create_vortex_node(vortex_id, origin, stacks, spawn_parent, null, true)
+
+	static func remove_vortex_by_id(vortex_id: int) -> void:
+		var vortex: Node3D = _active_vortexes.get(vortex_id, null) as Node3D
+		_active_vortexes.erase(vortex_id)
+		if is_instance_valid(vortex):
+			vortex.remove_from_group("air_vortexes")
+			vortex.queue_free()
+
+	static func clear_all(tree: SceneTree) -> void:
+		_active_vortexes.clear()
+		if not tree:
+			return
+		for node in tree.get_nodes_in_group("air_vortexes"):
+			if is_instance_valid(node):
+				node.remove_from_group("air_vortexes")
+				node.queue_free()
+
+	func on_projectile_hit(proj: Projectile, target: Node, point: Vector3, _normal: Vector3, stacks: int) -> void:
+		if not tank or not is_instance_valid(tank):
+			return
+		if tank.multiplayer and tank.multiplayer.has_multiplayer_peer() and not tank.multiplayer.is_server():
+			return
+
+		var is_enemy_tank: bool = target is Tank and target != tank
+		if is_enemy_tank:
+			var hit_tank := target as Tank
+			if hit_tank.block and hit_tank.block.is_blocking() and hit_tank.build and hit_tank.build.has_card("reflect"):
+				return
+		else:
+			# На препятствиях/стенах воронка появляется только на последнем ударе, когда рикошетов не осталось
+			if proj and proj.bounces_left > 0:
+				return
+
+		var spawn_parent := JumpMineEffect._resolve_spawn_parent(tank)
+		if not spawn_parent:
+			return
+
+		var effective_stacks: int = maxi(1, stacks)
+		var vortex_id: int = _next_vortex_id
+		_next_vortex_id += 1
+
+		var origin := Vector3(point.x, tank.global_position.y, point.z)
+		if tank.get_world_3d():
+			var space := tank.get_world_3d().direct_space_state
+			var ray_start := Vector3(point.x, point.y + 0.6, point.z)
+			if _normal.length_squared() > 0.01:
+				var flat_norm := Vector3(_normal.x, 0.0, _normal.z)
+				if flat_norm.length_squared() > 0.01:
+					flat_norm = flat_norm.normalized()
+					ray_start.x += flat_norm.x * 0.25
+					ray_start.z += flat_norm.z * 0.25
+			var ray := PhysicsRayQueryParameters3D.create(ray_start, ray_start + Vector3.DOWN * 12.0, 1)
+			var hit := space.intersect_ray(ray)
+			if not hit.is_empty():
+				origin.y = hit.position.y
+
+		create_vortex_node(vortex_id, origin, effective_stacks, spawn_parent, tank, false)
+		if tank.net_sync and tank.multiplayer and tank.multiplayer.has_multiplayer_peer() and tank.multiplayer.is_server():
+			tank.net_sync.s2c_spawn_air_vortex.rpc(vortex_id, origin, effective_stacks)
+
 class BlinkEffect extends CardEffect:
 	func on_block_started(_duration: float, stacks: int) -> void:
 		if not tank or not tank.turret:
@@ -1032,6 +1341,25 @@ class DeathFromAboveEffect extends CardEffect:
 		if tank and not tank.is_on_floor():
 			proj.damage *= (1.0 + 0.40 * stacks)
 
+class FeatherFallEffect extends CardEffect:
+	## Бонус высоты прыжка (+25% за стак) задаётся через stat_modifiers карты.
+	## При движении вниз (velocity.y <= 0) снижает гравитацию и ограничивает максимальную скорость падения.
+	const FALL_GRAVITY_MULT_PER_STACK: float = 0.38
+	const MIN_FALL_GRAVITY_MULT: float = 0.08
+	const BASE_MAX_FALL_SPEED: float = 3.2
+	const FALL_SPEED_DECAY_PER_STACK: float = 0.68
+	const MIN_MAX_FALL_SPEED: float = 0.8
+
+	static func get_fall_gravity_multiplier(stacks: int) -> float:
+		if stacks <= 0:
+			return 1.0
+		return maxf(MIN_FALL_GRAVITY_MULT, pow(FALL_GRAVITY_MULT_PER_STACK, float(stacks)))
+
+	static func get_max_fall_speed(stacks: int) -> float:
+		if stacks <= 0:
+			return 999.0
+		return maxf(MIN_MAX_FALL_SPEED, BASE_MAX_FALL_SPEED * pow(FALL_SPEED_DECAY_PER_STACK, float(stacks - 1)))
+
 class RegenerationEffect extends CardEffect:
 	var _time_since_last_damage: float = 0.0
 
@@ -1595,7 +1923,7 @@ static func generate_draft_offer(player_build: TankBuild, count: int = 5) -> Arr
 static func _init_cards() -> void:
 	_cards_cache.clear()
 
-	# --- SHOT CARDS (19) ---
+	# --- SHOT CARDS (22) ---
 	_register("heavy_shell", "Heavy Shell", "+45% урона снарядов, -20% скорости полета.", CardDefinition.Category.SHOT, false, 99, {"damage_mult": 1.45, "proj_speed_mult": 0.8})
 	_register("rapid_fire", "Rapid Fire", "-40% интервал между выстрелами, -15% урона.", CardDefinition.Category.SHOT, false, 99, {"fire_interval_mult": 0.60, "damage_mult": 0.85})
 	_register("fastball", "Fastball", "+50% скорости полета снарядов.", CardDefinition.Category.SHOT, false, 99, {"proj_speed_mult": 1.50})
@@ -1616,6 +1944,9 @@ static func _init_cards() -> void:
 	_register("shotgun", "Shotgun", "Выстрел веером из 4 дробин с разбросом.", CardDefinition.Category.SHOT, true, 1, {}, ShotgunEffect)
 
 	_register("spread", "Разброс", "Снаряды летят с разбросом (±8° за стак), но урон +70%. Стаки увеличивают и разброс, и урон.", CardDefinition.Category.SHOT, false, 99, {"damage_mult": 1.70}, SpreadEffect)
+	_register("air_vortex", "Air Vortex", "При попадании создает воронку (радиус 3м, +1м за стак) на 3с, засасывающую все танки и ящики. +20% к урону, +30% пауза между выстрелами, +10% скорость перезарядки.", CardDefinition.Category.SHOT, false, 99, {"damage_mult": 1.20, "fire_interval_mult": 1.30, "reload_time_mult": 0.90}, AirVortexEffect)
+	_register("accuracy", "Accuracy", "+40% к урону, +50% к скорости полета снарядов, +70% к времени перезарядки, -40% к скорости движения.", CardDefinition.Category.SHOT, false, 99, {"damage_mult": 1.40, "proj_speed_mult": 1.50, "reload_time_mult": 1.70, "move_speed_mult": 0.60})
+	_register("critical_hit", "Critical Hit", "20% шанс нанести 140% урона (+30% к крит-урону за стак, шанс не меняется). +20% к времени перезарядки.", CardDefinition.Category.SHOT, false, 99, {"reload_time_mult": 1.20}, CriticalHitEffect)
 
 	# --- BLOCK CARDS (10) ---
 	_register("quick_guard", "Quick Guard", "-25% кулдаун защитного блока.", CardDefinition.Category.BLOCK, false, 99, {"block_cooldown_mult": 0.75})
@@ -1629,15 +1960,17 @@ static func _init_cards() -> void:
 	_register("wallhack", "Wallhack", "При активации щита противники просвечиваются сквозь стены на 2с (+2с за стак). +40% кулдаун блока.", CardDefinition.Category.BLOCK, false, 99, {"block_cooldown_mult": 1.40}, WallhackEffect)
 	_register("burger_terminal", "Burger Terminal", "При активации щита ставит терминал на 3с (+1с за стак). Раз в секунду терминал кидает бургер на +10 HP (+10 HP за стак). +40% кулдаун блока.", CardDefinition.Category.BLOCK, false, 99, {"block_cooldown_mult": 1.40}, BurgerTerminalEffect)
 
-	# --- JUMP CARDS (5) ---
+	# --- JUMP CARDS (6) ---
 	_register("high_jump", "High Jump", "+40% высота прыжка танка.", CardDefinition.Category.JUMP, false, 99, {"jump_velocity_mult": 1.40})
 	_register("ground_slam", "Ground Slam", "Приземление с высоты вызывает ударную волну на 18 урона в радиусе 4.5м.", CardDefinition.Category.JUMP, false, 99, {}, GroundSlamEffect)
 	_register("jump_mine", "Jump Mine", "При прыжке на земле остается мина с таймером 8 секунд.", CardDefinition.Category.JUMP, false, 99, {}, JumpMineEffect)
 	_register("death_from_above", "Death From Above", "+40% урона снарядам, выпущенным в прыжке.", CardDefinition.Category.JUMP, false, 99, {}, DeathFromAboveEffect)
 	_register("double_jump", "Double Jump", "Разрешает второй прыжок прямо в воздухе.", CardDefinition.Category.JUMP, true, 1, {})
+	_register("feather_fall", "Feather Fall", "+25% к высоте прыжка. При падении танк плавно планирует вниз; каждый стак усиливает замедление падения и высоту прыжка.", CardDefinition.Category.JUMP, false, 99, {"jump_velocity_mult": 1.25}, FeatherFallEffect)
 
-	# --- GENERAL CARDS (12) ---
+	# --- GENERAL CARDS (13) ---
 	_register("tankier", "Tankier", "+40 максимального здоровья танка.", CardDefinition.Category.GENERAL, false, 99, {"hp_flat": 40.0})
+	_register("huge", "Huge", "+50% максимального здоровья танка.", CardDefinition.Category.GENERAL, false, 99, {"hp_mult": 1.50})
 	_register("lightweight", "Lightweight", "+30% к скорости танка, снижена масса.", CardDefinition.Category.GENERAL, false, 99, {"move_speed_mult": 1.30, "knockback_resistance_mult": 0.7})
 	_register("heavyweight", "Heavyweight", "+75% устойчивость к отталкиванию, +30% максимального HP, -12% скорости.", CardDefinition.Category.GENERAL, false, 99, {"knockback_resistance_mult": 1.75, "hp_mult": 1.30, "move_speed_mult": 0.88})
 	_register("adrenaline", "Adrenaline", "+50% к скорости перемещения, когда HP падает ниже 35%.", CardDefinition.Category.GENERAL, false, 99, {}, AdrenalineEffect)

@@ -609,6 +609,18 @@ func s2c_remove_burger_pickup(burger_id: int) -> void:
 		return
 	CardDatabase.BurgerTerminalEffect.remove_burger_by_id(burger_id)
 
+@rpc("authority", "reliable")
+func s2c_spawn_air_vortex(vortex_id: int, origin: Vector3, stacks: int) -> void:
+	if _is_server() or not _tank:
+		return
+	CardDatabase.AirVortexEffect.spawn_client_vortex(vortex_id, origin, stacks, _tank)
+
+@rpc("authority", "reliable")
+func s2c_remove_air_vortex(vortex_id: int) -> void:
+	if _is_server():
+		return
+	CardDatabase.AirVortexEffect.remove_vortex_by_id(vortex_id)
+
 @rpc("any_peer", "reliable")
 func c2s_remove_card(card_id: String) -> void:
 	if not _is_server() or not Game.rules.allow_admin_panel:
