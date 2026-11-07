@@ -1,0 +1,7 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://tools/preview_de_dust.gd" id="1"]
+
+[node name="PreviewDeDust" type="Node3D"]
+script = ExtResource("1")
+

@@ -119,6 +119,8 @@ func _ready() -> void:
 	_configure_local_input()
 
 	if _is_server():
+		if _tank.health and not _tank.health.damage_taken_from.is_connected(_on_server_damage_taken_from):
+			_tank.health.damage_taken_from.connect(_on_server_damage_taken_from)
 		_update_synced_properties_from_tank()
 
 func _setup_synchronizer() -> void:
@@ -585,6 +587,18 @@ func s2c_activate_wallhack(duration: float) -> void:
 		return
 	CardDatabase.WallhackEffect.reveal_enemies_for_tank(_tank, duration)
 
+func _on_server_damage_taken_from(amount: float, _attacker: Node, has_origin: bool, origin: Vector3) -> void:
+	if not _is_server() or not has_origin or not origin.is_finite() or not _tank:
+		return
+	if multiplayer.has_multiplayer_peer() and not multiplayer.get_peers().is_empty():
+		s2c_notify_damage_from.rpc(origin, amount)
+
+@rpc("authority", "call_remote", "unreliable_ordered")
+func s2c_notify_damage_from(origin: Vector3, amount: float) -> void:
+	if _is_server() or not _tank or not _tank.health or not origin.is_finite():
+		return
+	_tank.health.damage_taken_from.emit(amount, null, true, origin)
+
 @rpc("authority", "reliable")
 func s2c_spawn_burger_terminal(terminal_id: int, origin: Vector3, yaw: float, stacks: int) -> void:
 	if _is_server() or not _tank:
@@ -790,6 +804,9 @@ func _handle_client_tank_respawn() -> void:
 	_tank.velocity = Vector3.ZERO
 	if _tank.controller:
 		_tank.controller.reset_tilt()
+
+	if _tank.air_telegraph:
+		_tank.air_telegraph.reset_tracking()
 
 	if _tank.visuals:
 		_tank.visuals.visible = true

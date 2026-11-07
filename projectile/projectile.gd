@@ -17,6 +17,7 @@ const HIT_SPARK_SCENE: PackedScene = preload("res://vfx/hit_spark_vfx.tscn")
 const EXPLOSION_SCENE: PackedScene = preload("res://vfx/explosion_vfx.tscn")
 
 var shooter: Node = null
+var shooter_peer_id: int = -1
 var team_id: int = -1
 var direction: Vector3 = Vector3.FORWARD
 
@@ -79,6 +80,8 @@ var _pierced_rids: Array[RID] = []
 
 func _ready() -> void:
 	add_to_group("projectiles")
+	if is_instance_valid(shooter) and shooter is Tank:
+		shooter_peer_id = (shooter as Tank).peer_id
 	if is_instance_valid(shooter) and shooter is CollisionObject3D:
 		add_collision_exception_with(shooter as CollisionObject3D)
 
@@ -116,7 +119,11 @@ func _setup_network_sync() -> void:
 
 	config.add_property(NodePath(".:team_id"))
 	config.property_set_spawn(NodePath(".:team_id"), true)
-	config.property_set_replication_mode(NodePath(".:team_id"), SceneReplicationConfig.REPLICATION_MODE_NEVER)
+	config.property_set_replication_mode(NodePath(".:team_id"), SceneReplicationConfig.REPLICATION_MODE_ON_CHANGE)
+
+	config.add_property(NodePath(".:shooter_peer_id"))
+	config.property_set_spawn(NodePath(".:shooter_peer_id"), true)
+	config.property_set_replication_mode(NodePath(".:shooter_peer_id"), SceneReplicationConfig.REPLICATION_MODE_ON_CHANGE)
 
 	config.add_property(NodePath(".:bounces_left"))
 	config.property_set_spawn(NodePath(".:bounces_left"), true)
@@ -147,6 +154,9 @@ func setup(p_shooter: Node, p_origin: Vector3, p_direction: Vector3, p_color: Co
 
 	if is_instance_valid(shooter) and shooter is Tank:
 		team_id = (shooter as Tank).team_id
+		shooter_peer_id = (shooter as Tank).peer_id
+	else:
+		shooter_peer_id = -1
 
 	if is_node_ready():
 		if is_instance_valid(shooter) and shooter is CollisionObject3D:
@@ -312,7 +322,8 @@ func _handle_direct_hit(collider: Object, col_point: Vector3, col_normal: Vector
 			final_damage += damage * (distance_traveled / 5.0) * sniper_bonus_rate
 
 		if target_tank.health:
-			var applied := target_tank.health.take_damage(final_damage, valid_shooter)
+			var hit_origin := col_point - direction * 2.0
+			var applied := target_tank.health.take_damage(final_damage, valid_shooter, hit_origin)
 			if applied and shooter_tank and shooter_tank.events:
 				shooter_tank.events.emit_damage_dealt(final_damage, target_tank)
 
@@ -386,6 +397,7 @@ func _handle_direct_hit(collider: Object, col_point: Vector3, col_normal: Vector
 
 func _reflect_projectile(reflecting_tank: Tank, normal: Vector3) -> void:
 	shooter = reflecting_tank
+	shooter_peer_id = reflecting_tank.peer_id
 	team_id = reflecting_tank.team_id
 	add_collision_exception_with(reflecting_tank)
 
@@ -414,7 +426,7 @@ func _trigger_aoe_explosion(origin: Vector3, splash_damage: float, radius: float
 				var falloff := 1.0 - (d / radius)
 				var aoe_dmg := splash_damage * clampf(falloff, 0.25, 1.0)
 				if node.health:
-					node.health.take_damage(aoe_dmg, get_valid_shooter())
+					node.health.take_damage(aoe_dmg, get_valid_shooter(), origin)
 				if is_poison and poison_stacks > 0 and node != get_shooter_tank():
 					_apply_poison_to_target(node, poison_stacks)
 
@@ -480,7 +492,7 @@ class PoisonDoTNode extends Node3D:
 		ticks_left -= 1
 		var valid_attacker: Node = attacker if is_instance_valid(attacker) else null
 		var dot_damage: float = DAMAGE_PER_STACK * float(maxi(1, stacks))
-		var applied := target.health.take_damage(dot_damage, valid_attacker)
+		var applied := target.health.take_damage(dot_damage, valid_attacker, Vector3.INF)
 		if applied and valid_attacker is Tank and (valid_attacker as Tank).events:
 			(valid_attacker as Tank).events.emit_damage_dealt(dot_damage, target)
 
