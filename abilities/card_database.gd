@@ -619,20 +619,14 @@ class WallhackEffect extends CardEffect:
 				_xray_mat.next_pass = _outline_mat
 			_xray_mat.albedo_color = Color(fill_col.r, fill_col.g, fill_col.b, 0.48)
 
-			for node in target.visuals.find_children("*", "MeshInstance3D", true, false):
-				var mesh := node as MeshInstance3D
-				if mesh and mesh != target.shield_mesh and mesh.name != "ShieldMesh":
-					mesh.material_overlay = _xray_mat
+			TankAppearance.set_wallhack_overlay(target.visuals, _xray_mat)
 
 		func clear_overlay() -> void:
 			var target := get_parent() as Tank
 			if is_instance_valid(target):
 				target.set_meta("wallhack_revealed", false)
 				if target.visuals:
-					for node in target.visuals.find_children("*", "MeshInstance3D", true, false):
-						var mesh := node as MeshInstance3D
-						if mesh and mesh.material_overlay == _xray_mat:
-							mesh.material_overlay = null
+					TankAppearance.clear_wallhack_overlay(target.visuals, _xray_mat)
 
 		func _exit_tree() -> void:
 			clear_overlay()
@@ -900,8 +894,32 @@ class BurgerTerminalEffect extends CardEffect:
 		light.light_energy = 1.3
 		burger.add_child(light)
 
+		GroundTelegraph3D._ensure_textures()
+		var zone_decal := Decal.new()
+		zone_decal.name = "BurgerZoneDecal"
+		zone_decal.cull_mask = 1
+		zone_decal.size = Vector3(BURGER_PICKUP_RADIUS * 2.0, 2.2, BURGER_PICKUP_RADIUS * 2.0)
+		zone_decal.upper_fade = 0.15
+		zone_decal.lower_fade = 0.22
+		zone_decal.normal_fade = 0.55
+		zone_decal.texture_albedo = GroundTelegraph3D._drop_albedo_tex
+		zone_decal.texture_emission = GroundTelegraph3D._drop_emission_tex
+		zone_decal.modulate = Color(0.32, 1.0, 0.46, 0.65)
+		zone_decal.emission_energy = 1.25
+		burger.add_child(zone_decal)
+
 		spawn_parent.add_child(burger)
 		burger.global_position = target_pos
+
+		# Заметный 0.30-секундный маркер точки приземления вылетающего по дуге бургера
+		GroundTelegraph3D.spawn_timed(
+			spawn_parent,
+			target_pos,
+			BURGER_PICKUP_RADIUS,
+			0.30,
+			GroundTelegraph3D.Preset.HEAL,
+			true
+		)
 
 		if burger.is_inside_tree():
 			visual_holder.position = from_pos - target_pos
@@ -986,6 +1004,7 @@ class BurgerTerminalEffect extends CardEffect:
 			if is_instance_valid(node):
 				node.remove_from_group("burger_pickups")
 				node.queue_free()
+		GroundTelegraph3D.clear_all(tree)
 
 	func on_block_started(_duration: float, stacks: int) -> void:
 		if not tank or not is_instance_valid(tank):
@@ -1120,7 +1139,7 @@ class GroundSlamEffect extends CardEffect:
 			if node is Tank and is_instance_valid(tank) and node != tank and node.is_active:
 				if tank.global_position.distance_to(node.global_position) <= radius:
 					if node.health:
-						node.health.take_damage(slam_damage, tank)
+						node.health.take_damage(slam_damage, tank, tank.global_position)
 
 class JumpMineEffect extends CardEffect:
 	const EXPLOSION_SCENE: PackedScene = preload("res://vfx/explosion_vfx.tscn")
@@ -1243,6 +1262,9 @@ class JumpMineEffect extends CardEffect:
 		if context_node is Tank and (context_node as Tank).build:
 			resolved_stacks = maxi(resolved_stacks, (context_node as Tank).build.get_stacks("jump_mine"))
 		var mine := create_mine_node(mine_id, origin, spawn_parent, resolved_stacks)
+		if mine and context_node is Tank:
+			mine.set_meta("owner_peer_id", (context_node as Tank).peer_id)
+			mine.set_meta("owner_team_id", (context_node as Tank).team_id)
 		var tree := mine.get_tree()
 		if tree:
 			tree.create_timer(LIFETIME + 0.5).timeout.connect(func() -> void:
@@ -1292,6 +1314,9 @@ class JumpMineEffect extends CardEffect:
 		_next_mine_id += 1
 		var origin: Vector3 = tank.global_position
 		var mine := create_mine_node(mine_id, origin, spawn_parent, effective_stacks)
+		if mine:
+			mine.set_meta("owner_peer_id", tank.peer_id)
+			mine.set_meta("owner_team_id", tank.team_id)
 
 		if tank.net_sync and tank.multiplayer and tank.multiplayer.has_multiplayer_peer() and tank.multiplayer.is_server():
 			tank.net_sync.s2c_spawn_jump_mine.rpc(mine_id, origin, effective_stacks)
@@ -1309,7 +1334,8 @@ class JumpMineEffect extends CardEffect:
 						return
 				mine.set_meta("detonated", true)
 				if body.health:
-					body.health.take_damage(mine_damage, valid_creator)
+					var det_origin := mine.global_position if is_instance_valid(mine) else origin
+					body.health.take_damage(mine_damage, valid_creator, det_origin)
 				remove_mine_by_id(mine_id, true, valid_creator)
 				if valid_creator and valid_creator.net_sync and valid_creator.multiplayer and valid_creator.multiplayer.has_multiplayer_peer() and valid_creator.multiplayer.is_server():
 					valid_creator.net_sync.s2c_detonate_jump_mine.rpc(mine_id, true)
@@ -1448,7 +1474,7 @@ class RoadRageEffect extends CardEffect:
 		var ram_damage: float = closing_speed * DAMAGE_PER_SPEED * float(effective_stacks)
 
 		if target.health:
-			var applied := target.health.take_damage(ram_damage, tank)
+			var applied := target.health.take_damage(ram_damage, tank, tank.global_position)
 			if applied and tank.events:
 				tank.events.emit_damage_dealt(ram_damage, target)
 
@@ -1570,7 +1596,7 @@ class FireflyEffect extends CardEffect:
 			ticks_left -= 1
 			var valid_attacker: Node = attacker if is_instance_valid(attacker) else null
 			var dot_damage: float = DAMAGE_PER_STACK * float(maxi(1, stacks))
-			var applied := target.health.take_damage(dot_damage, valid_attacker)
+			var applied := target.health.take_damage(dot_damage, valid_attacker, Vector3.INF)
 			if applied and valid_attacker is Tank and (valid_attacker as Tank).events:
 				(valid_attacker as Tank).events.emit_damage_dealt(dot_damage, target)
 

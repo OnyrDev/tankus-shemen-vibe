@@ -9,7 +9,8 @@ const MAP_SCENES: Dictionary = {
 	"atrium": "res://maps/atrium.tscn",
 	"ceramic_garden": "res://maps/ceramic_garden.tscn",
 	"radio_station": "res://maps/radio_station.tscn",
-	"factory_smelter": "res://maps/factory_smelter.tscn"
+	"factory_smelter": "res://maps/factory_smelter.tscn",
+	"de_dust": "res://maps/de_dust.tscn"
 }
 
 # 8 означает автоматическое заполнение всех свободных мест ботами.

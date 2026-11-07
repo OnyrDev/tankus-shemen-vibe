@@ -4,6 +4,7 @@ extends CanvasLayer
 ## Боевой интерфейс игрока TANKUS.
 ## Отображает очки прочности, обойму, перезарядку, статус щита, прицел и полученные карты билда.
 
+@onready var threat_indicator: ThreatIndicatorHUD = get_node_or_null("ThreatIndicator")
 @onready var crosshair: Control = get_node_or_null("Crosshair")
 @onready var health_bar: ProgressBar = get_node_or_null("BottomLeft/HealthPanel/HealthContainer/HealthBar")
 @onready var health_label: Label = get_node_or_null("BottomLeft/HealthPanel/HealthContainer/HealthLabel")
@@ -30,6 +31,12 @@ const COLOR_SHIELD_ACTIVE := Color(0.9, 0.95, 1.0)
 const COLOR_SHIELD_COOLDOWN := Color(0.4, 0.45, 0.5)
 
 func _ready() -> void:
+	if not threat_indicator:
+		threat_indicator = ThreatIndicatorHUD.new()
+		threat_indicator.name = "ThreatIndicator"
+		add_child(threat_indicator)
+		if crosshair:
+			move_child(threat_indicator, crosshair.get_index())
 	_setup_ammo_pills(6)
 	if reload_bar:
 		reload_bar.visible = false
@@ -39,11 +46,14 @@ func bind_to_tank(tank: Tank) -> void:
 		_unbind_tank()
 
 	_bound_tank = tank
+	if threat_indicator:
+		threat_indicator.bind_to_tank(tank)
 	if not _bound_tank:
 		return
 
 	if _bound_tank.health:
 		_bound_tank.health.health_changed.connect(_on_health_changed)
+		_bound_tank.health.damage_taken_from.connect(_on_damage_taken_from)
 		_bound_tank.health.died.connect(_on_tank_died)
 		_on_health_changed(_bound_tank.health.current_health, _bound_tank.health.max_health)
 
@@ -76,6 +86,8 @@ func _unbind_tank() -> void:
 	if _bound_tank.health:
 		if _bound_tank.health.health_changed.is_connected(_on_health_changed):
 			_bound_tank.health.health_changed.disconnect(_on_health_changed)
+		if _bound_tank.health.damage_taken_from.is_connected(_on_damage_taken_from):
+			_bound_tank.health.damage_taken_from.disconnect(_on_damage_taken_from)
 		if _bound_tank.health.died.is_connected(_on_tank_died):
 			_bound_tank.health.died.disconnect(_on_tank_died)
 
@@ -181,7 +193,13 @@ func _on_health_changed(current: float, max_h: float) -> void:
 	if health_label:
 		health_label.text = "%d / %d HP" % [int(ceil(current)), int(max_h)]
 
+func _on_damage_taken_from(amount: float, _attacker: Node, has_origin: bool, origin: Vector3) -> void:
+	if has_origin and threat_indicator:
+		threat_indicator.register_damage_from(origin, amount)
+
 func _on_tank_died(_killer: Node) -> void:
+	if threat_indicator:
+		threat_indicator.clear_indicators()
 	if health_label:
 		health_label.text = "DESTROYED"
 

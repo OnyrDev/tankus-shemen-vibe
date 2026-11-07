@@ -36,6 +36,7 @@ signal died(killer: Node)
 @onready var shield_mesh: MeshInstance3D = get_node_or_null("Visuals/ShieldMesh")
 
 var spawn_point: Transform3D = Transform3D.IDENTITY
+var air_telegraph: TankAirTelegraph = null
 var is_active: bool = true
 var is_frozen: bool = false:
 	set(val):
@@ -59,6 +60,13 @@ func _ready() -> void:
 	spawn_point = global_transform
 	platform_on_leave = PlatformOnLeave.PLATFORM_ON_LEAVE_DO_NOTHING
 	_apply_team_color()
+
+	if not get_node_or_null("TankAirTelegraph"):
+		air_telegraph = TankAirTelegraph.new()
+		air_telegraph.name = "TankAirTelegraph"
+		add_child(air_telegraph)
+	else:
+		air_telegraph = get_node("TankAirTelegraph") as TankAirTelegraph
 
 	if health:
 		health.died.connect(_on_health_died)
@@ -129,6 +137,9 @@ func respawn(new_transform: Transform3D = spawn_point, reset_health: bool = true
 
 	if controller:
 		controller.reset_tilt()
+
+	if air_telegraph:
+		air_telegraph.reset_tracking()
 
 	var col := get_node_or_null("CollisionShape3D") as CollisionShape3D
 	if col:

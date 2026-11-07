@@ -7,6 +7,7 @@ extends Node
 
 signal health_changed(current: float, max_health: float)
 signal damage_taken(amount: float, attacker: Node)
+signal damage_taken_from(amount: float, attacker: Node, has_origin: bool, origin: Vector3)
 signal healed(amount: float)
 signal died(killer: Node)
 
@@ -23,7 +24,7 @@ func _ready() -> void:
 	_tank = get_parent() as Tank
 	current_health = max_health
 
-func take_damage(amount: float, attacker: Node = null) -> bool:
+func take_damage(amount: float, attacker: Node = null, source_pos: Variant = null) -> bool:
 	if current_health <= 0.0:
 		return false
 
@@ -39,10 +40,22 @@ func take_damage(amount: float, attacker: Node = null) -> bool:
 		if _tank and valid_attacker != _tank and valid_attacker.team_id == _tank.team_id:
 			return false
 
+	var has_origin := false
+	var resolved_origin := Vector3.ZERO
+	if source_pos is Vector3:
+		var sp := source_pos as Vector3
+		if sp.is_finite():
+			has_origin = true
+			resolved_origin = sp
+	elif valid_attacker is Node3D:
+		has_origin = true
+		resolved_origin = (valid_attacker as Node3D).global_position
+
 	var actual_damage := minf(current_health, amount)
 	current_health = maxf(0.0, current_health - amount)
 
 	damage_taken.emit(actual_damage, valid_attacker)
+	damage_taken_from.emit(actual_damage, valid_attacker, has_origin, resolved_origin)
 	health_changed.emit(current_health, max_health)
 
 	if _tank and _tank.events:
