@@ -98,6 +98,8 @@ pause={
 3d_physics/layer_2="Tanks"
 3d_physics/layer_3="Projectiles"
 3d_physics/layer_4="Props"
+3d_physics/layer_5="ShotSurfaces"
+3d_physics/layer_6="TankHitboxes"
 
 [physics]
 

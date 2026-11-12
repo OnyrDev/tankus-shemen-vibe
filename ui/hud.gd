@@ -6,6 +6,7 @@ extends CanvasLayer
 
 @onready var threat_indicator: ThreatIndicatorHUD = get_node_or_null("ThreatIndicator")
 @onready var crosshair: Control = get_node_or_null("Crosshair")
+@onready var impact_marker: Control = get_node_or_null("ImpactMarker")
 @onready var health_bar: ProgressBar = get_node_or_null("BottomLeft/HealthPanel/HealthContainer/HealthBar")
 @onready var health_label: Label = get_node_or_null("BottomLeft/HealthPanel/HealthContainer/HealthLabel")
 
@@ -21,6 +22,12 @@ extends CanvasLayer
 
 var _bound_tank: Tank = null
 var _ammo_pills: Array[ColorRect] = []
+var _impact_screen_position := Vector2.ZERO
+
+const IMPACT_RADIUS: float = 7.0
+const IMPACT_WIDTH: float = 1.5
+const IMPACT_GAP: float = 2.0
+const IMPACT_COLOR := Color(1.0, 0.15, 0.12, 1.0)
 
 const COLOR_HEALTH_NORMAL := Color(0.2, 0.85, 0.35)
 const COLOR_HEALTH_LOW := Color(0.95, 0.25, 0.2)
@@ -40,6 +47,37 @@ func _ready() -> void:
 	_setup_ammo_pills(6)
 	if reload_bar:
 		reload_bar.visible = false
+	if impact_marker:
+		impact_marker.draw.connect(_draw_impact_marker)
+		impact_marker.visible = false
+
+func _process(_delta: float) -> void:
+	var aiming := is_instance_valid(_bound_tank) and _bound_tank.is_active and _bound_tank.input and _bound_tank.input.enabled and _bound_tank.input._is_aim_input_active()
+	if crosshair:
+		crosshair.visible = aiming
+	if not impact_marker:
+		return
+	impact_marker.visible = false
+	if not aiming or not _bound_tank.weapon:
+		return
+	var camera := get_viewport().get_camera_3d()
+	if not camera:
+		return
+	var impact := _bound_tank.weapon.get_predicted_impact()
+	if impact.is_empty() or camera.is_position_behind(impact.position):
+		return
+	_impact_screen_position = camera.unproject_position(impact.position)
+	if not get_viewport().get_visible_rect().has_point(_impact_screen_position):
+		return
+	impact_marker.visible = true
+	impact_marker.queue_redraw()
+
+func _draw_impact_marker() -> void:
+	var half_gap_angle := IMPACT_GAP / (2.0 * IMPACT_RADIUS)
+	for quadrant in range(4):
+		var start := quadrant * PI * 0.5 + half_gap_angle
+		var end := (quadrant + 1) * PI * 0.5 - half_gap_angle
+		impact_marker.draw_arc(_impact_screen_position, IMPACT_RADIUS, start, end, 16, IMPACT_COLOR, IMPACT_WIDTH, true)
 
 func bind_to_tank(tank: Tank) -> void:
 	if _bound_tank and is_instance_valid(_bound_tank):

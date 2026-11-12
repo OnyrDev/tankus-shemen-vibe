@@ -5,7 +5,7 @@ extends Node
 ## Считывает WASD относительно взгляда камеры, прыжок и пускает луч прицела из центра экрана.
 
 @export var enabled: bool = true
-@export_flags_3d_physics var raycast_collision_mask: int = 11 # Слой 1 (мир) + Слой 2 (танки) + Слой 4 (пропсы/ящики)
+@export_flags_3d_physics var raycast_collision_mask: int = ShotGeometry.COLLISION_MASK
 @export var floor_aim_elevation: float = 0.35 # Высота подъема точки сведения над горизонтальным полом (метры)
 
 var move_input: Vector2 = Vector2.ZERO
@@ -18,39 +18,12 @@ var block_requested: bool = false
 var aim_point: Vector3 = Vector3.ZERO
 var aim_normal: Vector3 = Vector3.UP
 var is_aim_valid: bool = false
+var aim_collider: Object = null
 
-var _crosshair: Node3D = null
 var _tank_body: CharacterBody3D = null
 
 func _ready() -> void:
 	_tank_body = get_parent() as CharacterBody3D
-	_setup_laser_point()
-
-func _setup_laser_point() -> void:
-	# Маленькая лазерная точка сведения на поверхностях препятствий
-	_crosshair = Node3D.new()
-	_crosshair.name = "LaserAimPoint"
-	_crosshair.top_level = true
-
-	var dot_inst := MeshInstance3D.new()
-	var sphere := SphereMesh.new()
-	sphere.radius = 0.06
-	sphere.height = 0.12
-
-	var mat := StandardMaterial3D.new()
-	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	mat.albedo_color = Color(1.0, 0.25, 0.2, 0.95)
-	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-
-	dot_inst.mesh = sphere
-	dot_inst.material_override = mat
-
-	_crosshair.add_child(dot_inst)
-	add_child(_crosshair)
-
-func _exit_tree() -> void:
-	if is_instance_valid(_crosshair):
-		_crosshair.queue_free()
 
 func _is_aim_input_active() -> bool:
 	if DisplayServer.get_name() == "headless":
@@ -59,8 +32,6 @@ func _is_aim_input_active() -> bool:
 
 func _process(_delta: float) -> void:
 	if not enabled or not _is_aim_input_active():
-		if is_instance_valid(_crosshair):
-			_crosshair.visible = false
 		return
 
 	_update_aim_raycast()
@@ -145,10 +116,11 @@ func _update_aim_raycast() -> void:
 
 	var query := PhysicsRayQueryParameters3D.create(ray_origin, ray_origin + ray_dir * 300.0, raycast_collision_mask)
 	if _tank_body:
-		query.exclude = [_tank_body.get_rid()]
+		query.exclude = (_tank_body as Tank).get_shot_collision_rids() if _tank_body is Tank else [_tank_body.get_rid()]
 
 	var result := space_state.intersect_ray(query)
 	var has_valid_hit := false
+	aim_collider = null
 
 	if not result.is_empty():
 		var hit_pos: Vector3 = result.position
@@ -160,14 +132,10 @@ func _update_aim_raycast() -> void:
 			aim_normal = result.normal as Vector3
 			is_aim_valid = true
 			has_valid_hit = true
-			if is_instance_valid(_crosshair):
-				_crosshair.visible = true
-				_crosshair.global_position = hit_pos + aim_normal * 0.03
+			aim_collider = result.collider
 
 	if not has_valid_hit:
 		# Если препятствий нет или луч попал позади танка, целимся вдаль строго по лучу камеры!
 		aim_point = ray_origin + ray_dir * default_aim_dist
 		aim_normal = -ray_dir
 		is_aim_valid = true
-		if is_instance_valid(_crosshair):
-			_crosshair.visible = false

@@ -91,7 +91,7 @@ func update(delta: float) -> Dictionary:
 		_decision.fire = barrel.normalized().dot(direction) > [0.96, 0.985, 0.995][difficulty]
 		# Проверяем реальный сектор выстрела, чтобы не стрелять в союзника.
 		if _decision.fire:
-			var hit := _ray(_tank.turret.get_muzzle_position(), _aim, 11)
+			var hit := _ray(_tank.turret.get_muzzle_position(), _aim, ShotGeometry.COLLISION_MASK)
 			if not hit.is_empty() and hit.collider is Tank and _is_ally(hit.collider):
 				_decision.fire = false
 	if difficulty > 0:
@@ -125,7 +125,7 @@ func _can_see(other: Tank) -> bool:
 	var from := _tank.turret.get_muzzle_position() if _tank.turret else _tank.global_position + Vector3.UP * 0.6
 	var point := other.global_position + Vector3.UP * 0.5
 	for offset in [Vector3.ZERO, Vector3.DOWN * 0.15]:
-		var hit := _ray(from + offset, point + offset, 11)
+		var hit := _ray(from + offset, point + offset, ShotGeometry.COLLISION_MASK)
 		if not hit.is_empty() and hit.collider != other:
 			return false
 	return true
@@ -195,8 +195,11 @@ func _incoming_projectile() -> bool:
 
 func _ray(from: Vector3, to: Vector3, mask: int) -> Dictionary:
 	var query := PhysicsRayQueryParameters3D.create(from, to, mask)
-	query.exclude = [_tank.get_rid()]
-	return _tank.get_world_3d().direct_space_state.intersect_ray(query)
+	query.exclude = _tank.get_shot_collision_rids()
+	var hit := _tank.get_world_3d().direct_space_state.intersect_ray(query)
+	if not hit.is_empty() and hit.collider is TankHitboxes:
+		hit.collider = hit.collider.get_parent()
+	return hit
 
 func choose_card() -> CardDefinition:
 	var offer := CardDatabase.generate_draft_offer(_tank.build)

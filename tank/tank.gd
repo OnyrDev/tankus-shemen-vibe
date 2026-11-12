@@ -37,6 +37,7 @@ signal died(killer: Node)
 
 var spawn_point: Transform3D = Transform3D.IDENTITY
 var air_telegraph: TankAirTelegraph = null
+var hitboxes: TankHitboxes = null
 var is_active: bool = true
 var is_frozen: bool = false:
 	set(val):
@@ -73,6 +74,16 @@ func _ready() -> void:
 
 	if stats and build:
 		stats.recalculate(build.cards, CardDatabase)
+
+	hitboxes = TankHitboxes.new()
+	hitboxes.name = "TankHitboxes"
+	add_child(hitboxes)
+
+func get_shot_collision_rids() -> Array[RID]:
+	var rids: Array[RID] = [get_rid()]
+	if is_instance_valid(hitboxes):
+		rids.append(hitboxes.get_rid())
+	return rids
 
 func _on_health_died(killer: Node) -> void:
 	died.emit(killer)

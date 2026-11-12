@@ -8,9 +8,12 @@ extends CharacterBody3D
 signal hit_object(collider: Object, point: Vector3, normal: Vector3)
 signal bounced(normal: Vector3, bounce_num: int)
 
+const BASE_LIFETIME: float = 3.0
+const MIN_FLIGHT_RANGE: float = 72.0
+
 @export var speed: float = 24.0
 @export var damage: float = 28.0
-@export var lifetime: float = 3.0
+@export var lifetime: float = BASE_LIFETIME
 @export var bounces_left: int = 0
 
 const HIT_SPARK_SCENE: PackedScene = preload("res://vfx/hit_spark_vfx.tscn")
@@ -77,16 +80,25 @@ const DEFAULT_TEAM_COLORS: Array[Color] = [
 ]
 
 var _pierced_rids: Array[RID] = []
+var _shot_excluded_rids: Array[RID] = []
+
+func _exclude_body(body: CollisionObject3D) -> void:
+	add_collision_exception_with(body)
+	var rid := body.get_rid()
+	if not _shot_excluded_rids.has(rid):
+		_shot_excluded_rids.append(rid)
 
 func _ready() -> void:
 	add_to_group("projectiles")
 	if is_instance_valid(shooter) and shooter is Tank:
 		shooter_peer_id = (shooter as Tank).peer_id
 	if is_instance_valid(shooter) and shooter is CollisionObject3D:
-		add_collision_exception_with(shooter as CollisionObject3D)
+		_exclude_body(shooter as CollisionObject3D)
+		if shooter is Tank and is_instance_valid(shooter.hitboxes):
+			_exclude_body(shooter.hitboxes)
 
 	velocity = direction.normalized() * speed
-	lifetime = maxf(lifetime, 72.0 / maxf(1.0, speed))
+	lifetime = maxf(lifetime, MIN_FLIGHT_RANGE / maxf(1.0, speed))
 	if visuals:
 		_base_visual_scale = visuals.scale
 	if light and size_mult != 1.0:
@@ -149,7 +161,7 @@ func setup(p_shooter: Node, p_origin: Vector3, p_direction: Vector3, p_color: Co
 	shooter = p_shooter
 	global_position = p_origin
 	direction = p_direction.normalized()
-	lifetime = maxf(lifetime, 72.0 / maxf(1.0, speed))
+	lifetime = maxf(lifetime, MIN_FLIGHT_RANGE / maxf(1.0, speed))
 	velocity = direction * speed
 
 	if is_instance_valid(shooter) and shooter is Tank:
@@ -160,7 +172,9 @@ func setup(p_shooter: Node, p_origin: Vector3, p_direction: Vector3, p_color: Co
 
 	if is_node_ready():
 		if is_instance_valid(shooter) and shooter is CollisionObject3D:
-			add_collision_exception_with(shooter as CollisionObject3D)
+			_exclude_body(shooter as CollisionObject3D)
+			if shooter is Tank and is_instance_valid(shooter.hitboxes):
+				_exclude_body(shooter.hitboxes)
 		if light and size_mult != 1.0:
 			light.omni_range = 1.4 * size_mult
 		_apply_color(p_color)
@@ -213,8 +227,20 @@ func _physics_process(delta: float) -> void:
 	var move_delta := velocity * delta
 	distance_traveled += move_delta.length()
 
+	var start := global_position
 	var collision := move_and_collide(move_delta)
-	if collision:
+	# Match the aim ray on thin/open meshes and back faces as well. A swept body
+	# alone can miss these, especially at speeds increased by cards.
+	var query := PhysicsRayQueryParameters3D.create(start, start + move_delta, collision_mask)
+	var excluded: Array[RID] = [get_rid()]
+	# Keep RIDs directly: a shooter or pierced target may have been despawned.
+	excluded.append_array(_shot_excluded_rids)
+	query.exclude = excluded
+	var hit := get_world_3d().direct_space_state.intersect_ray(query)
+	if not hit.is_empty() and (not collision or start.distance_to(hit.position) < collision.get_travel().length()):
+		global_position = hit.position + hit.normal * 0.18
+		_handle_direct_hit(hit.collider, hit.position, hit.normal)
+	elif collision:
 		_handle_collision(collision)
 	elif size_mult > 1.0 and not _is_destroyed:
 		_check_enlarged_tank_hit()
@@ -252,10 +278,12 @@ func _check_enlarged_tank_hit() -> void:
 	var query := PhysicsShapeQueryParameters3D.new()
 	query.shape = sphere
 	query.transform = global_transform
-	query.collision_mask = 2 # Слой 2: только танки (не задевает пол и стены мира)
+	query.collision_mask = 2 | ShotGeometry.TANK_LAYER
 	var exclude_rids: Array[RID] = [get_rid()]
 	if is_instance_valid(shooter) and shooter is CollisionObject3D:
 		exclude_rids.append((shooter as CollisionObject3D).get_rid())
+		if shooter is Tank and is_instance_valid(shooter.hitboxes):
+			exclude_rids.append(shooter.hitboxes.get_rid())
 	for prid in _pierced_rids:
 		exclude_rids.append(prid)
 	query.exclude = exclude_rids
@@ -263,7 +291,7 @@ func _check_enlarged_tank_hit() -> void:
 	var rest_info := world.direct_space_state.get_rest_info(query)
 	if not rest_info.is_empty():
 		var col_obj := instance_from_id(rest_info["collider_id"])
-		if col_obj != null:
+		if col_obj is Tank or (col_obj is TankHitboxes):
 			_handle_direct_hit(col_obj, rest_info["point"], rest_info["normal"])
 
 func _handle_collision(collision: KinematicCollision3D) -> void:
@@ -344,8 +372,11 @@ func _handle_direct_hit(collider: Object, col_point: Vector3, col_normal: Vector
 		# Пробивание (Piercing)
 		if piercing_count > 0:
 			piercing_count -= 1
-			add_collision_exception_with(target_tank)
+			_exclude_body(target_tank)
 			_pierced_rids.append(target_tank.get_rid())
+			if is_instance_valid(target_tank.hitboxes):
+				_exclude_body(target_tank.hitboxes)
+				_pierced_rids.append(target_tank.hitboxes.get_rid())
 			_spawn_impact_vfx(col_point, col_normal)
 			return # снаряд не уничтожается, летит дальше!
 
@@ -399,7 +430,9 @@ func _reflect_projectile(reflecting_tank: Tank, normal: Vector3) -> void:
 	shooter = reflecting_tank
 	shooter_peer_id = reflecting_tank.peer_id
 	team_id = reflecting_tank.team_id
-	add_collision_exception_with(reflecting_tank)
+	_exclude_body(reflecting_tank)
+	if is_instance_valid(reflecting_tank.hitboxes):
+		_exclude_body(reflecting_tank.hitboxes)
 
 	# Разворачиваем снаряд в сторону стрелка
 	velocity = velocity.bounce(normal)

@@ -26,6 +26,8 @@ var _turret: Turret = null
 var _barrel_mount: Node3D = null
 var _barrel_initial_pos: Vector3 = Vector3.ZERO
 var _recoil_tween: Tween = null
+var _prediction_body: CharacterBody3D = null
+var _prediction_lifetime: float = Projectile.BASE_LIFETIME
 
 func _ready() -> void:
 	_tank = get_parent() as Tank
@@ -148,6 +150,68 @@ func spawn_custom_projectile(origin: Vector3, shoot_dir: Vector3, damage_overrid
 	shot_fired.emit(proj)
 	return proj
 
+func _get_muzzle_obstruction(muzzle_pos: Vector3) -> Dictionary:
+	if not _turret or not _barrel_mount:
+		return {}
+	var query := PhysicsRayQueryParameters3D.create(_barrel_mount.global_position, muzzle_pos, ShotGeometry.COLLISION_MASK)
+	if _tank:
+		query.exclude = _tank.get_shot_collision_rids()
+	return _turret.get_world_3d().direct_space_state.intersect_ray(query)
+
+func _ensure_prediction_body() -> void:
+	if is_instance_valid(_prediction_body) or not projectile_scene:
+		return
+	# Copy the actual projectile collider without running projectile gameplay.
+	# Park it outside the arena; test_move supplies the muzzle transform without
+	# moving this body. Its zero layer also excludes it from gameplay queries.
+	var sample := projectile_scene.instantiate() as Projectile
+	if not sample:
+		return
+	var shape := sample.get_node_or_null("CollisionShape3D") as CollisionShape3D
+	if not shape:
+		sample.free()
+		return
+	_prediction_body = CharacterBody3D.new()
+	_prediction_body.name = "ShotPrediction"
+	_prediction_body.top_level = true
+	_prediction_body.position = Vector3(0, 10000, 0)
+	_prediction_body.collision_layer = 0
+	_prediction_body.collision_mask = sample.collision_mask
+	_prediction_body.add_child(shape.duplicate())
+	_prediction_lifetime = sample.lifetime
+	sample.free()
+	add_child(_prediction_body)
+	if _tank:
+		_prediction_body.add_collision_exception_with(_tank)
+		if is_instance_valid(_tank.hitboxes):
+			_prediction_body.add_collision_exception_with(_tank.hitboxes)
+
+func get_predicted_impact() -> Dictionary:
+	if not _turret:
+		return {}
+	var origin := _turret.get_muzzle_position()
+	var obstruction := _get_muzzle_obstruction(origin)
+	if not obstruction.is_empty():
+		return obstruction
+	_ensure_prediction_body()
+	if not is_instance_valid(_prediction_body):
+		return {}
+	var speed := _tank.stats.projectile_speed if _tank and _tank.stats else 24.0
+	var distance := maxf(Projectile.MIN_FLIGHT_RANGE, speed * _prediction_lifetime)
+	var motion := _turret.get_shoot_direction() * distance
+	var collision := KinematicCollision3D.new()
+	var blocked := _prediction_body.test_move(Transform3D(Basis.IDENTITY, origin), motion, collision)
+	# Keep the same back-face/thin-surface ray fallback used by Projectile.
+	var query := PhysicsRayQueryParameters3D.create(origin, origin + motion, _prediction_body.collision_mask)
+	if _tank:
+		query.exclude = _tank.get_shot_collision_rids()
+	var hit := _turret.get_world_3d().direct_space_state.intersect_ray(query)
+	if not hit.is_empty() and (not blocked or origin.distance_to(hit.position) < collision.get_travel().length()):
+		return hit
+	if blocked:
+		return {"collider": collision.get_collider(), "position": collision.get_position(), "normal": collision.get_normal()}
+	return {}
+
 func _spawn_projectile() -> void:
 	var muzzle_pos: Vector3
 	var shoot_dir: Vector3
@@ -161,7 +225,13 @@ func _spawn_projectile() -> void:
 	else:
 		return
 
-	spawn_custom_projectile(muzzle_pos, shoot_dir)
+	# A barrel can visually enter cover even while the driving capsule is clear.
+	# Check the breech-to-muzzle segment so shots cannot start beyond that cover.
+	var obstruction := _get_muzzle_obstruction(muzzle_pos)
+	var projectile := spawn_custom_projectile(muzzle_pos, shoot_dir)
+	if projectile and not obstruction.is_empty():
+		projectile.global_position = obstruction.position + obstruction.normal * 0.22
+		projectile._handle_direct_hit(obstruction.collider, obstruction.position, obstruction.normal)
 
 func _play_recoil() -> void:
 	if not _barrel_mount:

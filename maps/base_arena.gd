@@ -11,6 +11,7 @@ signal tank_fell(tank: Tank)
 @export var kill_volume: Area3D = null
 
 func _ready() -> void:
+	ShotGeometry.add_arena_surfaces(self)
 	if not spawn_points_container:
 		spawn_points_container = get_node_or_null("SpawnPoints")
 	if not kill_volume:

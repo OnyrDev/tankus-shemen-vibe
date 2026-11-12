@@ -60,6 +60,16 @@ grow_vertical = 2
 mouse_filter = 2
 script = ExtResource("2_threat")
 
+[node name="ImpactMarker" type="Control" parent="."]
+visible = false
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
 [node name="Crosshair" type="Control" parent="." unique_id=872075477]
 layout_mode = 3
 anchors_preset = 8
@@ -71,55 +81,23 @@ grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
 
-[node name="Dot" type="ColorRect" parent="Crosshair" unique_id=612050755]
+[node name="Horizontal" type="ColorRect" parent="Crosshair"]
 layout_mode = 1
 anchors_preset = 8
 anchor_left = 0.5
 anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
-offset_left = -3.0
-offset_top = -3.0
-offset_right = 3.0
-offset_bottom = 3.0
-grow_horizontal = 2
-grow_vertical = 2
-mouse_filter = 2
-color = Color(1, 1, 1, 0.85)
-
-[node name="LineLeft" type="ColorRect" parent="Crosshair" unique_id=1580872933]
-layout_mode = 1
-anchors_preset = 8
-anchor_left = 0.5
-anchor_top = 0.5
-anchor_right = 0.5
-anchor_bottom = 0.5
-offset_left = -16.0
+offset_left = -4.0
 offset_top = -1.0
-offset_right = -7.0
+offset_right = 4.0
 offset_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
-color = Color(1, 1, 1, 0.6)
+color = Color(1, 1, 1, 1)
 
-[node name="LineRight" type="ColorRect" parent="Crosshair" unique_id=2130554355]
-layout_mode = 1
-anchors_preset = 8
-anchor_left = 0.5
-anchor_top = 0.5
-anchor_right = 0.5
-anchor_bottom = 0.5
-offset_left = 7.0
-offset_top = -1.0
-offset_right = 16.0
-offset_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-mouse_filter = 2
-color = Color(1, 1, 1, 0.6)
-
-[node name="LineTop" type="ColorRect" parent="Crosshair" unique_id=627590822]
+[node name="Vertical" type="ColorRect" parent="Crosshair"]
 layout_mode = 1
 anchors_preset = 8
 anchor_left = 0.5
@@ -127,29 +105,13 @@ anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
 offset_left = -1.0
-offset_top = -16.0
+offset_top = -4.0
 offset_right = 1.0
-offset_bottom = -7.0
+offset_bottom = 4.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
-color = Color(1, 1, 1, 0.6)
-
-[node name="LineBottom" type="ColorRect" parent="Crosshair" unique_id=1855296287]
-layout_mode = 1
-anchors_preset = 8
-anchor_left = 0.5
-anchor_top = 0.5
-anchor_right = 0.5
-anchor_bottom = 0.5
-offset_left = -1.0
-offset_top = 7.0
-offset_right = 1.0
-offset_bottom = 16.0
-grow_horizontal = 2
-grow_vertical = 2
-mouse_filter = 2
-color = Color(1, 1, 1, 0.6)
+color = Color(1, 1, 1, 1)
 
 [node name="BottomLeft" type="MarginContainer" parent="." unique_id=2114914326]
 anchors_preset = 2

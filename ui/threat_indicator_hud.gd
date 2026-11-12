@@ -311,7 +311,7 @@ static func evaluate_projectile_threat_with_bounce(
 		if space and bounces_left <= 0:
 			var closest_pt := proj_pos + proj_vel * float(direct["eta"])
 			if proj_pos.distance_squared_to(closest_pt) > 0.04:
-				var wall_q := PhysicsRayQueryParameters3D.create(proj_pos, closest_pt, 1)
+				var wall_q := PhysicsRayQueryParameters3D.create(proj_pos, closest_pt, ShotGeometry.WORLD_MASK)
 				if not space.intersect_ray(wall_q).is_empty():
 					return {"is_threat": false}
 		return direct
@@ -325,7 +325,7 @@ static func evaluate_projectile_threat_with_bounce(
 
 	var max_wall_dist := minf(10.5, speed * max_eta)
 	var ray_to := proj_pos + (proj_vel / speed) * max_wall_dist
-	var query := PhysicsRayQueryParameters3D.create(proj_pos, ray_to, 1)
+	var query := PhysicsRayQueryParameters3D.create(proj_pos, ray_to, ShotGeometry.WORLD_MASK)
 	var hit := space.intersect_ray(query)
 	if hit.is_empty():
 		return {"is_threat": false}
