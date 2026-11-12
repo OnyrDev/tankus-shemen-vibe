@@ -336,6 +336,14 @@ layout_mode = 2
 theme_override_font_sizes/font_size = 15
 text = "Я ГОТОВ!"
 
+[node name="BtnInviteSteam" type="Button" parent="UILayer/Margin/VBox/Footer/Margin/HBox"]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(190, 42)
+layout_mode = 2
+theme_override_font_sizes/font_size = 15
+text = "🎮 ПРИГЛАСИТЬ ДРУГА"
+
 [node name="Spacer" type="Control" parent="UILayer/Margin/VBox/Footer/Margin/HBox"]
 layout_mode = 2
 size_flags_horizontal = 3

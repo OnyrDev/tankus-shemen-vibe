@@ -27,3 +27,7 @@ Thumbs.db
 build/
 *.exe
 *.pck
+
+# Steam dev App ID (keep out of release packages)
+steam_appid.txt
+

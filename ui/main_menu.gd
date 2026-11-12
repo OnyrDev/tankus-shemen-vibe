@@ -2,7 +2,7 @@ class_name MainMenu
 extends Control
 
 ## Скрипт автономного Главного Меню TANKUS.
-## Обеспечивает навигацию: Одиночный режим (Тренировка), LAN-мультиплеер,
+## Обеспечивает навигацию: Одиночный режим (Тренировка), Steam / LAN мультиплеер,
 ## выбор карты арены, настройки звука/экрана и стильный 3D-шоурум танка.
 
 signal play_solo_requested()
@@ -70,11 +70,15 @@ const MAP_INFO: Dictionary = {
 @onready var btn_map_back: Button = %BtnMapBack
 @onready var lbl_status_map: Label = %LblStatusMap
 
-# --- Элементы LAN ---
+# --- Элементы LAN / Steam ---
 @onready var line_player_name: LineEdit = %LinePlayerName
 @onready var line_server_name: LineEdit = %LineServerName
 @onready var btn_create_host: Button = %BtnCreateHost
 @onready var chk_allow_admin: CheckBox = get_node_or_null("%ChkAllowAdmin")
+@onready var hbox_steam_host: HBoxContainer = get_node_or_null("%HBoxSteamHost")
+@onready var opt_steam_privacy: OptionButton = get_node_or_null("%OptSteamPrivacy")
+@onready var btn_create_steam: Button = get_node_or_null("%BtnCreateSteam")
+@onready var btn_refresh_steam: Button = get_node_or_null("%BtnRefreshSteam")
 @onready var btn_refresh_lan: Button = %BtnRefreshLAN
 @onready var server_list_vbox: VBoxContainer = %ServerList
 @onready var lbl_lan_status: Label = %LblLANStatus
@@ -95,6 +99,8 @@ const MAP_INFO: Dictionary = {
 @onready var btn_settings_back: Button = %BtnSettingsBack
 
 var _lan_discovery: LANDiscovery = null
+var _cached_lan_servers: Array = []
+var _cached_steam_lobbies: Array = []
 var _selected_map_key: String = "sky_courtyard"
 var _rotation_time: float = 0.0
 
@@ -132,12 +138,23 @@ func _connect_signals() -> void:
 	btn_lan_back.pressed.connect(func(): _switch_panel("main"))
 	btn_settings_back.pressed.connect(func(): _switch_panel("main"))
 
-	# LAN кнопки и ввод
+	# LAN / Steam кнопки и ввод
 	btn_create_host.pressed.connect(_on_create_host_pressed)
 	btn_refresh_lan.pressed.connect(_start_lan_search)
 	btn_direct_connect.pressed.connect(_on_direct_connect_pressed)
+	if opt_steam_privacy:
+		opt_steam_privacy.clear()
+		opt_steam_privacy.add_item("Публичное лобби", SteamService.LOBBY_TYPE_PUBLIC)
+		opt_steam_privacy.add_item("Только для друзей", SteamService.LOBBY_TYPE_FRIENDS_ONLY)
+		opt_steam_privacy.add_item("Приватное (по приглашению)", SteamService.LOBBY_TYPE_PRIVATE)
+	if btn_create_steam:
+		btn_create_steam.pressed.connect(_on_create_steam_pressed)
+	if btn_refresh_steam:
+		btn_refresh_steam.pressed.connect(_on_refresh_steam_pressed)
 	if line_player_name:
 		var init_name := SettingsManager.get_player_name() if SettingsManager else Network.local_player_name
+		if (init_name.is_empty() or init_name == "Player") and SteamService and SteamService.is_available() and not SteamService.persona_name.is_empty():
+			init_name = SteamService.persona_name
 		line_player_name.text = init_name
 		Network.local_player_name = init_name
 		line_player_name.text_changed.connect(func(n: String):
@@ -163,6 +180,10 @@ func _connect_signals() -> void:
 	Network.server_created.connect(_on_network_server_created)
 	Network.connected_to_server.connect(_on_network_connected_to_server)
 	Network.connection_failed.connect(_on_network_connection_failed)
+	if SteamService:
+		SteamService.lobby_created.connect(_on_steam_lobby_created)
+		SteamService.lobby_list_received.connect(_on_steam_lobby_list_received)
+		SteamService.steam_error.connect(_on_steam_error)
 
 func _setup_lan_discovery() -> void:
 	_lan_discovery = LANDiscovery.new()
@@ -181,7 +202,10 @@ func _switch_panel(panel_name: String) -> void:
 	if panel_name == "lan":
 		if chk_allow_admin:
 			chk_allow_admin.button_pressed = Game.rules.allow_admin_panel
+		_update_steam_controls_state()
 		_start_lan_search()
+		if SteamService and SteamService.is_available():
+			SteamService.request_lobby_list()
 
 func _on_btn_solo_pressed() -> void:
 	_play_select_sound()
@@ -259,7 +283,17 @@ func _update_map_status_ui() -> void:
 	if lbl_status_map:
 		lbl_status_map.text = "АРЕНА: %s" % info["name"].to_upper()
 
-# --- Сетевая игра LAN ---
+# --- Сетевая игра LAN / Steam ---
+
+func _update_steam_controls_state() -> void:
+	var steam_ok: bool = SteamService != null and SteamService.is_available()
+	if btn_create_steam:
+		btn_create_steam.disabled = not steam_ok
+		btn_create_steam.tooltip_text = "" if steam_ok else "Запустите клиент Steam для создания Steam-лобби"
+	if btn_refresh_steam:
+		btn_refresh_steam.disabled = not steam_ok
+	if opt_steam_privacy:
+		opt_steam_privacy.disabled = not steam_ok
 
 func _start_lan_search() -> void:
 	if _lan_discovery and not Network.is_host:
@@ -269,29 +303,71 @@ func _start_lan_search() -> void:
 				lbl_lan_status.text = "Сканирование локальной сети (UDP Discovery)..."
 		else:
 			if lbl_lan_status:
-				lbl_lan_status.text = "Порт сканера занят. Доступно прямое подключение."
+				lbl_lan_status.text = "Порт сканера занят. Доступно прямое подключение или Steam."
 
 func _on_lan_server_list_updated(servers: Array) -> void:
+	_cached_lan_servers = servers.duplicate()
+	_rebuild_combined_server_list()
+
+func _on_steam_lobby_list_received(lobbies: Array) -> void:
+	_cached_steam_lobbies = lobbies.duplicate()
+	_rebuild_combined_server_list()
+
+func _rebuild_combined_server_list() -> void:
 	if not server_list_vbox:
 		return
 
 	for c in server_list_vbox.get_children():
 		c.queue_free()
 
-	if servers.is_empty():
+	var total := _cached_steam_lobbies.size() + _cached_lan_servers.size()
+	if total == 0:
 		if lbl_lan_status:
 			lbl_lan_status.text = "Комнат не обнаружено. Создайте сервер или обновите список."
 		return
 
 	if lbl_lan_status:
-		lbl_lan_status.text = "Обнаружено комнат в сети: %d" % servers.size()
+		lbl_lan_status.text = "Найдено комнат: %d (Steam: %d, LAN: %d)" % [
+			total, _cached_steam_lobbies.size(), _cached_lan_servers.size()
+		]
 
-	for s in servers:
+	for st in _cached_steam_lobbies:
 		var row := HBoxContainer.new()
 		row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 
 		var lbl := Label.new()
-		lbl.text = "%s (%s:%d) — игроки %d/%d" % [
+		lbl.text = "[Steam] %s (%s) — игроки %d/%d" % [
+			st.get("name", "TANKUS Room"),
+			st.get("mode", "FFA"),
+			int(st.get("members", 1)),
+			int(st.get("max_members", 8))
+		]
+		if int(st.get("bots", 0)) > 0:
+			lbl.text += ", боты %d" % int(st.get("bots", 0))
+		lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row.add_child(lbl)
+
+		var join_btn := Button.new()
+		join_btn.text = "Войти"
+		join_btn.custom_minimum_size = Vector2(90, 32)
+		var target_lobby_id: int = int(st.get("lobby_id", 0))
+		join_btn.pressed.connect(func():
+			_play_select_sound()
+			if lbl_lan_status:
+				lbl_lan_status.text = "Вход в Steam-лобби #%d..." % target_lobby_id
+			SteamService.join_lobby(target_lobby_id)
+		)
+		join_btn.mouse_entered.connect(_play_hover_sound)
+		row.add_child(join_btn)
+
+		server_list_vbox.add_child(row)
+
+	for s in _cached_lan_servers:
+		var row := HBoxContainer.new()
+		row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+
+		var lbl := Label.new()
+		lbl.text = "[LAN] %s (%s:%d) — игроки %d/%d" % [
 			s.get("name", "Host"),
 			s.get("ip", "127.0.0.1"),
 			s.get("port", 7000),
@@ -316,6 +392,48 @@ func _on_lan_server_list_updated(servers: Array) -> void:
 		row.add_child(join_btn)
 
 		server_list_vbox.add_child(row)
+
+func _on_create_steam_pressed() -> void:
+	_play_select_sound()
+	if not SteamService or not SteamService.is_available():
+		if lbl_lan_status:
+			lbl_lan_status.text = "Steam недоступен. Запустите клиент Steam."
+		return
+
+	var s_name := "TANKUS Room"
+	if line_server_name and not line_server_name.text.strip_edges().is_empty():
+		s_name = line_server_name.text.strip_edges()
+
+	if chk_allow_admin:
+		Game.rules.allow_admin_panel = chk_allow_admin.button_pressed
+	Game.rules.selected_map = _selected_map_key
+
+	var lobby_type: int = SteamService.LOBBY_TYPE_PUBLIC
+	if opt_steam_privacy and opt_steam_privacy.selected >= 0:
+		lobby_type = opt_steam_privacy.get_selected_id()
+
+	if lbl_lan_status:
+		lbl_lan_status.text = "Создание лобби в Steam..."
+	SteamService.create_lobby(s_name, lobby_type, Network.MAX_PLAYERS)
+
+func _on_refresh_steam_pressed() -> void:
+	_play_select_sound()
+	if not SteamService or not SteamService.is_available():
+		if lbl_lan_status:
+			lbl_lan_status.text = "Steam недоступен. Запустите клиент Steam."
+		return
+	if lbl_lan_status:
+		lbl_lan_status.text = "Запрос списка лобби Steam..."
+	SteamService.request_lobby_list()
+
+func _on_steam_lobby_created(_lobby_id: int) -> void:
+	if _lan_discovery:
+		_lan_discovery.stop_listening()
+	get_tree().change_scene_to_file("res://lobby/lobby_screen.tscn")
+
+func _on_steam_error(msg: String) -> void:
+	if lbl_lan_status:
+		lbl_lan_status.text = "Steam: %s" % msg
 
 func _on_create_host_pressed() -> void:
 	_play_select_sound()

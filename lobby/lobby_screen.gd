@@ -43,6 +43,7 @@ const TEAM_COLORS: Array[Color] = [
 
 # --- Нижняя панель действий ---
 @onready var btn_ready: Button = %BtnReady
+@onready var btn_invite_steam: Button = get_node_or_null("%BtnInviteSteam")
 @onready var btn_start_match: Button = %BtnStartMatch
 @onready var btn_leave_lobby: Button = %BtnLeaveLobby
 @onready var line_edit_name: LineEdit = %LineEditName
@@ -50,6 +51,9 @@ const TEAM_COLORS: Array[Color] = [
 var _is_local_ready: bool = false
 var _rotation_time: float = 0.0
 var _is_transitioning: bool = false
+var _friends_popup: PopupPanel = null
+var _friends_list_vbox: VBoxContainer = null
+var _friends_status_lbl: Label = null
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -81,6 +85,8 @@ func _connect_signals() -> void:
 
 	if btn_ready:
 		btn_ready.pressed.connect(_on_btn_ready_pressed)
+	if btn_invite_steam:
+		btn_invite_steam.pressed.connect(_on_btn_invite_steam_pressed)
 	if btn_start_match:
 		btn_start_match.pressed.connect(_on_btn_start_match_pressed)
 	if btn_leave_lobby:
@@ -146,6 +152,8 @@ func _update_lobby_ui() -> void:
 
 	if btn_start_match:
 		btn_start_match.visible = is_host
+	if btn_invite_steam:
+		btn_invite_steam.visible = Network.transport == Network.Transport.STEAM and SteamService != null and SteamService.current_lobby_id != 0
 
 	if lbl_host_only_hint:
 		lbl_host_only_hint.visible = not is_host
@@ -297,6 +305,127 @@ func _on_btn_ready_pressed() -> void:
 	Network.set_local_ready(_is_local_ready)
 	_update_ready_button_text()
 
+func _on_btn_invite_steam_pressed() -> void:
+	_play_select_sound()
+	if not SteamService or not SteamService.is_available() or SteamService.current_lobby_id == 0:
+		return
+	# Пытаемся также вызвать нативный оверлей Steam (сработает при запуске игры через клиент Steam),
+	# и всегда открываем внутриигровое окно со списком друзей (работает даже из редактора Godot и в Embedded Window).
+	SteamService.open_invite_overlay()
+	_open_friends_invite_popup()
+
+
+func _open_friends_invite_popup() -> void:
+	if _friends_popup == null:
+		_friends_popup = PopupPanel.new()
+		_friends_popup.title = "Пригласить друга в Steam"
+		_friends_popup.size = Vector2i(440, 420)
+		var style := StyleBoxFlat.new()
+		style.bg_color = Color(0.07, 0.09, 0.13, 0.98)
+		style.border_width_left = 1
+		style.border_width_top = 1
+		style.border_width_right = 1
+		style.border_width_bottom = 1
+		style.border_color = Color(0.0, 0.85, 1.0, 0.5)
+		style.corner_radius_top_left = 8
+		style.corner_radius_top_right = 8
+		style.corner_radius_bottom_left = 8
+		style.corner_radius_bottom_right = 8
+		_friends_popup.add_theme_stylebox_override("panel", style)
+
+		var margin := MarginContainer.new()
+		margin.add_theme_constant_override("margin_left", 16)
+		margin.add_theme_constant_override("margin_top", 14)
+		margin.add_theme_constant_override("margin_right", 16)
+		margin.add_theme_constant_override("margin_bottom", 14)
+		_friends_popup.add_child(margin)
+
+		var root_vbox := VBoxContainer.new()
+		root_vbox.add_theme_constant_override("separation", 10)
+		margin.add_child(root_vbox)
+
+		var title_lbl := Label.new()
+		title_lbl.text = "🎮 ПРИГЛАСИТЬ ДРУГА В ЛОББИ"
+		title_lbl.add_theme_font_size_override("font_size", 17)
+		title_lbl.add_theme_color_override("font_color", Color(0.2, 0.85, 1.0))
+		root_vbox.add_child(title_lbl)
+
+		_friends_status_lbl = Label.new()
+		_friends_status_lbl.add_theme_font_size_override("font_size", 12)
+		_friends_status_lbl.add_theme_color_override("font_color", Color(0.65, 0.75, 0.88))
+		_friends_status_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		root_vbox.add_child(_friends_status_lbl)
+
+		var scroll := ScrollContainer.new()
+		scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		scroll.custom_minimum_size = Vector2(0, 260)
+		root_vbox.add_child(scroll)
+
+		_friends_list_vbox = VBoxContainer.new()
+		_friends_list_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		_friends_list_vbox.add_theme_constant_override("separation", 6)
+		scroll.add_child(_friends_list_vbox)
+
+		var close_btn := Button.new()
+		close_btn.text = "Закрыть"
+		close_btn.custom_minimum_size = Vector2(120, 34)
+		close_btn.size_flags_horizontal = Control.SIZE_SHRINK_END
+		close_btn.pressed.connect(func():
+			_play_select_sound()
+			_friends_popup.hide()
+		)
+		root_vbox.add_child(close_btn)
+		add_child(_friends_popup)
+
+	_populate_friends_invite_list()
+	_friends_popup.popup_centered()
+
+
+func _populate_friends_invite_list() -> void:
+	if _friends_list_vbox == null:
+		return
+	for c in _friends_list_vbox.get_children():
+		c.queue_free()
+
+	var friends := SteamService.get_online_friends() if SteamService else []
+	if _friends_status_lbl:
+		var overlay_hint := "" if (SteamService and SteamService.is_overlay_enabled()) else " (Steam Overlay недоступен при запуске из редактора — используется прямое приглашение Steam API)"
+		_friends_status_lbl.text = "Друзей в списке: %d%s" % [friends.size(), overlay_hint]
+
+	if friends.is_empty():
+		var empty_lbl := Label.new()
+		empty_lbl.text = "Список друзей Steam пуст."
+		_friends_list_vbox.add_child(empty_lbl)
+		return
+
+	for f in friends:
+		var row := HBoxContainer.new()
+		row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row.add_theme_constant_override("separation", 10)
+
+		var is_online := bool(f.get("is_online", false))
+		var name_lbl := Label.new()
+		name_lbl.text = "%s %s" % ["🟢" if is_online else "⚫", str(f.get("name", "Friend"))]
+		name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		name_lbl.modulate = Color(0.95, 0.98, 1.0) if is_online else Color(0.55, 0.6, 0.68)
+		row.add_child(name_lbl)
+
+		var inv_btn := Button.new()
+		inv_btn.text = "Пригласить"
+		inv_btn.custom_minimum_size = Vector2(115, 30)
+		var fid := int(f.get("steam_id", 0))
+		var fname := str(f.get("name", "Friend"))
+		inv_btn.pressed.connect(func():
+			_play_select_sound()
+			var sent := SteamService.invite_friend_to_current_lobby(fid)
+			inv_btn.text = "Отправлено ✓" if sent else "Ошибка"
+			inv_btn.disabled = sent
+			if _friends_status_lbl and sent:
+				_friends_status_lbl.text = "Приглашение в лобби отправлено игроку %s!" % fname
+		)
+		row.add_child(inv_btn)
+		_friends_list_vbox.add_child(row)
+
 func _update_ready_button_text() -> void:
 	if not btn_ready:
 		return
@@ -330,6 +459,8 @@ func _launch_match_local(map_name: String) -> void:
 	_is_transitioning = true
 	Game.rules.selected_map = map_name
 	Game.is_in_match = true
+	if Network.is_host and Network.transport == Network.Transport.STEAM and SteamService:
+		SteamService.update_current_lobby_metadata()
 	var tree := get_tree()
 	if tree:
 		tree.change_scene_to_file("res://maps/test_sandbox.tscn")

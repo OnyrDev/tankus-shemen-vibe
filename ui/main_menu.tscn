@@ -156,7 +156,7 @@ unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 48)
 layout_mode = 2
 theme_override_font_sizes/font_size = 16
-text = "🌐  СЕТЕВАЯ ИГРА (LAN)"
+text = "🌐  СЕТЕВАЯ ИГРА (STEAM / LAN)"
 alignment = 0
 
 [node name="BtnMap" type="Button" parent="UILayer/LeftMargin/VBox/MainButtons" unique_id=557174845]
@@ -313,7 +313,7 @@ theme_override_constants/separation = 10
 layout_mode = 2
 theme_override_colors/font_color = Color(0, 0.85, 1, 1)
 theme_override_font_sizes/font_size = 22
-text = "🌐 СЕТЕВАЯ ИГРА (LAN)"
+text = "🌐 СЕТЕВАЯ ИГРА (STEAM / LAN)"
 
 [node name="HSeparator" type="HSeparator" parent="UILayer/ModalsContainer/LANPanel/Margin/VBox" unique_id=387172569]
 layout_mode = 2
@@ -352,6 +352,33 @@ text = "🛡️ Создать сервер"
 unique_name_in_owner = true
 layout_mode = 2
 text = "Разрешить админ-панель (F3) в сетевой игре"
+
+[node name="HBoxSteamHost" type="HBoxContainer" parent="UILayer/ModalsContainer/LANPanel/Margin/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="LblSteam" type="Label" parent="UILayer/ModalsContainer/LANPanel/Margin/VBox/HBoxSteamHost"]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+text = "Steam лобби:"
+
+[node name="OptSteamPrivacy" type="OptionButton" parent="UILayer/ModalsContainer/LANPanel/Margin/VBox/HBoxSteamHost"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="BtnCreateSteam" type="Button" parent="UILayer/ModalsContainer/LANPanel/Margin/VBox/HBoxSteamHost"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(180, 36)
+layout_mode = 2
+text = "🎮 Создать в Steam"
+
+[node name="BtnRefreshSteam" type="Button" parent="UILayer/ModalsContainer/LANPanel/Margin/VBox/HBoxSteamHost"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(120, 36)
+layout_mode = 2
+text = "🔄 Steam лобби"
 
 [node name="HSeparator2" type="HSeparator" parent="UILayer/ModalsContainer/LANPanel/Margin/VBox" unique_id=1943964214]
 layout_mode = 2

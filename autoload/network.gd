@@ -16,11 +16,14 @@ signal player_list_updated()
 signal player_ready_changed(peer_id: int, is_ready: bool)
 signal match_rules_updated()
 
+enum Transport { ENET, STEAM }
+
 const DEFAULT_PORT: int = 7000
 const MAX_CLIENTS: int = 8
 const MAX_PLAYERS: int = 8
 const BOT_ID_BASE: int = -1000
 
+var transport: Transport = Transport.ENET
 var players: Dictionary = {} # peer_id: int -> PlayerInfo
 var local_player_name: String = "Player"
 var local_team_id: int = 1
@@ -80,17 +83,8 @@ func create_host(port: int = DEFAULT_PORT) -> Error:
 		push_error("Network: Не удалось создать ENet сервер на порту %d: %s" % [port, error_string(err)])
 		return err
 
-	multiplayer.multiplayer_peer = peer
-	is_host = true
-	players.clear()
-
-	var local_info := PlayerInfo.new(1, local_player_name, local_team_id)
-	players[1] = local_info
-	Game.is_in_match = false
-	_reconcile_bots()
-
-	server_created.emit()
-	player_list_updated.emit()
+	transport = Transport.ENET
+	_start_host_with_peer(peer, 0)
 	return OK
 
 func join_host(ip: String, port: int = DEFAULT_PORT) -> Error:
@@ -106,17 +100,83 @@ func join_host(ip: String, port: int = DEFAULT_PORT) -> Error:
 		push_error("Network: Не удалось подключиться к %s:%d: %s" % [clean_ip, port, error_string(err)])
 		return err
 
+	transport = Transport.ENET
 	multiplayer.multiplayer_peer = peer
 	is_host = false
 	return OK
 
-func disconnect_session() -> void:
+func create_host_steam(lobby_id: int) -> Error:
+	disconnect_session(false)
+
+	var peer := _instantiate_steam_peer()
+	if peer == null:
+		return ERR_UNAVAILABLE
+
+	var err: Error = int(peer.call("host_with_lobby", lobby_id)) as Error
+	if err != OK:
+		push_error("Network: Не удалось запустить SteamMultiplayerPeer для лобби %d: %s" % [lobby_id, error_string(err)])
+		return err
+
+	transport = Transport.STEAM
+	var host_steam_id: int = SteamService.steam_id if SteamService and SteamService.is_available() else 0
+	if SteamService and SteamService.is_available() and not SteamService.persona_name.is_empty() and local_player_name == "Player":
+		local_player_name = SteamService.persona_name
+	_start_host_with_peer(peer, host_steam_id)
+	return OK
+
+func join_host_steam(lobby_id: int) -> Error:
+	disconnect_session(false)
+
+	var peer := _instantiate_steam_peer()
+	if peer == null:
+		return ERR_UNAVAILABLE
+
+	var err: Error = int(peer.call("connect_to_lobby", lobby_id)) as Error
+	if err != OK:
+		push_error("Network: Не удалось подключиться к Steam лобби %d: %s" % [lobby_id, error_string(err)])
+		return err
+
+	transport = Transport.STEAM
+	if SteamService and SteamService.is_available() and not SteamService.persona_name.is_empty() and local_player_name == "Player":
+		local_player_name = SteamService.persona_name
+	multiplayer.multiplayer_peer = peer
+	is_host = false
+	return OK
+
+func _instantiate_steam_peer() -> MultiplayerPeer:
+	if not ClassDB.class_exists("SteamMultiplayerPeer") or not ClassDB.can_instantiate("SteamMultiplayerPeer"):
+		push_error("Network: Класс SteamMultiplayerPeer недоступен (аддон GodotSteam не загружен).")
+		return null
+	var peer := ClassDB.instantiate("SteamMultiplayerPeer") as MultiplayerPeer
+	if peer != null and peer.has_method("set_server_relay"):
+		peer.call("set_server_relay", true)
+	return peer
+
+func _start_host_with_peer(peer: MultiplayerPeer, host_steam_id: int) -> void:
+	multiplayer.multiplayer_peer = peer
+	is_host = true
+	players.clear()
+
+	var local_info := PlayerInfo.new(1, local_player_name, local_team_id)
+	local_info.steam_id = host_steam_id
+	players[1] = local_info
+	Game.is_in_match = false
+	_reconcile_bots()
+
+	server_created.emit()
+	player_list_updated.emit()
+
+func disconnect_session(leave_steam_lobby: bool = true) -> void:
 	if multiplayer.has_multiplayer_peer():
 		var peer: MultiplayerPeer = multiplayer.multiplayer_peer
 		if peer != null and not (peer is OfflineMultiplayerPeer):
 			peer.close()
 		multiplayer.multiplayer_peer = null
 
+	if leave_steam_lobby and SteamService and SteamService.current_lobby_id != 0:
+		SteamService.leave_lobby()
+
+	transport = Transport.ENET
 	players.clear()
 	_bot_balance_signature.clear()
 	is_host = false
@@ -146,7 +206,9 @@ func _on_peer_disconnected(id: int) -> void:
 func _on_connected_to_server() -> void:
 	connected_to_server.emit()
 	# Клиент регистрирует себя на сервере
-	_register_player.rpc_id(1, local_player_name, local_team_id)
+	var my_steam_id: int = SteamService.steam_id if (transport == Transport.STEAM and SteamService and SteamService.is_available()) else 0
+	var game_ver: String = SteamService.GAME_VERSION if SteamService else ""
+	_register_player.rpc_id(1, local_player_name, local_team_id, my_steam_id, game_ver)
 
 func _on_connection_failed() -> void:
 	disconnect_session()
@@ -215,6 +277,8 @@ func update_match_rules_from_host(rules_dict: Dictionary) -> void:
 	_reconcile_bots()
 	_sync_all_players.rpc(_get_players_data_array())
 	s2c_match_rules_updated.rpc(Game.rules.to_dict())
+	if transport == Transport.STEAM and SteamService:
+		SteamService.update_current_lobby_metadata()
 	match_rules_updated.emit()
 
 func get_human_player_count() -> int:
@@ -382,17 +446,29 @@ func _sync_ping_to_clients(peer_id: int, rtt: int) -> void:
 		player_list_updated.emit()
 
 @rpc("any_peer", "reliable")
-func _register_player(p_name: String, p_team: int) -> void:
+func _register_player(p_name: String, p_team: int, p_steam_id: int = 0, p_game_version: String = "") -> void:
 	if not is_server():
 		return
 
 	var sender_id := multiplayer.get_remote_sender_id()
 	if sender_id <= 1:
 		return
+	if not p_game_version.is_empty() and SteamService and p_game_version != SteamService.GAME_VERSION:
+		push_warning("Network: Отклонен пир %d из-за несовпадения версии (%s != %s)." % [sender_id, p_game_version, SteamService.GAME_VERSION])
+		multiplayer.multiplayer_peer.disconnect_peer(sender_id)
+		return
 	if not players.has(sender_id) and get_human_player_count() >= MAX_PLAYERS:
 		multiplayer.multiplayer_peer.disconnect_peer(sender_id)
 		return
+	var resolved_steam_id := p_steam_id
+	if resolved_steam_id <= 0 and transport == Transport.STEAM and multiplayer.multiplayer_peer != null and multiplayer.multiplayer_peer.has_method("get_steam_id_for_peer_id"):
+		resolved_steam_id = int(multiplayer.multiplayer_peer.call("get_steam_id_for_peer_id", sender_id))
+
 	var player_name := p_name.strip_edges()
+	if (player_name.is_empty() or player_name == "Player") and resolved_steam_id > 0 and SteamService:
+		var steam_nick := SteamService.get_friend_name(resolved_steam_id)
+		if not steam_nick.is_empty():
+			player_name = steam_nick
 	if player_name.is_empty():
 		player_name = "Player_%d" % sender_id
 
@@ -402,6 +478,7 @@ func _register_player(p_name: String, p_team: int) -> void:
 		team = (players.size() % 4) + 1
 
 	var new_player := PlayerInfo.new(sender_id, player_name, team)
+	new_player.steam_id = resolved_steam_id
 	players[sender_id] = new_player
 	_reconcile_bots()
 
